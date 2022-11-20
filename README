@@ -1,0 +1,36 @@
+Undefined behavior C
+====================
+
+C to graph lang
+
+    env TV_ROOT=... L4V_ARCH=RISCV64 bash make-graph-from-c.sh <in.c> <out.txt>
+
+visualize a graph (need to have dot installed)
+
+    python2 dot_graph.py <graph.txt> <function name>
+
+Plan:
+
+    - transforms blocks that go to Err into asserts (so that the CFG looks
+      simpler) (??)
+    - compute dominators
+    (limitation: transform irreducible graph into reducible one)
+    - ensure CFG is reducible
+        - ignoring back edges, ensure graph forms DAG (sort topologically)
+            - a back edge is an edge head ---> target who's target dominates the
+              head
+    - ssa
+    - remove back edges and havoc loop written variables
+    - determine biconditions
+    - prove bicondition & assert is always unsat
+
+    determining loop invariants/when they are strong enough need more thoughts
+
+All code must be formatted with black.
+
+If you're using pyright, you'll most likely want in the file
+`/pyrightconfig.json`
+
+    {
+        "extraPaths": ["../graph-refine"]
+    }
