@@ -1,0 +1,66 @@
+idle_thread has an assert True which messes up the domination relation:
+    the "pre" loop should jump to the condition node, instead it goes to the
+    assert True which then goes to the condition. Unfortunately, the assert True
+    is part of the loop, so there are no back edges.
+
+same issue with c_handle_syscall
+
+
+
+irr Kernel_C.idle_thread                           t
+irr Kernel_C.c_handle_syscall                      t
+irr Kernel_C.c_handle_fastpath_call                t
+irr Kernel_C.c_handle_fastpath_reply_recv          t
+irr Kernel_C.c_handle_interrupt
+irr Kernel_C.fastpath_copy_mrs
+irr Kernel_C.initIRQController
+irr Kernel_C.memzero
+irr Kernel_C.plic_init_hart
+irr Kernel_C.create_domain_cap
+irr Kernel_C.c_handle_exception
+irr Kernel_C.copyGlobalMappings
+irr Kernel_C.memcpy
+irr Kernel_C.strncmp
+irr Kernel_C.strnlen
+irr Kernel_C.arch_get_n_paging
+irr Kernel_C.init_irqs
+irr Kernel_C.map_kernel_devices
+irr Kernel_C.resetTimer
+irr Kernel_C.cancelAllSignals
+irr Kernel_C.check_reserved_memory
+irr Kernel_C.strlcpy
+irr Kernel_C.cancelAllIPC
+irr Kernel_C.memset
+irr Kernel_C.copyMRs
+irr Kernel_C.lookupPTSlot
+irr Kernel_C.createNewObjects
+irr Kernel_C.copyMRsFault
+irr Kernel_C.merge_regions
+irr Kernel_C.check_available_memory
+irr Kernel_C.create_frames_of_region
+irr Kernel_C.insert_region
+irr Kernel_C.unmapPageTable
+irr Kernel_C.plic_init_controller
+irr Kernel_C.create_untypeds_for_region
+irr Kernel_C.cteRevoke
+irr Kernel_C.lookupExtraCaps
+irr Kernel_C.copyMRsFaultReply
+irr Kernel_C.cancelBadgedSends
+irr Kernel_C.strlcat
+irr Kernel_C.str_to_long
+irr Kernel_C.invokeTCB_CopyRegisters
+irr Kernel_C.create_it_address_space
+irr Kernel_C.invokeTCB_WriteRegisters
+irr Kernel_C.resetUntypedCap
+irr Kernel_C.reserve_region
+irr Kernel_C.map_kernel_window
+irr Kernel_C.create_untypeds
+irr Kernel_C.finaliseSlot
+irr Kernel_C.transferCaps
+irr Kernel_C.resolveAddressBits
+irr Kernel_C.invokeTCB_ReadRegisters
+irr Kernel_C.lookup_fp
+irr Kernel_C.try_init_kernel
+irr Kernel_C.decodeUntypedInvocation
+irr Kernel_C.decodeRISCVMMUInvocation
+irr Kernel_C.init_freemem

@@ -1,71 +1,191 @@
 import syntax
-import logic
-from typing import Dict, List, Set, Iterable
+from collections.abc import Container
+from dataclasses import dataclass
+from functools import reduce
 
 
-def sets_intersection(sets):
-    # type: (Iterable[Set]) -> Set
-    try:
-        inte = next(sets)
-    except StopIteration:
-        return set([])
+def compute_all_successors(function: syntax.Function) -> dict[str, list[str]]:
+    all_succs = {}
+    for name, node in function.nodes.items():
+        all_succs[name] = []
+        for cont in node.get_conts():
+            all_succs[name].append(cont)
 
-    for s in sets:
-        inte = inte.intersection(s)
-    return inte
+            # if cont doesn't have any successors, this if statements makes
+            # sure that we'll at least have all_succs[cont] = []
+            #
+            # (we want every node to be a key of the dict, ie. len
+            # (all_succs) == num of nodes in the graph)
+            if cont not in all_succs:
+                all_succs[cont] = []
+    return all_succs
 
 
-# There exists more efficient algorithms, but we can implement them if this
-# becomes a bottle next
-def compute_dominators(entry, nodes, preds):
-    # type: (str, Dict[str, syntax.Node], Dict[str, List[str]]) -> Dict[str, List[str]]
+def compute_all_predecessors(all_succs: dict[str, list[str]]) -> dict[str, list[str]]:
+    g = {n: [] for n in all_succs}
+    for n, succs in all_succs.items():
+        for succ in succs:
+            g[succ].append(n)
+    return g
 
-    doms = {}  # type: Dict[str, Set[str]]
+# algorithm from https://en.wikipedia.org/wiki/Dominator_(graph_theory) there
+# exists more efficient algorithms, but we can implement them if it turns out
+# this is a bottle neck
+
+
+def compute_dominators(all_succs: dict[str, list[str]], all_preds: dict[str, list[str]], entry: str) -> dict[str, list[str]]:
+    doms: dict[str, set[str]] = {}
     doms[entry] = set([entry])
-    for name in nodes:
-        if name != entry:
-            doms[name] = set(nodes.keys())
+
+    assert all_succs.keys() == all_preds.keys()
+    for n in all_succs:
+        if n != entry:
+            doms[n] = set(all_succs.keys())
 
     changed = True
     while changed:
         changed = False
-        for name in nodes:
-            if name == entry:
+        for n in all_succs:
+            if n == entry:
                 continue
-            new_doms = set([name]).union(
-                sets_intersection(doms[p] for p in preds[name])
-            )
-            if new_doms != doms[name]:
+            new_dom = set([n]) | reduce(set.intersection, (doms[p]
+                                                           for p in all_preds[n]), set())
+            if new_dom != doms[n]:
                 changed = True
-            doms[name] = new_doms
+            doms[n] = new_dom
 
-    return {name: list(sorted(doms[name])) for name in doms}
-
-
-def compute_successors_graph(preds):
-    # type: (Dict[str, List[str]]) -> Dict[str, List[str]]
-    succs = {"Ret": [], "Err": []}
-    for name in preds.keys():
-        for p in preds[name]:
-            if p not in succs:
-                succs[p] = []
-            succs[p].append(name)
-    return succs
+    return {n: list(doms[n]) for n in doms}
 
 
-def undefined_behaviour_c(graph_file, function_name):
-    with open(graph_file) as f:
-        struct, functions, const_globals = syntax.parse_and_install_all(f, None)
+@dataclass()
+class CFG:
+    """
+    Class that groups information about a function's control flow graph
+    """
 
-    function = functions[function_name]
-    preds = logic.compute_preds(function.nodes)
-    doms = compute_dominators(function.entry, function.nodes, preds)
-    succs = compute_successors_graph(preds)
-    for head, tail in logic.tarjan(succs, [function.entry]):
-        print(head, tail)
-    # while True:
-    #     name = input("name: ")
-    #     if name in doms:
-    #         print(doms[name])
-    #     else:
-    #         print("name not found in", list(doms.keys()))
+    entry: str
+
+    all_succs: dict[str, list[str]]
+    """ Successors """
+
+    all_preds: dict[str, list[str]]
+    """ Predecessors """
+
+    all_doms: dict[str, list[str]]
+    """ Dominators """
+
+
+@dataclass()
+class Function:
+
+    cfg: CFG
+
+    # TODO: use namedtuples
+    nodes: dict[str, syntax.Node]
+
+
+def remove_contradiction_entry_node(func: syntax.Function):
+    """ for some reason, there often is a Cond False() ? Err : x node that
+    doesn't have any predecessors
+
+    It's not even to ensure that the Err blocks has a predecessor
+    (see Kernel_C.alignUp)
+
+    it's a pain for some the analysis (a function should only have one entry
+    point), so we remove it.
+    """
+
+    contr_entry = None
+    for n, node in func.nodes.items():
+        if node.kind == 'Cond' and node.right == 'Err' and func.nodes[node.left].kind == "Basic" and func.nodes[node.left].cont == 'Ret' and node.cond == syntax.Expr('Op', syntax.Type('Builtin', 'Bool'), name='False', vals=[]):
+            contr_entry = n
+
+    if contr_entry:
+        del func.nodes[contr_entry]
+    assert 'Err' not in func.nodes
+
+def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
+    assert is_valid_all_succs(all_succs)
+    assert entry in all_succs, f"entry {entry} not in all_succs"
+
+    all_preds = compute_all_predecessors(all_succs)
+    assert len(all_preds) == len(all_succs)
+    # assert is_valid_all_preds(all_preds)
+
+    all_doms = compute_dominators(
+        all_succs=all_succs, all_preds=all_preds, entry=entry)
+    return CFG(entry=entry, all_succs=all_succs, all_preds=all_preds, all_doms=all_doms)
+
+
+def compute_cfg_from_func(func: syntax.Function) -> CFG:
+    all_succs = compute_all_successors(func)
+    assert func.entry is not None, f"func.entry is None in {func.name}"
+    return compute_cfg_from_all_succs(all_succs, func.entry)
+
+
+def num_reachable(cfg: CFG) -> int:
+    q: list[str] = [cfg.entry]
+    visited = set()
+    while q:
+        n = q.pop(0)
+        visited.add(n)
+        if n not in cfg.all_succs:
+            continue
+        for cont in cfg.all_succs[n]:
+            if cont not in visited:
+                q.append(cont)
+    return len(visited)
+
+
+def cfg_is_reducible(cfg: CFG):
+    # use definition of reducibility from Aho, Sethi and Ullman 1986 p.606
+    #
+    # 1. the forward edges form an acyclic graph in which every node can be
+    #    reach from the entry
+    # 2. the back edges consists only of edges whose head dominates their tail
+    #    (tail --> head)
+
+    # a back edge is an edge who's head dominates their tail
+    back_edges: set[tuple[str, str]] = set()
+    for n, succs in cfg.all_succs.items():
+        tail = n
+        for head in succs:
+            if head in cfg.all_doms[tail]:
+                back_edges.add((tail, head))
+
+    visited = set()
+    q: list[str] = [cfg.entry]
+    while q:
+        n = q.pop(0)
+        if n in visited:
+            continue
+
+        # Visit in topological order, that is, visit all the predecessors first.
+        if all(p in visited for p in cfg.all_preds[n] if (p, n) not in back_edges):
+            visited.add(n)
+            q += cfg.all_succs[n]
+
+    # have we visited all the nodes? Not possible is there's a cycle, because
+    # there would always be a predecessor who hadn't been visited yet
+    return len(visited) == num_reachable(cfg)
+
+
+def is_valid_all_succs(all_succs: dict[str, list[str]]) -> bool:
+    # entry node should be a key of all_succs, even if they don't have any
+    # successors
+    for n, succs in all_succs.items():
+        for succ in succs:
+            if succ not in all_succs:
+                return False
+    return True
+
+
+def is_valid_all_preds(all_preds: dict[str, list[str]]) -> bool:
+    # there should only ever be one entry point, that is one node with no predecessors
+    num_entries = 0
+    for n, preds in all_preds.items():
+        if len(preds) == 0:
+            num_entries += 1
+        if num_entries >= 2:
+            return False
+    return True

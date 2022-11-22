@@ -26,11 +26,3 @@ Plan:
 
     determining loop invariants/when they are strong enough need more thoughts
 
-All code must be formatted with black.
-
-If you're using pyright, you'll most likely want in the file
-`/pyrightconfig.json`
-
-    {
-        "extraPaths": ["../graph-refine"]
-    }

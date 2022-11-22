@@ -74,15 +74,21 @@ session MySimplExport = AsmRefine +
 END
 )"
 
-# TMP_DIR="$(mktemp -d)"
-TMP_DIR="/tmp/foo"
-# trap 'rm -rf -- "$TMP_DIR"' EXIT
+TMP_DIR="$(mktemp -d)"
+# TMP_DIR="/tmp/foo"
+trap 'rm -rf -- "$TMP_DIR"' EXIT
 
 pushd "$TMP_DIR"
 cp "$c_file" input.c
 echo -n "$THY" > tmp.thy
 echo -n "$ROOT" > ROOT
 echo "TV_ROOT $TV_ROOT"
+
+# if gcc can't compile it, then isabelle won't be able to parse it
+if ! gcc -Wall -Werror -Wextra "$c_file" -o "$TMP_DIR/a.out" -c
+then
+    exit 1
+fi
 "$TV_ROOT"/isabelle/bin/isabelle build -d "$TV_ROOT"/l4v -D . -c
 cp result.txt "$output_file"
 popd

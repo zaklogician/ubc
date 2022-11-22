@@ -602,6 +602,9 @@ def subst_list (substor, xs, ss = None):
         return
 
 class Node:
+
+    cond: Expr
+
     def __init__ (self, kind, conts, args):
         # type(Node, str, str | List[str], Any)
         self.kind = kind  # type: str

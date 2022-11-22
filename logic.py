@@ -16,6 +16,7 @@ from syntax import (mk_var, mk_plus, mk_uminus, mk_minus, mk_times, mk_modulus, 
 
 from syntax import structs
 from target_objects import trace, printout
+from typing import List
 
 def is_int (n):
     return hasattr (n, '__int__')
@@ -1630,6 +1631,7 @@ def norm_mk_not (expr):
     return norm_neg (mk_not (expr))
 
 def split_conjuncts (expr):
+    # type: (Expr) -> List[Expr]
     expr = norm_neg (expr)
     if expr.is_op ('And'):
         [x, y] = expr.vals

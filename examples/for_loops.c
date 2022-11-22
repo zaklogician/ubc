@@ -1,4 +1,4 @@
-void factorial(unsigned int n)
+unsigned int factorial(unsigned int n)
 {
     unsigned int r = 1;
     for (unsigned int i = 2; i < n; i++)
@@ -25,10 +25,17 @@ void selection_sort(unsigned int *arr, unsigned int len)
     }
 }
 
-void double_loop(int n)
+int double_loop(int n)
 {
+    int k = 0;
     for (int i = 0; i < n; i++)
     {
-        
+        k += i;
     }
+    int s = 0;
+    for (int i = 0; i < k; i++)
+    {
+        s += i;
+    }
+    return s;
 }

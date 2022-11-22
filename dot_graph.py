@@ -1,16 +1,23 @@
-# -*- coding: utf-8 -*-
+""" standalone file to visualize graph lang
+"""
 
-# I'm aware of dot utils but it says it produces missleading graphs
-# at least I know what this does
-
-# open /tmp/grph.png
-
-
+from collections.abc import Callable
+from io import IOBase
 import subprocess
 from typing import Any, Tuple
+import tempfile
 
 import sys
 import os
+from logic import split_conjuncts
+from typing import TypeVar
+import copy
+
+remove_contradiction_entry_node = None
+try:
+    from ubc import remove_contradiction_entry_node
+except ImportError:
+    pass
 
 import syntax
 
@@ -71,7 +78,6 @@ def pretty_expr(expr, print_type=False):
         return "''{}''".format(expr.name)
     else:
         return str(expr)
-        assert False, "not pretty printable"
 
 
 def pretty_updates(update):
@@ -79,17 +85,34 @@ def pretty_updates(update):
     (name, typ), expr = update
     return "{} := {}".format(pretty_name(name), pretty_expr(expr))
 
+# black magic
+P = TypeVar("P")
+R = TypeVar("R")
+def viz(t: Callable[[IOBase, P], R]):
+    def func(arg: P):
+        fd, filepath = tempfile.mkstemp(dir="/tmp/", suffix=".gv")
+        t(os.fdopen(fd, 'w'), arg)
+        make_and_open_image(filepath)
+    return func
 
-def dot_graph(fun, file):
+@viz
+def viz_function(file: IOBase, fun: syntax.Function):
     # type: (syntax.Function, Any) -> None
     puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
     putsf = lambda fmt, *args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
 
+
     puts("digraph grph {")
     puts("  node[shape=box]")
+
+    if remove_contradiction_entry_node:
+        fun = copy.deepcopy(fun)
+        remove_contradiction_entry_node(fun)
+        puts("  Edited [label=<False() entry point not displayed>] [shape=plaintext] [fontsize=\"12px\"]")
+
+    puts(f"  FunctionDescription [label=<<u>{fun.name}</u>>] [shape=plaintext]")
     puts()
-    for idx in fun.nodes:
-        node = fun.nodes[idx]
+    for idx, node in fun.nodes.items():
         if node.kind == "Basic" or node.kind == "Call":
             putsf("  {} -> {}", idx, node.cont)
         elif node.kind == "Cond":
@@ -99,50 +122,68 @@ def dot_graph(fun, file):
 
         if node.kind == "Basic":
             content = (
-                "<br>".join(pretty_updates(u) for u in node.upds) or "<i>empty</i>"
+                "<BR/>".join(pretty_updates(u) for u in node.upds) or "<i>empty</i>"
             )
         elif node.kind == "Call":
             # weird: what is this ghost assertion?
-            content = "{} := {}({})".format(
-                pretty_name(node.rets[0][0]),
+            # TODO: node.rets[0] might be empty
+            rets = [r[0] for r in node.rets]
+            content = ''
+            if len(rets):
+                content += f"{', '.join(rets)} := "
+            content += "{}({})".format(
                 fix_func_name(node.fname),
                 ", ".join(
                     pretty_expr(arg)
                     for arg in node.args
-                    if arg.typ.kind != "Builtin" and arg.name != "GhostAssertions"
+                    # if arg.typ.kind != "Builtin" and arg.name != "GhostAssertions"
                 ),
             )
         elif node.kind == "Cond":
-            content = pretty_expr(node.cond)
+
             if node.right == "Err":
-                content = "<b>assert</b> " + content
+                operands = split_conjuncts(node.cond)
+                content = "<b>assert</b> " + pretty_expr(operands[0])
+                for operand in operands[1:]:
+                    content += "<BR/><b>and</b> " + pretty_expr(operand)
+            else:
+                content = pretty_expr(node.cond)
         else:
             assert False
-        # content = content.replace('<', '&lt;').replace('>', '&gt;')
         putsf("  {idx} [xlabel={idx}] [label=<{content}>]", idx=idx, content=content)
 
     puts("}")
 
+@viz
+def viz_successor_graph(file: IOBase, all_succs: dict[str, list[str]]):
+    puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
+    puts("digraph grph {")
+    puts("  node[shape=box]")
+    puts()
+    for name, succs in all_succs.items():
+        for succ in succs:
+            puts(f"  {name} -> {succ}")
+        puts()
+    puts("}")
 
-def make_image(fun):
-    with open("/tmp/grph.gv", "w") as f:
-        dot_graph(fun, f)
-
+def make_and_open_image(filepath: str):
     p = subprocess.Popen(
-        ["dot", "-n2", "-Tpng", "-O", "/tmp/grph.gv"],
+        ["dot", "-n2", "-Tpng", "-O", filepath],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     p.wait()
+    assert p.stderr is not None
+
     if p.returncode != 0:
-        print("ERROR: generated invalid dot graph:", file=sys.stderr)
+        print(f"ERROR: generated invalid dot graph ({filepath=}):", file=sys.stderr)
         print()
-        print("   ", "\n    ".join(p.stderr.read().splitlines()), file=sys.stderr)
+        print("   ", "\n    ".join(p.stderr.read().decode('utf-8').splitlines()), file=sys.stderr)
         exit(3)
 
     assert p.returncode == 0, (p.returncode, p.stderr.read())
     p = subprocess.Popen(
-        ["xdg-open", "/tmp/grph.gv.png"],
+        ["xdg-open", filepath + ".png"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -188,4 +229,4 @@ if __name__ == "__main__":
         print(" ", "\n  ".join(functions.keys()), file=sys.stderr)
         exit(2)
 
-    make_image(functions[function_name])
+    viz_function(functions[function_name])
