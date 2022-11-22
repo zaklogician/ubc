@@ -44,14 +44,13 @@ def compute_dominators(entry, nodes, preds):
 
 def compute_successors_graph(preds):
     # type: (Dict[str, List[str]]) -> Dict[str, List[str]]
-    succs = {'Ret': [], 'Err': []}
+    succs = {"Ret": [], "Err": []}
     for name in preds.keys():
         for p in preds[name]:
             if p not in succs:
                 succs[p] = []
             succs[p].append(name)
     return succs
-
 
 
 def undefined_behaviour_c(graph_file, function_name):
@@ -70,4 +69,3 @@ def undefined_behaviour_c(graph_file, function_name):
     #         print(doms[name])
     #     else:
     #         print("name not found in", list(doms.keys()))
-

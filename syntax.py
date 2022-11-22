@@ -830,7 +830,7 @@ class Function:
             rs[n] = True
             node = self.nodes[n]
             if simplify:
-                from . import logic
+                import logic
                 node = logic.simplify_node_elementary (node)
             for c in node.get_conts ():
                 if not c in rs:
@@ -885,7 +885,7 @@ class Function:
         return xs
 
     def save_graph (self, fname):
-        from . import problem
+        import problem
         problem.save_graph (self.nodes, fname)
 
 def mk_builtinTs ():
@@ -1137,7 +1137,7 @@ lines. See syntax.quick_reference for an explanation.'''
     import hashlib
     hasher = hashlib.sha256()
     for line in lines:
-        hasher.update(line)
+        hasher.update(line.encode('utf-8'))
         bits = line.split()
         # empty lines and #-comments ignored
         if not bits or bits[0][0] == '#':
@@ -1294,7 +1294,7 @@ def print_cfg_warnings (warnings):
     post_calls = set ([(fun.nodes[n].fname, fun.name)
                        for (fun, n, n2) in warnings
                        if fun.nodes[n].kind == 'Call'])
-    from . import logic
+    import logic
     for (call, sites) in logic.dict_list (post_calls).items ():
         trace ('Missing nodes after calls to %s' % call)
         trace ('  in %s' % str (sites))
@@ -1452,7 +1452,7 @@ def foldr1 (f, xs):
     return x
 
 def mk_num (x, typ):
-    from . import logic
+    import logic
     if logic.is_int (typ):
         typ = Type ('Word', typ)
     assert typ.kind == 'Word', typ
@@ -1472,7 +1472,7 @@ def mk_word8 (x):
     return mk_num (x, word8T)
 
 def mk_word32_maybe(x):
-    from . import logic
+    import logic
     if logic.is_int (x):
         return mk_word32 (x)
     else:
@@ -1531,7 +1531,7 @@ def mk_arr_index (arr, i):
 def mk_arroffs(p, typ, i):
     assert typ.kind == 'Array'
     assert False
-    from . import logic
+    import logic
     if logic.is_int (i):
         assert i < typ.num
         offs = i * typ.el_typ.size()

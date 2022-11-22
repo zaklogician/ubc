@@ -5,30 +5,14 @@
 
 # open /tmp/grph.png
 
-from __future__ import print_function
+
 import subprocess
 from typing import Any, Tuple
 
 import sys
 import os
 
-os.environ.get("TV_ROOT", "..")
-sys.path.append(
-    os.path.join(os.path.abspath(os.environ.get("TV_ROOT", "..")), "graph-refine")
-)
-
-try:
-    import syntax
-except ImportError:
-    print("TV_ROOT probably isn't right", file=sys.stderr)
-    print(
-        "run with 'env TV_ROOT=... python2 ...' (by default, TV_ROOT is assumed to be ...)",
-        file=sys.stderr,
-    )
-    raise
-
-subprocess.DEVNULL = open(os.devnull)  # python2 hack
-
+import syntax
 
 def pretty_name(name):
     # type: (str) -> str
@@ -172,9 +156,9 @@ if __name__ == "__main__":
         or "-h" in sys.argv
         or "--help" in sys.argv
     ):
-        print("usage: python2 {} <graph_file>".format(__file__), file=sys.stderr)
+        print("usage: python3 {} <graph_file>".format(__file__), file=sys.stderr)
         print(
-            "       python2 {} <graph_file> <function_name>".format(__file__),
+            "       python3 {} <graph_file> <function_name>".format(__file__),
             file=sys.stderr,
         )
         exit(1)
@@ -194,7 +178,7 @@ if __name__ == "__main__":
 
     functions = {
         fix_func_name(bad_name): value
-        for bad_name, value in functions_bad_names.iteritems()
+        for bad_name, value in functions_bad_names.items()
     }
 
     if not function_name or function_name not in functions:

@@ -7,7 +7,7 @@ C to graph lang
 
 visualize a graph (need to have dot installed)
 
-    python2 dot_graph.py <graph.txt> <function name>
+    python3 dot_graph.py <graph.txt> <function name>
 
 Plan:
 
