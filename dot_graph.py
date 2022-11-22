@@ -53,6 +53,7 @@ pretty_opers = {
     "SignedLess": "&lt;<sub>s</sub>",
     "SignedLessEquals": "≤<sub>s</sub>",
     "Or": "or",
+    "And": "and",
 }
 
 known_typ_change = set(["ROData", "MemAcc", "IfThenElse", "WordArrayUpdate", "MemDom"])
@@ -85,6 +86,7 @@ def pretty_expr(expr, print_type=False):
     elif expr.kind == "Token":
         return "''{}''".format(expr.name)
     else:
+        return str(expr)
         assert False, "not pretty printable"
 
 
@@ -108,7 +110,8 @@ def dot_graph(fun, file):
             putsf("  {} -> {}", idx, node.cont)
         elif node.kind == "Cond":
             putsf("  {} -> {} [label=T]", idx, node.left)
-            putsf("  {} -> {} [label=F]", idx, node.right)
+            if node.right != "Err":
+                putsf("  {} -> {} [label=F]", idx, node.right)
 
         if node.kind == "Basic":
             content = (
@@ -127,6 +130,8 @@ def dot_graph(fun, file):
             )
         elif node.kind == "Cond":
             content = pretty_expr(node.cond)
+            if node.right == "Err":
+                content = "<b>assert</b> " + content
         else:
             assert False
         # content = content.replace('<', '&lt;').replace('>', '&gt;')
@@ -161,6 +166,7 @@ def make_image(fun):
 
 
 if __name__ == "__main__":
+    syntax.set_arch()
     if (
         (len(sys.argv) != 3 and len(sys.argv) != 2)
         or "-h" in sys.argv

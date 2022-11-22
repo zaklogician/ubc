@@ -74,8 +74,9 @@ session MySimplExport = AsmRefine +
 END
 )"
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf -- "$TMP_DIR"' EXIT
+# TMP_DIR="$(mktemp -d)"
+TMP_DIR="/tmp/foo"
+# trap 'rm -rf -- "$TMP_DIR"' EXIT
 
 pushd "$TMP_DIR"
 cp "$c_file" input.c
@@ -84,6 +85,4 @@ echo -n "$ROOT" > ROOT
 echo "TV_ROOT $TV_ROOT"
 "$TV_ROOT"/isabelle/bin/isabelle build -d "$TV_ROOT"/l4v -D . -c
 cp result.txt "$output_file"
-pwd
-ls
 popd

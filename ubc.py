@@ -1,49 +1,58 @@
-from __future__ import print_function
-from pprint import pprint
-from typing import Tuple, Any, Dict
+import syntax
+import logic
+from typing import Dict, List, Set, Iterable
 
-import sys
-import os
 
-os.environ.get("TV_ROOT", "..")
-sys.path.append(
-    os.path.join(os.path.abspath(os.environ.get("TV_ROOT", "..")), "graph-refine")
-)
+def sets_intersection(sets):
+    # type: (Iterable[Set]) -> Set
+    try:
+        inte = next(sets)
+    except StopIteration:
+        return set([])
 
-try:
-    import syntax
-except ImportError:
-    print("TV_ROOT probably isn't right", file=sys.stderr)
-    print(
-        "run with 'env TV_ROOT=... python2 ...' (by default, TV_ROOT is assumed to be ...)",
-        file=sys.stderr,
-    )
-    raise
+    for s in sets:
+        inte = inte.intersection(s)
+    return inte
 
-if len(sys.argv) != 2:
-    print("usage: python2 {} <graph_file.txt>".format(__file__))
-    exit(2)
-graph_file = sys.argv[1]
 
-with open(graph_file) as f:
-    struct, functions, const_globals = syntax.parse_and_install_all(f, None)
+# There exists more efficient algorithms, but we can implement them if this
+# becomes a bottle next
+def compute_dominators(entry, nodes, preds):
+    # type: (str, Dict[str, syntax.Node], Dict[str, List[str]]) -> Dict[str, List[str]]
 
-    print(struct)
-    print(functions)
-    print(const_globals)
+    doms = {}  # type: Dict[str, Set[str]]
+    doms[entry] = set([entry])
+    for name in nodes:
+        if name != entry:
+            doms[name] = set(nodes.keys())
 
-    add = functions["tmp.add"]
-    for node in add.nodes.values():
-        # print(node)
-        if node.kind == "Basic":
-            for ((name, typ), expr) in node.upds:
-                print(name, typ, syntax.pretty_expr(expr))
-        elif node.kind == "Cond":
-            print(
-                "Cond",
-                syntax.pretty_expr(node.cond),
-                "?",
-                node.left,
-                ":",
-                node.right,
+    changed = True
+    while changed:
+        changed = False
+        for name in nodes:
+            if name == entry:
+                continue
+            new_doms = set([name]).union(
+                sets_intersection(doms[p] for p in preds[name])
             )
+            if new_doms != doms[name]:
+                changed = True
+            doms[name] = new_doms
+
+    return {name: list(sorted(doms[name])) for name in doms}
+
+
+def undefined_behaviour_c(graph_file, function_name):
+    with open(graph_file) as f:
+        struct, functions, const_globals = syntax.parse_and_install_all(f, None)
+
+    function = functions[function_name]
+    preds = logic.compute_preds(function.nodes)
+    doms = compute_dominators(function.entry, function.nodes, preds)
+    print(doms)
+    while True:
+        name = input("name: ")
+        if name in doms:
+            print(doms[name])
+        else:
+            print("name not found in", list(doms.keys()))

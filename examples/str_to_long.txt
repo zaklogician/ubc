@@ -1,0 +1,42 @@
+
+Function Kernel_C.str_to_long 5 str___ptr_to_char#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 1 ret__long#v Word 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__long#v Word 64 Var val___long#v Word 64
+8 Basic 4 1 c___char#v Word 8 Op MemAcc Word 8 2 Var Mem Mem Var str___ptr_to_char#v Word 64
+9 Cond 8 Err Op PValid Bool 3 Var HTD HTD Type Word 8 Var str___ptr_to_char#v Word 64
+10 Basic 9 1 str___ptr_to_char#v Word 64 Op Plus Word 64 2 Var str___ptr_to_char#v Word 64 Num 1 Word 64
+11 Cond 10 Err Op True Bool 0
+12 Basic 11 1 val___long#v Word 64 Op Plus Word 64 2 Op Times Word 64 2 Var val___long#v Word 64 Op WordCast Word 64 1 Var base___unsigned#v Word 32 Var res___long#v Word 64
+13 Cond 12 Err Op And Bool 2 Op Equals Bool 2 Op SignedLessEquals Bool 2 Op Times Word 64 2 Var val___long#v Word 64 Op WordCast Word 64 1 Var base___unsigned#v Word 32 Op Plus Word 64 2 Op Times Word 64 2 Var val___long#v Word 64 Op WordCast Word 64 1 Var base___unsigned#v Word 32 Var res___long#v Word 64 Op SignedLessEquals Bool 2 Num 0 Word 64 Var res___long#v Word 64 Op Equals Bool 2 Op Times Word 128 2 Op WordCastSigned Word 128 1 Var val___long#v Word 64 Op WordCastSigned Word 128 1 Op WordCast Word 64 1 Var base___unsigned#v Word 32 Op WordCastSigned Word 128 1 Op Times Word 64 2 Var val___long#v Word 64 Op WordCast Word 64 1 Var base___unsigned#v Word 32
+14 Basic 1 1 ret__long#v Word 64 Op WordCastSigned Word 64 1 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32
+15 Cond 14 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 1 Word 32 Num 0 Word 32
+16 Cond 15 13 Op Or Bool 2 Op Equals Bool 2 Var res___long#v Word 64 Op WordCastSigned Word 64 1 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Op WordCast Word 64 1 Var base___unsigned#v Word 32 Var res___long#v Word 64
+17 Cond 16 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 1 Word 32 Num 0 Word 32
+18 Basic 17 1 res___long#v Word 64 Var rv#space#ret__long#v Word 64
+19 Call 18 Kernel_C.char_to_long 1 Var c___char#v Word 8 1 rv#space#ret__long#v Word 64
+4 Basic 5 1 loop#4#count Word 64 Op Plus Word 64 2 Var loop#4#count Word 64 Num 1 Word 64
+5 Cond 6 Err Op True Bool 0
+6 Cond 19 3 Op Not Bool 1 Op Equals Bool 2 Op WordCast Word 32 1 Var c___char#v Word 8 Num 0 Word 32
+7 Basic 5 1 loop#4#count Word 64 Num 0 Word 64
+20 Basic 7 1 c___char#v Word 8 Op MemAcc Word 8 2 Var Mem Mem Var str___ptr_to_char#v Word 64
+21 Cond 20 Err Op PValid Bool 3 Var HTD HTD Type Word 8 Var str___ptr_to_char#v Word 64
+22 Basic 1 1 ret__long#v Word 64 Op WordCastSigned Word 64 1 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32
+23 Cond 22 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 1 Word 32 Num 0 Word 32
+24 Cond 23 21 Op Not Bool 1 Op Not Bool 1 Op Equals Bool 2 Op MemAcc Word 8 2 Var Mem Mem Var str___ptr_to_char#v Word 64 Num 0 Word 8
+25 Cond 24 Err Op PValid Bool 3 Var HTD HTD Type Word 8 Var str___ptr_to_char#v Word 64
+26 Basic 25 1 str___ptr_to_char#v Word 64 Op Plus Word 64 2 Var str___ptr_to_char#v Word 64 Num 2 Word 64
+27 Cond 26 Err Op True Bool 0
+28 Basic 27 1 base___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 16 Word 32
+29 Basic 25 1 base___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 10 Word 32
+30 Cond 28 29 Op Not Bool 1 Op Equals Bool 2 Var ret__int#v Word 32 Num 0 Word 32
+31 Basic 30 1 ret__int#v Word 32 Op IfThenElse Word 32 3 Op Equals Bool 2 Op WordCast Word 32 1 Op MemAcc Word 8 2 Var Mem Mem Op Plus Word 64 2 Var str___ptr_to_char#v Word 64 Num 1 Word 64 Num 88 Word 32 Num 1 Word 32 Num 0 Word 32
+32 Cond 31 Err Op And Bool 2 Op And Bool 2 Op True Bool 0 Op PValid Bool 3 Var HTD HTD Type Word 8 Op Plus Word 64 2 Var str___ptr_to_char#v Word 64 Num 1 Word 64 Op True Bool 0
+33 Cond 30 32 Op Not Bool 1 Op Equals Bool 2 Var ret__int#v Word 32 Num 0 Word 32
+34 Basic 33 1 ret__int#v Word 32 Op IfThenElse Word 32 3 Op Equals Bool 2 Op WordCast Word 32 1 Op MemAcc Word 8 2 Var Mem Mem Op Plus Word 64 2 Var str___ptr_to_char#v Word 64 Num 1 Word 64 Num 120 Word 32 Num 1 Word 32 Num 0 Word 32
+35 Cond 34 Err Op And Bool 2 Op And Bool 2 Op True Bool 0 Op PValid Bool 3 Var HTD HTD Type Word 8 Op Plus Word 64 2 Var str___ptr_to_char#v Word 64 Num 1 Word 64 Op True Bool 0
+36 Cond 35 30 Op Not Bool 1 Op Equals Bool 2 Var ret__int#v Word 32 Num 0 Word 32
+37 Basic 36 1 ret__int#v Word 32 Op IfThenElse Word 32 3 Op Equals Bool 2 Op WordCast Word 32 1 Op MemAcc Word 8 2 Var Mem Mem Var str___ptr_to_char#v Word 64 Num 48 Word 32 Num 1 Word 32 Num 0 Word 32
+38 Cond 37 Err Op PValid Bool 3 Var HTD HTD Type Word 8 Var str___ptr_to_char#v Word 64
+39 Basic 38 1 val___long#v Word 64 Op WordCastSigned Word 64 1 Num 0 Word 32
+EntryPoint 39
