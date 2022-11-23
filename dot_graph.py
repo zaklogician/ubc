@@ -13,13 +13,8 @@ from logic import split_conjuncts
 from typing import TypeVar
 import copy
 
-remove_contradiction_entry_node = None
-try:
-    from ubc import remove_contradiction_entry_node
-except ImportError:
-    pass
-
 import syntax
+
 
 def pretty_name(name):
     # type: (str) -> str
@@ -31,7 +26,7 @@ def pretty_name(name):
 
 def fix_func_name(name):
     if name[: len("tmp.")] == "tmp.":
-        return name[len("tmp.") :]
+        return name[len("tmp."):]
     return name
 
 
@@ -47,7 +42,8 @@ pretty_opers = {
     "And": "and",
 }
 
-known_typ_change = set(["ROData", "MemAcc", "IfThenElse", "WordArrayUpdate", "MemDom"])
+known_typ_change = set(
+    ["ROData", "MemAcc", "IfThenElse", "WordArrayUpdate", "MemDom"])
 
 
 def pretty_expr(expr, print_type=False):
@@ -85,9 +81,12 @@ def pretty_updates(update):
     (name, typ), expr = update
     return "{} := {}".format(pretty_name(name), pretty_expr(expr))
 
+
 # black magic
 P = TypeVar("P")
 R = TypeVar("R")
+
+
 def viz(t: Callable[[IOBase, P], R]):
     def func(arg: P):
         fd, filepath = tempfile.mkstemp(dir="/tmp/", suffix=".gv")
@@ -95,22 +94,18 @@ def viz(t: Callable[[IOBase, P], R]):
         make_and_open_image(filepath)
     return func
 
+
 @viz
 def viz_function(file: IOBase, fun: syntax.Function):
     # type: (syntax.Function, Any) -> None
     puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
-    putsf = lambda fmt, *args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
-
+    putsf = lambda fmt, * \
+        args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
 
     puts("digraph grph {")
     puts("  node[shape=box]")
-
-    if remove_contradiction_entry_node:
-        fun = copy.deepcopy(fun)
-        remove_contradiction_entry_node(fun)
-        puts("  Edited [label=<False() entry point not displayed>] [shape=plaintext] [fontsize=\"12px\"]")
-
-    puts(f"  FunctionDescription [label=<<u>{fun.name}</u>>] [shape=plaintext]")
+    puts(
+        f"  FunctionDescription [label=<<u>{fun.name}</u>>] [shape=plaintext]")
     puts()
     for idx, node in fun.nodes.items():
         if node.kind == "Basic" or node.kind == "Call":
@@ -122,7 +117,8 @@ def viz_function(file: IOBase, fun: syntax.Function):
 
         if node.kind == "Basic":
             content = (
-                "<BR/>".join(pretty_updates(u) for u in node.upds) or "<i>empty</i>"
+                "<BR/>".join(pretty_updates(u)
+                             for u in node.upds) or "<i>empty</i>"
             )
         elif node.kind == "Call":
             # weird: what is this ghost assertion?
@@ -150,9 +146,11 @@ def viz_function(file: IOBase, fun: syntax.Function):
                 content = pretty_expr(node.cond)
         else:
             assert False
-        putsf("  {idx} [xlabel={idx}] [label=<{content}>]", idx=idx, content=content)
+        putsf("  {idx} [xlabel={idx}] [label=<{content}>]",
+              idx=idx, content=content)
 
     puts("}")
+
 
 @viz
 def viz_successor_graph(file: IOBase, all_succs: dict[str, list[str]]):
@@ -166,6 +164,7 @@ def viz_successor_graph(file: IOBase, all_succs: dict[str, list[str]]):
         puts()
     puts("}")
 
+
 def make_and_open_image(filepath: str):
     p = subprocess.Popen(
         ["dot", "-n2", "-Tpng", "-O", filepath],
@@ -176,9 +175,11 @@ def make_and_open_image(filepath: str):
     assert p.stderr is not None
 
     if p.returncode != 0:
-        print(f"ERROR: generated invalid dot graph ({filepath=}):", file=sys.stderr)
+        print(
+            f"ERROR: generated invalid dot graph ({filepath=}):", file=sys.stderr)
         print()
-        print("   ", "\n    ".join(p.stderr.read().decode('utf-8').splitlines()), file=sys.stderr)
+        print("   ", "\n    ".join(p.stderr.read().decode(
+            'utf-8').splitlines()), file=sys.stderr)
         exit(3)
 
     assert p.returncode == 0, (p.returncode, p.stderr.read())
@@ -224,7 +225,8 @@ if __name__ == "__main__":
 
     if not function_name or function_name not in functions:
         if function_name:
-            print("unknown function {!r}".format(function_name), file=sys.stderr)
+            print("unknown function {!r}".format(
+                function_name), file=sys.stderr)
         print("Functions defined in the file: ")
         print(" ", "\n  ".join(functions.keys()), file=sys.stderr)
         exit(2)

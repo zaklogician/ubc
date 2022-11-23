@@ -39,3 +39,122 @@ int double_loop(int n)
     }
     return s;
 }
+
+void invalid_loop(char * foo)
+{
+    for (int i = 0; foo[i] < 0; i++)
+    {}
+
+}
+
+void loop_continue()
+{
+    for (int i = 0; i < 10;)
+    {
+        break;
+        i++;
+    }
+}
+
+int loop_call()
+{
+    return 1;
+}
+
+void func_call_loop_condition()
+{
+    for (int i = 0; i < loop_call(); i++)
+    {
+        i++;
+    }
+}
+
+typedef struct
+{
+    int a;
+    int b;
+} foo_t;
+
+extern foo_t foo;
+
+void extern_access()
+{
+    for (int i = 0; i < foo.b;)
+    {
+        i <<= 2;
+    }
+}
+
+
+// typedef unsigned int word_t;
+
+typedef struct {
+    int start;
+    int end;
+} dummy_t;
+
+typedef struct ndks_boot {
+//     // p_region_t reserved[MAX_NUM_RESV_REG];
+//     // word_t resv_count;
+//     // region_t   freemem[16];
+//     // seL4_BootInfo      *bi_frame;
+//     // seL4_SlotPos slot_pos_cur;
+    dummy_t reserved[1];
+    int resv_count;
+} ndks_boot_t;
+
+extern ndks_boot_t ndks_boot;
+
+// static void merge_regions(void)
+// {
+//     /* Walk through reserved regions and see if any can be merged */
+//     for (int i = 1; i < ndks_boot.resv_count;) {
+//         if (ndks_boot.reserved[i - 1].end == ndks_boot.reserved[i].start) {
+//             /* extend earlier region */
+//             ndks_boot.reserved[i - 1].end = ndks_boot.reserved[i].end;
+//             /* move everything else down */
+//             for (int j = i + 1; j < ndks_boot.resv_count; j++) {
+//                 ndks_boot.reserved[j - 1] = ndks_boot.reserved[j];
+//             }
+
+//             ndks_boot.resv_count--;
+//             /* don't increment i in case there are multiple adjacent regions */
+//         } else {
+//             i++;
+//         }
+//     }
+// }
+
+void merge_regions(void)
+{
+    /* Walk through reserved regions and see if any can be merged */
+
+    // ndks_boot.resv_count--;
+
+    for (int i = 1; i < ndks_boot.resv_count;) {
+        ndks_boot.resv_count--;
+    }
+}
+
+void merge_regions1(void)
+{
+    /* Walk through reserved regions and see if any can be merged */
+
+    ndks_boot.resv_count--;
+}
+
+void merge_regionspp(void)
+{
+    for (int i = 1; i < ndks_boot.resv_count;) {
+        ndks_boot.resv_count++;
+    }
+}
+
+ndks_boot_t ndks_boot2;
+
+void global()
+{
+    for (int i = 1; i < ndks_boot2.resv_count;) {
+        ndks_boot2.resv_count++;
+    }
+}

@@ -3,9 +3,9 @@ from dot_graph import write_successor_graph
 from ubc import cfg_is_reducible, compute_cfg_from_all_succs
 
 
-
 @pytest.mark.parametrize("all_succs", [
-    {"_start": ["if_cond"], "if_cond": ["if_then", "if_else"], "if_then": ["if_join"], "if_else": ["if_join"], "if_join": []},  # diamond
+    {"_start": ["if_cond"], "if_cond": ["if_then", "if_else"], "if_then": [
+        "if_join"], "if_else": ["if_join"], "if_join": []},  # diamond
     {
         "_start": ["for_cond"],
         "for_cond": ["for_body", "for_join"],  # loop header
@@ -91,7 +91,7 @@ from ubc import cfg_is_reducible, compute_cfg_from_all_succs
         "inner_for_cond": ["inner_for_body", "inner_for_join"],
         "inner_for_body": ["inner_for_body_if_cond"],
         "inner_for_body_if_cond": ["inner_for_body_if_then", "inner_for_body_if_join"],
-        "inner_for_body_if_then": ["inner_for_join"], # break
+        "inner_for_body_if_then": ["inner_for_join"],  # break
         "inner_for_body_if_join": ["inner_for_step"],
         "inner_for_step": ["inner_for_cond"],
 
@@ -109,7 +109,7 @@ from ubc import cfg_is_reducible, compute_cfg_from_all_succs
         "inner_for_cond": ["inner_for_body", "inner_for_join"],
         "inner_for_body": ["inner_for_body_if_cond"],
         "inner_for_body_if_cond": ["inner_for_body_if_then", "inner_for_body_if_join"],
-        "inner_for_body_if_then": ["outer_for_join"], # break
+        "inner_for_body_if_then": ["outer_for_join"],  # break
         "inner_for_body_if_join": ["inner_for_step"],
         "inner_for_step": ["inner_for_cond"],
 
@@ -120,6 +120,7 @@ from ubc import cfg_is_reducible, compute_cfg_from_all_succs
 ])
 def test_is_reducible(all_succs):
     assert cfg_is_reducible(compute_cfg_from_all_succs(all_succs, "_start"))
+
 
 @pytest.mark.parametrize("all_succs", [
     # textbook example
@@ -189,7 +190,9 @@ def test_is_reducible(all_succs):
 
 ])
 def test_is_not_reducible(all_succs):
-    assert not cfg_is_reducible(compute_cfg_from_all_succs(all_succs, "_start"))
+    assert not cfg_is_reducible(
+        compute_cfg_from_all_succs(all_succs, "_start"))
+
 
 if __name__ == "__main__":
     from dot_graph import viz_successor_graph

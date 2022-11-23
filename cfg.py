@@ -18,7 +18,8 @@ class NodeBasic(Node):
     def __init__(self, succ, upds):
         super().__init__()
         self.successor = succ  # type: Node
-        self.upds = upds  # type: List[Tuple[Tuple[str, syntax.Type], syntax.Expr]]
+        # type: List[Tuple[Tuple[str, syntax.Type], syntax.Expr]]
+        self.upds = upds
 
 
 class NodeCall(Node):

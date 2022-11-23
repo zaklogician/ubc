@@ -11,13 +11,11 @@ def compute_all_successors(function: syntax.Function) -> dict[str, list[str]]:
         for cont in node.get_conts():
             all_succs[name].append(cont)
 
-            # if cont doesn't have any successors, this if statements makes
-            # sure that we'll at least have all_succs[cont] = []
-            #
-            # (we want every node to be a key of the dict, ie. len
-            # (all_succs) == num of nodes in the graph)
-            if cont not in all_succs:
-                all_succs[cont] = []
+    assert 'Err' not in all_succs
+    all_succs['Err'] = []
+
+    assert 'Ret' not in all_succs
+    all_succs['Ret'] = []
     return all_succs
 
 
@@ -34,9 +32,10 @@ def compute_all_predecessors(all_succs: dict[str, list[str]]) -> dict[str, list[
 
 
 def compute_dominators(all_succs: dict[str, list[str]], all_preds: dict[str, list[str]], entry: str) -> dict[str, list[str]]:
+    # all the nodes that dominate the given node
     doms: dict[str, set[str]] = {}
-    doms[entry] = set([entry])
 
+    doms[entry] = set([entry])
     assert all_succs.keys() == all_preds.keys()
     for n in all_succs:
         if n != entry:
@@ -45,16 +44,18 @@ def compute_dominators(all_succs: dict[str, list[str]], all_preds: dict[str, lis
     changed = True
     while changed:
         changed = False
-        for n in all_succs:
-            if n == entry:
+
+        for n in all_succs.keys():
+            npreds = list(all_preds[n])
+            if not npreds:
                 continue
-            new_dom = set([n]) | reduce(set.intersection, (doms[p]
-                                                           for p in all_preds[n]), set())
+            new_dom = set([n]) | reduce(set.intersection,
+                                        (doms[p] for p in npreds), doms[npreds[0]])
             if new_dom != doms[n]:
                 changed = True
-            doms[n] = new_dom
+                doms[n] = new_dom
 
-    return {n: list(doms[n]) for n in doms}
+    return {n: list(doms[n]) for n in doms.keys()}
 
 
 @dataclass()
@@ -84,6 +85,13 @@ class Function:
     nodes: dict[str, syntax.Node]
 
 
+# even though it might be less efficient, we run both of these
+# transformations (on func.nodes) before generating the predecessors and
+# successors graph so that we don't have to patch them all.
+#
+# we edit *only* the func.nodes, and then derive all the other graphs from
+# there.
+
 def remove_contradiction_entry_node(func: syntax.Function):
     """ for some reason, there often is a Cond False() ? Err : x node that
     doesn't have any predecessors
@@ -103,6 +111,55 @@ def remove_contradiction_entry_node(func: syntax.Function):
     if contr_entry:
         del func.nodes[contr_entry]
     assert 'Err' not in func.nodes
+
+
+def is_assert_true_node(n): return n.kind == 'Cond' \
+    and n.cond == syntax.Expr('Op', syntax.Type('Builtin', 'Bool'), name='True', vals=[]) \
+    and n.right == 'Err'
+
+
+def _remove_assert_true_node(nodes: dict[str, syntax.Node], target: str):
+    # 1. find all the predecessors of name
+    # 2. rewire them all the current node's successor
+    assert is_assert_true_node(nodes[target])
+
+    preds: list[syntax.Node] = []
+    for n, node in nodes.items():
+        if target in node.get_conts():
+            preds.append(node)
+
+    succ = nodes[target].left
+    assert succ != 'Err'
+    for pred in preds:
+        # todo: please use inheritance :(
+        if pred.kind == 'Call' or pred.kind == 'Basic':
+            pred.cont = succ
+        elif pred.kind == 'Cond':
+            if pred.left == target:
+                pred.left = succ
+            elif pred.right == target:
+                pred.right = succ
+
+
+def remove_assert_true_nodes(func: syntax.Function):
+    """ There are some `assert True` nodes inserted in the graphs
+        for some reason. Sometimes, they mess up the domination relations
+        and turn a reducible CFG into an irreducible one.
+
+        Here's an example: TODO
+    """
+
+    nodes_to_remove: list[str] = []
+
+    for n, node in func.nodes.items():
+        if is_assert_true_node(node):
+            # 1. find all the predecessors
+            # 2. rewire them all the current node's successor
+            nodes_to_remove.append(n)
+
+    for n in nodes_to_remove:
+        _remove_assert_true_node(func.nodes, n)
+
 
 def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
     assert is_valid_all_succs(all_succs)
