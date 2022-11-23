@@ -1,5 +1,4 @@
 import pytest
-from dot_graph import write_successor_graph
 from ubc import cfg_is_reducible, compute_cfg_from_all_succs
 
 
