@@ -1,7 +1,9 @@
+from typing import NamedTuple, TypeAlias
 import syntax
 from collections.abc import Container
 from dataclasses import dataclass
 from functools import reduce
+from collections import namedtuple
 
 
 def compute_all_successors(function: syntax.Function) -> dict[str, list[str]]:
@@ -58,8 +60,8 @@ def compute_dominators(all_succs: dict[str, list[str]], all_preds: dict[str, lis
     return {n: list(doms[n]) for n in doms.keys()}
 
 
-@dataclass()
-class CFG:
+# TODO: convert lists to tuples
+class CFG(NamedTuple):
     """
     Class that groups information about a function's control flow graph
     """
@@ -76,13 +78,44 @@ class CFG:
     """ Dominators """
 
 
-@dataclass()
-class Function:
+class BasicNode(NamedTuple):
+    upds: tuple[tuple[tuple[str, syntax.Type], syntax.Expr]]
+    succ: str
+
+
+class CallNode(NamedTuple):
+    succ: str
+    fname: str
+    args: tuple[syntax.Expr]
+    rets: tuple[tuple[str, syntax.Type]]
+
+
+class CondNode(NamedTuple):
+    expr: syntax.Expr
+    succ_then: str
+    succ_else: str
+
+
+class Loop(NamedTuple):
+    back_edge: tuple[str, str]
+
+    nodes: tuple[str, ...]
+    """ nodes forming a natural loop """
+
+    target_variables: tuple[str, ...]
+    """ Variables that are declared outside the loop but written to inside loop
+    (ie. all we know about those variables must only come from the loop invariant)
+    """
+
+
+class Function(NamedTuple):
 
     cfg: CFG
 
-    # TODO: use namedtuples
-    nodes: dict[str, syntax.Node]
+    # TODO: find good way to freeze dict and keep type hints
+    nodes: dict[str, CondNode | CallNode | BasicNode]
+
+    loops: tuple[Loop]
 
 
 def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
@@ -102,6 +135,28 @@ def compute_cfg_from_func(func: syntax.Function) -> CFG:
     all_succs = compute_all_successors(func)
     assert func.entry is not None, f"func.entry is None in {func.name}"
     return compute_cfg_from_all_succs(all_succs, func.entry)
+
+
+def compute_loops(cfg: CFG) -> tuple[Loop]:
+    return tuple()
+
+
+def convert_function(func: syntax.Function) -> Function:
+    cfg = compute_cfg_from_func(func)
+    safe_nodes = {}
+    for name, node in func.nodes.items():
+        if node.kind == "Basic":
+            safe_nodes[name] = BasicNode(upds=tuple(node.upds), succ=node.cont)
+        elif node.kind == "Call":
+            safe_nodes[name] = CallNode(
+                succ=node.cont, fname=node.fname, args=tuple(node.args), rets=tuple(node.rets))
+        elif node.kind == "Cond":
+            safe_nodes[name] = CondNode(
+                succ_then=node.left, succ_else=node.right, expr=node.cond)
+        else:
+            raise ValueError(f"unknown kind {node.kind!r}")
+    loops = compute_loops(cfg)
+    return Function(cfg, safe_nodes, loops)
 
 
 def num_reachable(cfg: CFG) -> int:

@@ -622,7 +622,7 @@ class Node:
             the_cont = conts
 
         if kind == 'Basic':
-            self.cont = the_cont  # type: List[str | int]
+            self.cont = the_cont  # type: str
             self.upds = [(lv, v) for (lv, v) in args
                          if not v.is_var(lv)]  # type: List[Tuple[Tuple[str, Type], Expr]]
         elif kind == 'Call':
