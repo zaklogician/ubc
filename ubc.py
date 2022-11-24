@@ -1,6 +1,6 @@
 from typing import NamedTuple, TypeAlias
 import syntax
-from collections.abc import Container
+from collections.abc import Collection
 from dataclasses import dataclass
 from functools import reduce
 from collections import namedtuple
@@ -76,6 +76,11 @@ class CFG(NamedTuple):
     all_doms: dict[str, list[str]]
     """ Dominators of key (a in all_doms[b] means a dominates b) """
 
+    back_edges: Collection[tuple[str, str]]
+    """ edges where the head dominates the tail
+        Stored as (tail, head), that is (latch, loop_header)
+    """
+
 
 class BasicNode(NamedTuple):
     upds: tuple[tuple[tuple[str, syntax.Type], syntax.Expr]]
@@ -138,7 +143,7 @@ def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
 
     all_doms = compute_dominators(
         all_succs=all_succs, all_preds=all_preds, entry=entry)
-    return CFG(entry=entry, all_succs=all_succs, all_preds=all_preds, all_doms=all_doms)
+    return CFG(entry=entry, all_succs=all_succs, all_preds=all_preds, all_doms=all_doms, back_edges=cfg_compute_back_edges(all_succs, all_doms))
 
 
 def compute_cfg_from_func(func: syntax.Function) -> CFG:
@@ -147,17 +152,17 @@ def compute_cfg_from_func(func: syntax.Function) -> CFG:
     return compute_cfg_from_all_succs(all_succs, func.entry)
 
 
-def cfg_compute_back_edges(cfg: CFG):
+def cfg_compute_back_edges(all_succs: dict[str, list[str]], all_doms: dict[str, list[str]]) -> Collection[tuple[str, str]]:
     """ a back edge is an edge who's head dominates their tail
     """
 
     back_edges: set[tuple[str, str]] = set()
-    for n, succs in cfg.all_succs.items():
+    for n, succs in all_succs.items():
         tail = n
         for head in succs:
-            if head in cfg.all_doms[tail]:
+            if head in all_doms[tail]:
                 back_edges.add((tail, head))
-    return back_edges
+    return frozenset(back_edges)
 
 
 def compute_natural_loop(cfg: CFG, back_edge: tuple[str, str]) -> tuple[str, ...]:
@@ -188,7 +193,6 @@ def compute_natural_loop(cfg: CFG, back_edge: tuple[str, str]) -> tuple[str, ...
 def compute_loop_targets(
         nodes: dict[str, Node],
         cfg: CFG,
-        back_edges: set[tuple[str, str]],
         loop_header: str,
         loop_nodes: tuple[str]) -> tuple[str]:
     # traverse the loop nodes in topological order
@@ -199,7 +203,7 @@ def compute_loop_targets(
     loop_written_vars: set[str] = set()
     while q:
         n = q.pop(0)
-        if not all(p in visited for p in cfg.all_preds[n] if (p, n) not in back_edges and p in loop_nodes):
+        if not all(p in visited for p in cfg.all_preds[n] if (p, n) not in cfg.back_edges and p in loop_nodes):
             continue
         visited.add(n)
 
@@ -209,7 +213,7 @@ def compute_loop_targets(
                 loop_written_vars.add(name)
 
         for succ in cfg.all_succs[n]:
-            if succ in loop_nodes and (n, succ) not in back_edges:
+            if succ in loop_nodes and (n, succ) not in cfg.back_edges:
                 q.append(succ)
 
     assert len(visited) == len(loop_nodes)
@@ -224,10 +228,7 @@ def compute_loops(nodes: dict[str, Node], cfg: CFG) -> dict[str, Loop]:
     # for each back edge, compute the natural loop
     # for each loop, inspect variables that are written to
 
-    # loop header -> all loop nodes
-    back_edges = cfg_compute_back_edges(cfg)
-
-    if len(set(loop_header for (t, loop_header) in back_edges)) < len(back_edges):
+    if len(set(loop_header for (t, loop_header) in cfg.back_edges)) < len(cfg.back_edges):
         """
         We have something like this (ie. multiple loops point use the same header)
 
@@ -244,7 +245,7 @@ def compute_loops(nodes: dict[str, Node], cfg: CFG) -> dict[str, Loop]:
     # we could do this faster by traversing the entire graph once and keeping
     # track of which loop we are currently in, but this is approach simpler
     # and good enough for now
-    for back_edge in back_edges:
+    for back_edge in cfg.back_edges:
         _, loop_header = back_edge
 
         loop_nodes = compute_natural_loop(cfg, back_edge)
@@ -252,7 +253,7 @@ def compute_loops(nodes: dict[str, Node], cfg: CFG) -> dict[str, Loop]:
         assert all(loop_header in cfg.all_doms[n] for n in loop_nodes)
 
         loop_targets = compute_loop_targets(
-            nodes, cfg, back_edges, loop_header, loop_nodes)
+            nodes, cfg, loop_header, loop_nodes)
         loops[loop_header] = Loop(back_edge, loop_nodes, loop_targets)
     return loops
 
@@ -308,8 +309,6 @@ def cfg_is_reducible(cfg: CFG):
     # 2. the back edges consists only of edges whose head dominates their tail
     #    (tail --> head)
 
-    back_edges = cfg_compute_back_edges(cfg)
-
     visited = set()
     q: list[str] = [n for n, preds in cfg.all_preds.items() if len(preds) == 0]
     while q:
@@ -318,7 +317,7 @@ def cfg_is_reducible(cfg: CFG):
             continue
 
         # Visit in topological order, that is, visit all the predecessors first.
-        if all(p in visited for p in cfg.all_preds[n] if (p, n) not in back_edges):
+        if all(p in visited for p in cfg.all_preds[n] if (p, n) not in cfg.back_edges):
             visited.add(n)
             q += cfg.all_succs[n]
     # have we visited all the nodes? Not possible is there's a cycle, because
