@@ -31,17 +31,14 @@ def compute_all_predecessors(all_succs: dict[str, list[str]]) -> dict[str, list[
 # algorithm from https://en.wikipedia.org/wiki/Dominator_(graph_theory) there
 # exists more efficient algorithms, but we can implement them if it turns out
 # this is a bottle neck
-
-
 def compute_dominators(all_succs: dict[str, list[str]], all_preds: dict[str, list[str]], entry: str) -> dict[str, list[str]]:
     # all the nodes that dominate the given node
     doms: dict[str, set[str]] = {}
-
-    doms[entry] = set([entry])
-    assert all_succs.keys() == all_preds.keys()
-    for n in all_succs:
-        if n != entry:
-            doms[n] = set(all_succs.keys())
+    for n, preds in all_preds.items():
+        if len(preds) == 0:
+            doms[n] = set([n])
+        else:
+            doms[n] = set(all_preds.keys())
 
     changed = True
     while changed:
@@ -139,7 +136,17 @@ def compute_cfg_from_func(func: syntax.Function) -> CFG:
 
 def compute_loops(cfg: CFG) -> tuple[Loop]:
     return tuple()
+def cfg_compute_back_edges(cfg: CFG):
+    """ a back edge is an edge who's head dominates their tail
+    """
 
+    back_edges: set[tuple[str, str]] = set()
+    for n, succs in cfg.all_succs.items():
+        tail = n
+        for head in succs:
+            if head in cfg.all_doms[tail]:
+                back_edges.add((tail, head))
+    return back_edges
 
 def convert_function(func: syntax.Function) -> Function:
     cfg = compute_cfg_from_func(func)
@@ -181,16 +188,10 @@ def cfg_is_reducible(cfg: CFG):
     # 2. the back edges consists only of edges whose head dominates their tail
     #    (tail --> head)
 
-    # a back edge is an edge who's head dominates their tail
-    back_edges: set[tuple[str, str]] = set()
-    for n, succs in cfg.all_succs.items():
-        tail = n
-        for head in succs:
-            if head in cfg.all_doms[tail]:
-                back_edges.add((tail, head))
+    back_edges = cfg_compute_back_edges(cfg)
 
     visited = set()
-    q: list[str] = [cfg.entry]
+    q: list[str] = [n for n, preds in cfg.all_preds.items() if len(preds) == 0]
     while q:
         n = q.pop(0)
         if n in visited:
