@@ -24,3 +24,19 @@ def assert_all_kernel_functions_are_reducible():
 
 if __name__ == "__main__":
     assert_all_kernel_functions_are_reducible()
+
+    with open('examples/for_loops.txt') as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        func = ubc.convert_function(functions['tmp.loop_write_single'])
+        print(func.loops)
+    exit(0)
+
+    with open('examples/for_loops.txt') as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        for func in functions.values():
+            print("function:", func.name)
+            funcp = ubc.convert_function(func)
+            for loop_header, loop_data in funcp.loops.items():
+                print('  ', loop_header, loop_data)

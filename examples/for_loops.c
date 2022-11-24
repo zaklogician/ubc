@@ -40,6 +40,42 @@ int double_loop(int n)
     return s;
 }
 
+int loop_write_single()
+{
+    int a = 0;
+    for (int i = 0; i < 10; i++)
+    {
+        int b = a;
+        a = a + i;
+        a += b;
+    }
+    return a;
+}
+
+int loop_write_nested()
+{
+    int a = 0;
+    for (int i = 0; i < 10; i++)
+    {
+        for (int j = 0; j < i; j++)
+        {
+            a += j * i;
+        }
+    }
+    return a;
+}
+
+int loop_overwrite_variable()
+{
+    int a;
+    for (int i = 0; i < 10; i++)
+    {
+        a = 3;
+        a += i;
+    }
+    return a;
+}
+
 void invalid_loop(char * foo)
 {
     for (int i = 0; foo[i] < 0; i++)
@@ -68,6 +104,38 @@ void func_call_loop_condition()
         i++;
     }
 }
+
+int if_for_loop(int c)
+{
+    int b = 10;
+    if (c)
+    {
+        int a = 10;
+        b += a;
+    }
+    for (int i = 0; i < loop_call(); i++)
+    {
+        int a = 2;
+        b -= a;
+    }
+    return b;
+}
+
+int for_scope()
+{
+    int b = 0;
+    {
+        int a = 10;
+        b += a;
+    }
+    for (int i = 0; i < 10; i++)
+    {
+        int a = 20;
+        i += a;
+    }
+    return b;
+}
+
 
 typedef struct
 {

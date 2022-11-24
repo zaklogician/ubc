@@ -31,6 +31,8 @@ def compute_all_predecessors(all_succs: dict[str, list[str]]) -> dict[str, list[
 # algorithm from https://en.wikipedia.org/wiki/Dominator_(graph_theory) there
 # exists more efficient algorithms, but we can implement them if it turns out
 # this is a bottle neck
+
+
 def compute_dominators(all_succs: dict[str, list[str]], all_preds: dict[str, list[str]], entry: str) -> dict[str, list[str]]:
     # all the nodes that dominate the given node
     doms: dict[str, set[str]] = {}
@@ -72,7 +74,7 @@ class CFG(NamedTuple):
     """ Predecessors """
 
     all_doms: dict[str, list[str]]
-    """ Dominators """
+    """ Dominators of key (a in all_doms[b] means a dominates b) """
 
 
 class BasicNode(NamedTuple):
@@ -93,15 +95,20 @@ class CondNode(NamedTuple):
     succ_else: str
 
 
+Node = BasicNode | CallNode | CondNode
+
+
 class Loop(NamedTuple):
     back_edge: tuple[str, str]
+    """
+    back_edge = (latch, loop header)
+    """
 
     nodes: tuple[str, ...]
     """ nodes forming a natural loop """
 
-    target_variables: tuple[str, ...]
-    """ Variables that are declared outside the loop but written to inside loop
-    (ie. all we know about those variables must only come from the loop invariant)
+    targets: tuple[str, ...]
+    """ All the variables that are written to during the loop
     """
 
 
@@ -111,8 +118,14 @@ class Function(NamedTuple):
 
     # TODO: find good way to freeze dict and keep type hints
     nodes: dict[str, CondNode | CallNode | BasicNode]
+    """
+    Node name to Node
+    """
 
-    loops: tuple[Loop]
+    loops: dict[str, Loop]
+    """
+    Loop header to loop information
+    """
 
 
 def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
@@ -134,8 +147,6 @@ def compute_cfg_from_func(func: syntax.Function) -> CFG:
     return compute_cfg_from_all_succs(all_succs, func.entry)
 
 
-def compute_loops(cfg: CFG) -> tuple[Loop]:
-    return tuple()
 def cfg_compute_back_edges(cfg: CFG):
     """ a back edge is an edge who's head dominates their tail
     """
@@ -148,7 +159,105 @@ def cfg_compute_back_edges(cfg: CFG):
                 back_edges.add((tail, head))
     return back_edges
 
-def convert_function(func: syntax.Function) -> Function:
+
+def compute_natural_loop(cfg: CFG, back_edge: tuple[str, str]) -> tuple[str, ...]:
+    """ Returns all the nodes in the loop
+
+    The loop header uniquely identifies the loop unless we have multiple back
+    edges pointing to the same node (right now, we bail out of this case)
+    """
+    n, d = back_edge
+    assert d in cfg.all_doms[n]
+
+    loop_nodes = set([d])
+    stack = []
+
+    def insert(m):
+        if m not in loop_nodes:
+            loop_nodes.add(m)
+            stack.append(m)
+
+    insert(n)
+    while stack:
+        m = stack.pop(-1)
+        for p in cfg.all_preds[m]:
+            insert(p)
+    return tuple(loop_nodes)
+
+
+def compute_loop_targets(
+        nodes: dict[str, Node],
+        cfg: CFG,
+        back_edges: set[tuple[str, str]],
+        loop_header: str,
+        loop_nodes: tuple[str]) -> tuple[str]:
+    # traverse the loop nodes in topological order
+    # (if there is a loop in the body, we ignore its back edge)
+    q: list[str] = [loop_header]
+    visited = set()
+
+    loop_written_vars: set[str] = set()
+    while q:
+        n = q.pop(0)
+        if not all(p in visited for p in cfg.all_preds[n] if (p, n) not in back_edges and p in loop_nodes):
+            continue
+        visited.add(n)
+
+        node = nodes[n]
+        if isinstance(node, BasicNode):
+            for (name, typ), _ in node.upds:
+                loop_written_vars.add(name)
+
+        for succ in cfg.all_succs[n]:
+            if succ in loop_nodes and (n, succ) not in back_edges:
+                q.append(succ)
+
+    assert len(visited) == len(loop_nodes)
+
+    return tuple(loop_written_vars)
+
+
+def compute_loops(nodes: dict[str, Node], cfg: CFG) -> dict[str, Loop]:
+    """ Map from loop header to Loop
+    """
+    # compute back edges
+    # for each back edge, compute the natural loop
+    # for each loop, inspect variables that are written to
+
+    # loop header -> all loop nodes
+    back_edges = cfg_compute_back_edges(cfg)
+
+    if len(set(loop_header for (t, loop_header) in back_edges)) < len(back_edges):
+        """
+        We have something like this (ie. multiple loops point use the same header)
+
+          -> header <--
+         /   /     \    \
+        |   /       \    |
+        \   v        v  /
+          left       right
+        """
+        raise ValueError(
+            "unhandle case: multiple back edges point to the same loop header in function")
+
+    loops: dict[str, Loop] = {}
+    # we could do this faster by traversing the entire graph once and keeping
+    # track of which loop we are currently in, but this is approach simpler
+    # and good enough for now
+    for back_edge in back_edges:
+        _, loop_header = back_edge
+
+        loop_nodes = compute_natural_loop(cfg, back_edge)
+
+        assert all(loop_header in cfg.all_doms[n] for n in loop_nodes)
+
+        loop_targets = compute_loop_targets(
+            nodes, cfg, back_edges, loop_header, loop_nodes)
+        loops[loop_header] = Loop(back_edge, loop_nodes, loop_targets)
+    return loops
+
+
+def _convert_function(func: syntax.Function) -> Function:
     cfg = compute_cfg_from_func(func)
     safe_nodes = {}
     for name, node in func.nodes.items():
@@ -162,12 +271,23 @@ def convert_function(func: syntax.Function) -> Function:
                 succ_then=node.left, succ_else=node.right, expr=node.cond)
         else:
             raise ValueError(f"unknown kind {node.kind!r}")
-    loops = compute_loops(cfg)
+
+    loops = compute_loops(safe_nodes, cfg)
+
     return Function(cfg, safe_nodes, loops)
 
 
+def convert_function(func: syntax.Function) -> Function:
+    try:
+        f = _convert_function(func)
+    except Exception as e:
+        raise type(e)(f"in function {func.name!r}") from e
+        raise
+    return f
+
+
 def num_reachable(cfg: CFG) -> int:
-    q: list[str] = [cfg.entry]
+    q: list[str] = [n for n, preds in cfg.all_preds.items() if len(preds) == 0]
     visited = set()
     while q:
         n = q.pop(0)
@@ -201,7 +321,6 @@ def cfg_is_reducible(cfg: CFG):
         if all(p in visited for p in cfg.all_preds[n] if (p, n) not in back_edges):
             visited.add(n)
             q += cfg.all_succs[n]
-
     # have we visited all the nodes? Not possible is there's a cycle, because
     # there would always be a predecessor who hadn't been visited yet
     return len(visited) == num_reachable(cfg)
