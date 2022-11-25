@@ -23,7 +23,19 @@ def assert_all_kernel_functions_are_reducible():
 
 
 if __name__ == "__main__":
+    with open('examples/dsa.txt') as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        func = ubc.convert_function(functions['tmp.' + sys.argv[1]])
+        viz_function(func)
+        func = ubc.dsa(func)
+        viz_function(func)
+
+    exit(0)
+
     assert_all_kernel_functions_are_reducible()
+
+    exit(0)
 
     with open('examples/for_loops.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(

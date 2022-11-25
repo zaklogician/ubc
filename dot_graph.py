@@ -10,7 +10,8 @@ import tempfile
 import sys
 import os
 from logic import split_conjuncts
-from typing import TypeVar
+from typing import TypeVar, Mapping
+import ubc
 import copy
 
 import syntax
@@ -20,6 +21,14 @@ def pretty_name(name):
     # type: (str) -> str
     if "__" not in name:
         return name
+
+    if '.' in name:
+        full_name, num = name.split('.')
+        if '__' in full_name:
+            prog_name, type_info = full_name.split('__')
+            return f'{prog_name}<sub>{num}</sub>'
+        return name
+
     c_name, extra = name.split("__")
     return c_name
 
@@ -96,7 +105,63 @@ def viz(t: Callable[[IOBase, P], R]):
 
 
 @viz
-def viz_function(file: IOBase, fun: syntax.Function):
+def viz_function(file: IOBase, fun: ubc.Function):
+    puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
+    putsf = lambda fmt, * \
+        args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
+
+    puts("digraph grph {")
+    puts("  node[shape=box]")
+    puts(
+        f"  FunctionDescription [label=<<u>{fun.name}</u>>] [shape=plaintext]")
+    puts()
+    for idx, node in fun.nodes.items():
+        if isinstance(node, ubc.BasicNode | ubc.CallNode):
+            putsf("  {} -> {}", idx, node.succ)
+        elif isinstance(node, ubc.CondNode):
+            putsf("  {} -> {} [label=T]", idx, node.succ_then)
+            if node.succ_else != "Err":
+                putsf("  {} -> {} [label=F]", idx, node.succ_else)
+
+        if isinstance(node, ubc.BasicNode):
+            content = (
+                "<BR/>".join(pretty_updates(u)
+                             for u in node.upds) or "<i>empty</i>"
+            )
+        elif isinstance(node, ubc.CallNode):
+            # weird: what is this ghost assertion?
+            # TODO: node.rets[0] might be empty
+            rets = [r[0] for r in node.rets]
+            content = ''
+            if len(rets):
+                content += f"{', '.join(rets)} := "
+            content += "{}({})".format(
+                fix_func_name(node.fname),
+                ", ".join(
+                    pretty_expr(arg)
+                    for arg in node.args
+                    # if arg.typ.kind != "Builtin" and arg.name != "GhostAssertions"
+                ),
+            )
+        elif isinstance(node, ubc.CondNode):
+
+            if node.succ_else == "Err":
+                operands = split_conjuncts(node.expr)
+                content = "<b>assert</b> " + pretty_expr(operands[0])
+                for operand in operands[1:]:
+                    content += "<BR/><b>and</b> " + pretty_expr(operand)
+            else:
+                content = pretty_expr(node.expr)
+        else:
+            assert False
+        putsf("  {idx} [xlabel={idx}] [label=<{content}>]",
+              idx=idx, content=content)
+
+    puts("}")
+
+
+@viz
+def viz_raw_function(file: IOBase, fun: syntax.Function):
     # type: (syntax.Function, Any) -> None
     puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
     putsf = lambda fmt, * \
@@ -231,4 +296,4 @@ if __name__ == "__main__":
         print(" ", "\n  ".join(functions.keys()), file=sys.stderr)
         exit(2)
 
-    viz_function(functions[function_name])
+    viz_raw_function(functions[function_name])

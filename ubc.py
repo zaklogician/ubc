@@ -1,4 +1,5 @@
-from typing import NamedTuple, TypeAlias
+from typing import Mapping, NamedTuple, Reversible, TypeAlias
+from logic import find_loop_avoiding
 import syntax
 from collections.abc import Collection
 from dataclasses import dataclass
@@ -83,7 +84,7 @@ class CFG(NamedTuple):
 
 
 class BasicNode(NamedTuple):
-    upds: tuple[tuple[tuple[str, syntax.Type], syntax.Expr]]
+    upds: tuple[tuple[tuple[str, syntax.Type], syntax.Expr], ...]
     succ: str
 
 
@@ -121,6 +122,8 @@ class Function(NamedTuple):
 
     cfg: CFG
 
+    name: str
+
     # TODO: find good way to freeze dict and keep type hints
     nodes: dict[str, CondNode | CallNode | BasicNode]
     """
@@ -131,6 +134,8 @@ class Function(NamedTuple):
     """
     Loop header to loop information
     """
+
+    arguments: tuple[tuple[str, syntax.Type], ...]
 
 
 def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
@@ -229,15 +234,15 @@ def compute_loops(nodes: dict[str, Node], cfg: CFG) -> dict[str, Loop]:
     # for each loop, inspect variables that are written to
 
     if len(set(loop_header for (t, loop_header) in cfg.back_edges)) < len(cfg.back_edges):
-        """
-        We have something like this (ie. multiple loops point use the same header)
 
-          -> header <--
-         /   /     \    \
-        |   /       \    |
-        \   v        v  /
-          left       right
-        """
+        # We have something like this (ie. multiple loops point use the same header)
+        #
+        #   -> header <--
+        #  /   /     \    \
+        # |   /       \    |
+        # \   v        v  /
+        #   left       right
+
         raise ValueError(
             "unhandle case: multiple back edges point to the same loop header in function")
 
@@ -275,7 +280,7 @@ def _convert_function(func: syntax.Function) -> Function:
 
     loops = compute_loops(safe_nodes, cfg)
 
-    return Function(cfg, safe_nodes, loops)
+    return Function(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=tuple(func.inputs), name=func.name)
 
 
 def convert_function(func: syntax.Function) -> Function:
@@ -283,7 +288,6 @@ def convert_function(func: syntax.Function) -> Function:
         f = _convert_function(func)
     except Exception as e:
         raise type(e)(f"in function {func.name!r}") from e
-        raise
     return f
 
 
@@ -344,3 +348,206 @@ def is_valid_all_preds(all_preds: dict[str, list[str]]) -> bool:
         if num_entries >= 2:
             return False
     return True
+
+
+Var = tuple[str, syntax.Type]
+
+
+class Insertion(NamedTuple):
+    """ At joint nodes, we need to insert x_n = x_m
+    These insertion items keep track of that.
+    """
+
+    after: str
+    """ Will insert the update after the node 'after' """
+
+    lhs_dsa_name: str
+    typ: syntax.Type
+
+    rhs_dsa_value: str
+
+
+@dataclass
+class DSABuilderMutableState:
+    k: int
+    """ fresh incarnation count
+    """
+
+    insertions: list[Insertion]
+    """ nodes to insert
+    """
+
+
+def find_latest_incarnation(
+        func: Function,
+        graph: Mapping[str, Node],
+        s: DSABuilderMutableState,
+        current_node: str,
+        raw_var_name: str,
+        typ: syntax.Type,
+        skip_current_node=False) -> str:
+    preds = func.cfg.all_preds[current_node]
+    if len(preds) == 0:
+        # is the variable an argument to the function?
+        for (dsa_name, typ) in func.arguments:
+            name, num = dsa_name.split('.')
+            if name == raw_var_name:
+                return dsa_name
+
+        # maybe it's a global
+        # TODO
+        assert False, f"trying to read {raw_var_name} but reached top of the function (is it a global?)"
+
+    # i think skip_current_node == current_node in graph, but i'd just like to make sure
+    if not skip_current_node:
+        assert current_node in graph, "didn't traverse in topological order"
+
+        node = graph[current_node]
+        if isinstance(node, BasicNode):
+            for ((dsa_name, typ), _) in node.upds:
+                raw, num = dsa_name.split('.')
+                if raw == raw_var_name:
+                    return dsa_name
+
+        elif isinstance(node, CallNode):
+            raise NotImplementedError
+
+    if len(preds) == 1:
+        return find_latest_incarnation(func, graph, s, preds[0], raw_var_name, typ)
+
+    latest = [find_latest_incarnation(
+        func, graph, s, p, raw_var_name, typ) for p in preds]
+
+    if len(set(latest)) == 1:
+        return latest[0]
+
+    # different branch have given different variables
+    # TODO: use Leino's optimisation to avoid excessive variables
+    s.k = s.k + 1
+    fresh_name = raw_var_name + f'.{s.k}'
+    for i, pred in enumerate(preds):
+        s.insertions.append(
+            Insertion(after=pred, lhs_dsa_name=fresh_name,
+                      typ=typ, rhs_dsa_value=latest[i])
+        )
+
+    return fresh_name
+
+
+def apply_incarnations(
+        func: Function,
+        graph: Mapping[str, Node],
+        s: DSABuilderMutableState,
+        upds: Reversible[tuple[Var, syntax.Expr]],
+        current_node: str,
+        root: syntax.Expr) -> syntax.Expr:
+
+    # using the Expr.visit is annoying because I need to keep track of state
+    # to rebuild the expression
+    if root.kind == "Num":
+        return root
+    elif root.kind == 'Var':
+        for ((dsa_name, typ), expr) in reversed(upds):
+            assert False, 'should never happen because we never have more than one update per name' \
+                          + 'ie. upds is always empty'
+            name, num = dsa_name.split('.')
+            if root.name == name:
+                assert typ == root.typ, f"same name doesn't have same type {dsa_name}"
+                return syntax.Expr('Var', root.typ, name=dsa_name)
+
+        # if we don't find it in the current updates, then we look in the parent nodes
+
+        dsa_name = find_latest_incarnation(
+            func, graph, s, current_node, root.name, root.typ, skip_current_node=True)
+        return syntax.Expr('Var', root.typ, name=dsa_name)
+
+    elif root.kind == 'Op':
+        return syntax.Expr('Op', root.typ, name=root.name, vals=[
+            apply_incarnations(func, graph, s, upds, current_node, item) for item in root.vals
+        ])
+
+    raise NotImplementedError(f"expr.kind={root.kind}")
+
+
+def apply_insertions(graph: dict[str, Node], insertions: Collection[Insertion]):
+    for i, ins in enumerate(insertions):
+        assert ins.after in graph, "inserting after an unknown node"
+        after = graph[ins.after]
+        # if we have a BasicNode, we could technically add an update.
+        # However, I don't do this because (1) if the last node is a CallNode,
+        # i'll have to insert an extra BasicNode anyway (2) c parser doesn't generate
+        # basic nodes with more than one update anyway, so code handling multiple
+        # updates either doesn't exists and isn't well tested
+
+        # or we could find the latest basic node before the 'after' node
+        # (we are guaranteed to find on the branch because otherwise we would
+        # not have had a conflict to resolve in the first place)
+
+        # approach: insert a basic node
+        assert not isinstance(
+            after, CondNode), "i didn't think this was possible"
+
+        upd: tuple[Var, syntax.Expr] = ((ins.lhs_dsa_name, ins.typ), syntax.Expr(
+            'Var', ins.typ, name=ins.rhs_dsa_value))
+        joiner = BasicNode((upd, ), succ=after.succ)
+        joiner_name = f'j{i}'
+        graph[joiner_name] = joiner
+
+        graph[ins.after] = after._replace(succ=joiner_name)
+
+
+def dsa(func: Function):
+    # q = [n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
+    q = [func.cfg.entry]
+
+    visited: set[str] = set()
+    graph: dict[str, Node] = {}
+
+    s = DSABuilderMutableState(k=0, insertions=[])
+
+    args = []
+    for (arg_name, typ) in func.arguments:
+        s.k += 1
+        args.append((arg_name + f'.{s.k}', typ))
+
+    # this _replace is documented, but it isn't type safe
+    # TOOD: find a way to implement _replace in a type safe way
+    func = func._replace(arguments=tuple(args))
+
+    while q:
+        # bfs-like topological order so that we visit the longest branches last
+        assert visited == set(graph.keys())
+        # => means we could get rid of the visited set
+
+        n = q.pop(-1)
+        if not all(p in visited for p in func.cfg.all_preds[n]):
+            continue
+
+        visited.add(n)
+
+        node = func.nodes[n]
+        if isinstance(node, BasicNode):
+            upds: list[tuple[Var, syntax.Expr]] = []
+            for (var, expr) in node.upds:
+                s.k += 1
+                varp = (var[0] + f'.{s.k}', var[1])
+                exprp = apply_incarnations(func, graph, s, upds, n, expr)
+                upds.append((varp, exprp))
+            graph[n] = BasicNode(tuple(upds), succ=node.succ)
+        elif isinstance(node, CondNode):
+            graph[n] = CondNode(
+                expr=apply_incarnations(func, graph, s, [], n, node.expr),
+                succ_then=node.succ_then,
+                succ_else=node.succ_else,
+            )
+        elif isinstance(node, CallNode):
+            raise NotImplementedError
+
+        succs = func.cfg.all_succs[n]
+        for succ in succs:
+            if (n, succ) not in func.cfg.back_edges:
+                q.append(succ)
+
+    apply_insertions(graph, s.insertions)
+
+    return func._replace(nodes=graph)
