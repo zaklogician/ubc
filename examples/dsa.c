@@ -81,3 +81,12 @@ int if_join_multiple_variables_no_ret(int cond)
 
 
 
+int simple_for_loop(int n)
+{
+    int s = 0;
+    for (int i = 0; i < n; i++)
+    {
+        s += i;
+    }
+    return s;
+}

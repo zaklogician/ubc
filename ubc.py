@@ -117,6 +117,10 @@ class Loop(NamedTuple):
     """ All the variables that are written to during the loop
     """
 
+    @property
+    def header(self):
+        return self.back_edge[1]
+
 
 class Function(NamedTuple):
 
@@ -125,14 +129,14 @@ class Function(NamedTuple):
     name: str
 
     # TODO: find good way to freeze dict and keep type hints
-    nodes: dict[str, CondNode | CallNode | BasicNode]
+    nodes: Mapping[str, CondNode | CallNode | BasicNode]
     """
-    Node name to Node
+    Node name => Node
     """
 
-    loops: dict[str, Loop]
+    loops: Mapping[str, Loop]
     """
-    Loop header to loop information
+    loop header => loop information
     """
 
     arguments: tuple[tuple[str, syntax.Type], ...]
@@ -324,7 +328,7 @@ def cfg_is_reducible(cfg: CFG):
         if all(p in visited for p in cfg.all_preds[n] if (p, n) not in cfg.back_edges):
             visited.add(n)
             q += cfg.all_succs[n]
-    # have we visited all the nodes? Not possible is there's a cycle, because
+    # have we visited all the nodes? Not possible if there's a cycle, because
     # there would always be a predecessor who hadn't been visited yet
     return len(visited) == num_reachable(cfg)
 
@@ -377,6 +381,25 @@ class DSABuilderMutableState:
     """ nodes to insert
     """
 
+    # TODO: use different types for raw var name and dsa var names
+    loop_targets_incarnations: Mapping[str, dict[str, str]]
+    """
+    Loop header => raw_var_name => dsa_var_name
+
+    (Recall that a loop header uniquely identifies a loop)
+
+    When we read a variable from a block, we go up the CFG to find where it
+    was defined. If we stumble upon a loop header, and this loop writes to
+    that specific variable (ie this variable is a loop target), then we must
+    not continue looking up the graph! That variable must be havoced.
+
+    That is, the first time you lookup a loop target in the loop header, you
+    return a fresh variable f. Later on, if more blocks ask for that same
+    variable, we must return the same f.
+
+    This mapping keeps track of which loop targets have been incarnated so far.
+    """
+
 
 def find_latest_incarnation(
         func: Function,
@@ -386,21 +409,20 @@ def find_latest_incarnation(
         raw_var_name: str,
         typ: syntax.Type,
         skip_current_node=False) -> str:
-    preds = func.cfg.all_preds[current_node]
-    if len(preds) == 0:
-        # is the variable an argument to the function?
-        for (dsa_name, typ) in func.arguments:
-            name, num = dsa_name.split('.')
-            if name == raw_var_name:
-                return dsa_name
 
-        # maybe it's a global
-        # TODO
-        assert False, f"trying to read {raw_var_name} but reached top of the function (is it a global?)"
+    # see loop_targets_incarnations' comment
+    if current_node in func.loops and raw_var_name in func.loops[current_node].targets:
+
+        if raw_var_name not in s.loop_targets_incarnations[current_node]:
+            s.k += 1
+            s.loop_targets_incarnations[current_node][raw_var_name] = raw_var_name + \
+                f'.{s.k}'
+
+        return s.loop_targets_incarnations[current_node][raw_var_name]
 
     # i think skip_current_node == current_node in graph, but i'd just like to make sure
     if not skip_current_node:
-        assert current_node in graph, "didn't traverse in topological order"
+        assert current_node in graph, f"didn't traverse in topological order {current_node=}"
 
         node = graph[current_node]
         if isinstance(node, BasicNode):
@@ -411,6 +433,21 @@ def find_latest_incarnation(
 
         elif isinstance(node, CallNode):
             raise NotImplementedError
+
+    # don't go searching up back edges
+    preds = [p for p in func.cfg.all_preds[current_node]
+             if (p, current_node) not in func.cfg.back_edges]
+
+    if len(preds) == 0:
+        # is the variable an argument to the function?
+        for (dsa_name, typ) in func.arguments:
+            name, num = dsa_name.split('.')
+            if name == raw_var_name:
+                return dsa_name
+
+        # maybe it's a global
+        # TODO
+        assert False, f"trying to read {raw_var_name} but reached top of the function (is it a global?)"
 
     if len(preds) == 1:
         return find_latest_incarnation(func, graph, s, preds[0], raw_var_name, typ)
@@ -500,10 +537,15 @@ def dsa(func: Function):
     # q = [n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
     q = [func.cfg.entry]
 
-    visited: set[str] = set()
     graph: dict[str, Node] = {}
 
-    s = DSABuilderMutableState(k=0, insertions=[])
+    # this is hack to deal wit the weird assert False() node
+    for n, preds in func.cfg.all_preds.items():
+        if len(preds) == 0 and n != func.cfg.entry:
+            graph[n] = func.nodes[n]
+
+    s = DSABuilderMutableState(k=0, insertions=[], loop_targets_incarnations={
+                               loop_header: {} for loop_header in func.loops})
 
     args = []
     for (arg_name, typ) in func.arguments:
@@ -514,16 +556,18 @@ def dsa(func: Function):
     # TOOD: find a way to implement _replace in a type safe way
     func = func._replace(arguments=tuple(args))
 
+    def visited(n): return n in graph.keys()
+
     while q:
         # bfs-like topological order so that we visit the longest branches last
-        assert visited == set(graph.keys())
-        # => means we could get rid of the visited set
-
         n = q.pop(-1)
-        if not all(p in visited for p in func.cfg.all_preds[n]):
+        if n == 'Err' or n == 'Ret':
             continue
 
-        visited.add(n)
+        # (if n in graph.keys(), that means that n was visited)
+        # visit in topolocial order ignoring back edges
+        if not all(visited(p) for p in func.cfg.all_preds[n] if (p, n) not in func.cfg.back_edges):
+            continue
 
         node = func.nodes[n]
         if isinstance(node, BasicNode):
@@ -549,5 +593,8 @@ def dsa(func: Function):
                 q.append(succ)
 
     apply_insertions(graph, s.insertions)
+
+    # +2 for Err and Ret
+    assert len(graph) + 2 == num_reachable(func.cfg)
 
     return func._replace(nodes=graph)
