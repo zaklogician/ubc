@@ -115,13 +115,18 @@ def viz_function(file: IOBase, fun: ubc.Function):
     puts(
         f"  FunctionDescription [label=<<u>{fun.name}</u>>] [shape=plaintext]")
     puts()
+    dom = '[penwidth=3.0 color=darkblue]'
+    non_dom = '[color="#888"]'
     for idx, node in fun.nodes.items():
         if isinstance(node, ubc.BasicNode | ubc.CallNode):
-            putsf("  {} -> {}", idx, node.succ)
+            puts(
+                f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
         elif isinstance(node, ubc.CondNode):
-            putsf("  {} -> {} [label=T]", idx, node.succ_then)
+            puts(
+                f"  {idx} -> {node.succ_then} [label=T] {dom if (idx, node.succ_then) in fun.cfg.back_edges else non_dom}")
             if node.succ_else != "Err":
-                putsf("  {} -> {} [label=F]", idx, node.succ_else)
+                puts(
+                    f"  {idx} -> {node.succ_else} [label=F] {dom if (idx, node.succ_else) in fun.cfg.back_edges else non_dom}")
 
         if isinstance(node, ubc.BasicNode):
             content = (
