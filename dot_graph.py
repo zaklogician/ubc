@@ -15,6 +15,7 @@ import ubc
 import copy
 
 import syntax
+from typing_extensions import assert_never
 
 
 def pretty_name(name):
@@ -91,16 +92,20 @@ def pretty_updates(update):
     return "{} := {}".format(pretty_name(name), pretty_expr(expr))
 
 
-# black magic
+def pretty_safe_update(upd: ubc.Update) -> str:
+    return "{} := {}".format(pretty_name(upd.var.name), pretty_expr(upd.expr))
+
+
 P = TypeVar("P")
 R = TypeVar("R")
 
 
-def viz(t: Callable[[IOBase, P], R]):
-    def func(arg: P):
+def viz(t: Callable[[IOBase, P], R]) -> Callable[[P], R]:
+    def func(arg: P) -> R:
         fd, filepath = tempfile.mkstemp(dir="/tmp/", suffix=".gv")
-        t(os.fdopen(fd, 'w'), arg)
+        r = t(os.fdopen(fd, 'w'), arg)
         make_and_open_image(filepath)
+        return r
     return func
 
 
@@ -118,7 +123,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
     for idx, node in fun.nodes.items():
-        if isinstance(node, ubc.BasicNode | ubc.CallNode):
+        if isinstance(node, ubc.BasicNode | ubc.CallNode | ubc.EmptyNode):
             puts(
                 f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
         elif isinstance(node, ubc.CondNode):
@@ -127,19 +132,16 @@ def viz_function(file: IOBase, fun: ubc.Function):
             if node.succ_else != "Err":
                 puts(
                     f"  {idx} -> {node.succ_else} [label=F] {dom if (idx, node.succ_else) in fun.cfg.back_edges else non_dom}")
+        else:
+            assert_never(node)
 
         if isinstance(node, ubc.BasicNode):
-            content = (
-                "<BR/>".join(pretty_updates(u)
-                             for u in node.upds) or "<i>empty</i>"
-            )
+            content = pretty_safe_update(node.upd)
         elif isinstance(node, ubc.CallNode):
-            # weird: what is this ghost assertion?
             # TODO: node.rets[0] might be empty
-            rets = [r[0] for r in node.rets]
             content = ''
-            if len(rets):
-                content += f"{', '.join(rets)} := "
+            if len(node.rets):
+                content += f"{', '.join(r.name for r in node.rets)} := "
             content += "{}({})".format(
                 fix_func_name(node.fname),
                 ", ".join(
@@ -157,7 +159,10 @@ def viz_function(file: IOBase, fun: ubc.Function):
                     content += "<BR/><b>and</b> " + pretty_expr(operand)
             else:
                 content = pretty_expr(node.expr)
+        elif isinstance(node, ubc.EmptyNode):
+            content = ''
         else:
+            assert_never(node)
             assert False
         putsf("  {idx} [xlabel={idx}] [label=<{content}>]",
               idx=idx, content=content)

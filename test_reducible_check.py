@@ -1,5 +1,9 @@
+import syntax
 import pytest
-from ubc import cfg_is_reducible, compute_cfg_from_all_succs
+import ubc
+
+# global variables are bad :(
+syntax.set_arch('rv64')
 
 
 @pytest.mark.parametrize("all_succs", [
@@ -118,7 +122,8 @@ from ubc import cfg_is_reducible, compute_cfg_from_all_succs
     },
 ])
 def test_is_reducible(all_succs):
-    assert cfg_is_reducible(compute_cfg_from_all_succs(all_succs, "_start"))
+    assert ubc.cfg_is_reducible(
+        ubc.compute_cfg_from_all_succs(all_succs, "_start"))
 
 
 @pytest.mark.parametrize("all_succs", [
@@ -189,8 +194,20 @@ def test_is_reducible(all_succs):
 
 ])
 def test_is_not_reducible(all_succs):
-    assert not cfg_is_reducible(
-        compute_cfg_from_all_succs(all_succs, "_start"))
+    assert not ubc.cfg_is_reducible(
+        ubc.compute_cfg_from_all_succs(all_succs, "_start"))
+
+
+def test_kernel_functions_all_reducible():
+    """ we haven't checked manually """
+    with open('examples/kernel_CFunctions.txt') as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        for func in functions.values():
+            if not func.entry:
+                continue
+            cfg = ubc.compute_cfg_from_func(func)
+            assert ubc.cfg_is_reducible(cfg)
 
 
 if __name__ == "__main__":
