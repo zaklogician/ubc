@@ -1,4 +1,7 @@
-from typing import Generic, Mapping, NamedTuple, NewType, Reversible, TypeAlias, TypeVar
+from __future__ import annotations
+import dataclasses
+from enum import Enum, unique
+from typing import Callable, Generic, Mapping, NamedTuple, NewType, Reversible, TypeAlias, TypeVar, cast
 from logic import find_loop_avoiding
 import syntax
 from collections.abc import Collection
@@ -102,49 +105,279 @@ def unpack_dsa_var_name(v: DSAVarName) -> tuple[ProgVarName, int]:
     return ProgVarName(name), int(num)
 
 
-K = TypeVar('K', ProgVarName, DSAVarName)
+VarKind = TypeVar('VarKind', ProgVarName, DSAVarName)
 
 
-# TODO: syntax.Expr should know about DSAVarName/ProgVarName
+@dataclass(frozen=True)
+class Type:
+    pass
 
-# can't use generics with NamedTuples, the fix is only in python3.11
-# and ubuntu comes with python3.10.
+
+@dataclass(frozen=True)
+class TypeStruct(Type):
+    name: str
+
+
+@dataclass(frozen=True)
+class TypeBitVec(Type):
+    """ Synonym for TypeWord
+    """
+    size: int
+
+
+@dataclass(frozen=True)
+class TypeArray(Type):
+    element_typ: Type
+    size: int
+
+
+@dataclass(frozen=True)
+class TypePtr(Type):
+    pointee_type: Type
+
+
+@dataclass(frozen=True)
+class TypeFloatingPoint(Type):
+    exp_bits: int
+    """ number of bits in the exponent """
+    sig_bits: int
+    """ number of bits in the significant """
+
+
+@unique
+class Builtin(Enum):
+    BOOL = 'Bool'
+    MEM = 'Mem'
+    """ Memory """
+    DOM = 'Dom'
+    """ valid domain of memory operations """
+    HTD = 'HTD'
+    """ heap type description """
+    PMS = 'PMS'
+    """ phantom machine state """
+    UNIT = 'UNIT'
+    """ singleton type """
+    TYPE = 'Type'
+    """ type of Type expression used for pointer validity """
+    TOKEN = 'Token'
+    """ spec doesn't say what this is """
+    ROUNDING_MODE = 'RoundingMode'
+
+
+@dataclass(frozen=True)
+class TypeBuiltin(Type):
+    builtin: Builtin
+
+
+@dataclass(frozen=True)
+class TypeWordArray(Type):
+
+    index_bits: int
+    """ these are guesses from looking at the code, i don't actually know if
+        that's what they're meant to represent
+
+        number of bits used for the index?
+
+        """
+
+    value_bits: int
+    """ number of bits used per value?
+        same as for index_bits, i'm not actually sure
+    """
+    pass
+
+
+@dataclass(frozen=True)
+class ABCExpr(Generic[VarKind]):
+    typ: Type
+
+
+@dataclass(frozen=True)
+class ExprArray(ABCExpr[VarKind]):
+    values: tuple[Expr[VarKind], ...]
+
+
+@dataclass(frozen=True)
+class ExprVar(ABCExpr[VarKind]):
+    name: VarKind
+
+
+@dataclass(frozen=True)
+class ExprNum(ABCExpr):
+    num: int
+
+
+@dataclass(frozen=True)
+class ExprType(ABCExpr[VarKind]):
+    """ should have typ builtin.Type
+    """
+    val: Type
+
+
+@unique
+class Operator(Enum):
+    """ To convert graph lang operator name to this enum, just do Operator(parsed_operator_name)
+
+    Some operators that are specified in the spec aren't used.
+    Some operators that are used aren't specified in the spec.
+    """
+    PLUS = 'Plus'
+    MINUS = 'Minus'
+    TIMES = 'Times'
+    MODULUS = 'Modulus'
+    DIVIDED_BY = 'DividedBy'
+
+    BW_AND = 'BWAnd'
+    BW_OR = 'BWOr'
+    BW_XOR = 'BWXor'
+
+    SHIFT_LEFT = 'ShiftLeft'
+    SHIFT_RIGHT = 'ShiftRight'
+    SIGNED_SHIFT_RIGHT = 'SignedShiftRight'
+
+    AND = 'And'
+    OR = 'Or'
+    IMPLIES = 'Implies'
+
+    NOT = 'Not'
+
+    TRUE = 'True'
+    FALSE = 'False'
+
+    EQUALS = 'Equals'
+    LESS = 'Less'
+    LESS_EQUALS = 'LessEquals'
+    SIGNED_LESS = 'SignedLess'
+    SIGNED_LESS_EQUALS = 'SignedLessEquals'
+
+    BW_NOT = 'BWNot'
+    COUNT_LEADING_ZEROES = 'CountLeadingZeros'
+    COUNT_TRAILING_ZEROES = 'CountTrailingZeroes'
+    WORD_REVERSE = 'WordReverse'
+    WORD_CAST = 'WordCast'
+    WORD_CAST_SIGNED = 'WordCastSigned'
+
+    MEM_ACC = 'MemAcc'
+    MEM_UPDATE = 'MemUpdate'
+
+    P_VALID = 'PValid'
+    P_WEAK_VALID = 'PWeakValid'
+    P_ALIGN_VALID = 'PAlignValid'
+    P_GLOBAL_VALID = 'PGlobalValid'
+    P_ARRAY_VALID = 'PArrayValid'
+
+    MEM_DOM = 'MemDom'
+    HTD_UPDATE = 'HTDUpdate'
+    IF_THEN_ELSE = 'IfThenElse'
+
+    ROUND_NEAREST_TIES_TO_EVEN = 'roundNearestTiesToEven'
+    ROUND_NEAREST_TIES_TO_AWAY = 'roundNearestTiesToAway'
+    ROUND_TOWARD_POSITIVE = 'roundTowardPositive'
+    ROUND_TOWARD_NEGATIVE = 'roundTowardNegative'
+    ROUND_TOWARD_ZERO = 'roundTowardZero'
+
+    # optional apparently
+    # FP_ABS = 'fp.abs'
+    # FP_NEG = 'fp.neg'
+    # FP_ADD = 'fp.add'
+    # FP_SUB = 'fp.sub'
+    # FP_MUL = 'fp.mul'
+    # FP_DIV = 'fp.div'
+    # FP_FMA = 'fp.fma'
+    # FP_SQRT = 'fp.sqrt'
+    # FP_REM = 'fp.rem'
+    # FP_ROUND_TO_INTEGRAL = 'fp.roundToIntegral'
+    # FP_MIN = 'fp.min'
+    # FP_MAX = 'fp.max'
+    # FP_LEQ = 'fp.leq'
+    # FP_LT = 'fp.lt'
+    # FP_GEQ = 'fp.geq'
+    # FP_GT = 'fp.gt'
+    # FP_EQ = 'fp.eq'
+    # FP_IS_NORMAL = 'fp.isNormal'
+    # FP_IS_SUBNORMAL = 'fp.IsSubnormal'
+    # FP_IS_ZERO = 'fp.isZero'
+    # FP_IS_INFINITE = 'fp.isInfinite'
+    # FP_IS_NAN = 'fp.isNaN'
+    # FP_IS_NEGATIVE = 'fp.isNegative'
+    # FP_IS_POSITIVE = 'fp.isPositive'
+
+    # TO_FLOATING_POINT = 'ToFloatingPoint'
+    # TO_FLOATING_POINT_SIGNED = 'ToFloatingPointSigned'
+    # TO_FLOATING_POINT_UNSIGNED = 'ToFloatingPointUnsigned'
+    # FLOATING_POINT_CAST = 'FloatingPointCast'
+
+
+@dataclass(frozen=True)
+class ExprOp(ABCExpr[VarKind]):
+    operator: Operator
+    operands: tuple[Expr[VarKind], ...]
+
+
+Expr = ExprArray[VarKind] | ExprVar[VarKind] | ExprNum | ExprType[VarKind] | ExprOp[VarKind]
+
+# for the following commented out expr classes
+# not present in the kernel functions, I don't want to make an abstraction for
+# something i can't even test once
+
+# @dataclass(frozen=True)
+# class ExprField(Expr[VarKind]):
+#     struct: Expr[VarKind]
+#     field_name: str
+#     field_type: Type
+
+# @dataclass(frozen=True)
+# class ExprFieldUpd(Expr[VarKind]):
+#     struct: Expr[VarKind]
+#     field_name: str
+#     field_type: Type
+#     val: Expr[VarKind]
+
+#
+# @dataclass(frozen=True)
+# class ExprStructCons(Expr[VarKind]):
+#     inits: Mapping[]
+
+
+# can't inherit from NamedTuple and Generic[...], the fix is only in
+# python3.11 and ubuntu comes with python3.10.
 # https://github.com/python/cpython/issues/88089
 # https://github.com/python/cpython/pull/92027
 @dataclass(frozen=True)
-class Var(Generic[K]):
-    name: K
-    typ: syntax.Type
+class Var(Generic[VarKind]):
+    name: VarKind
+    typ: Type
 
 
 @dataclass(frozen=True)
-class Update(Generic[K]):
-    var: Var[K]
-    expr: syntax.Expr
+class Update(Generic[VarKind]):
+    var: Var[VarKind]
+    expr: Expr[VarKind]
 
 
 @dataclass(frozen=True)
-class BasicNode(Generic[K]):
+class BasicNode(Generic[VarKind]):
     # only support one update per node
-    upd: Update[K]
+    upd: Update[VarKind]
     succ: str
 
 
 @dataclass(frozen=True)
-class CallNode(Generic[K]):
+class CallNode(Generic[VarKind]):
     succ: str
     fname: str
-    args: tuple[syntax.Expr]
-    rets: tuple[Var[K], ...]
+    args: tuple[Expr[VarKind]]
+    rets: tuple[Var[VarKind], ...]
 
 
-class CondNode(NamedTuple):
-    expr: syntax.Expr
+@dataclass(frozen=True)
+class CondNode(Generic[VarKind]):
+    expr: Expr  # TODO: Expr will take a VarKind
     succ_then: str
     succ_else: str
 
 
-Node = BasicNode[K] | CallNode | CondNode | EmptyNode
+Node = BasicNode[VarKind] | CallNode[VarKind] | CondNode[VarKind] | EmptyNode
 
 
 class Loop(NamedTuple):
@@ -166,14 +399,14 @@ class Loop(NamedTuple):
 
 
 @dataclass(frozen=True)
-class Function(Generic[K]):
+class Function(Generic[VarKind]):
 
     cfg: CFG
 
     name: str
 
     # TODO: find good way to freeze dict and keep type hints
-    nodes: Mapping[str, Node[K]]
+    nodes: Mapping[str, Node[VarKind]]
     """
     Node name => Node
     """
@@ -183,10 +416,19 @@ class Function(Generic[K]):
     loop header => loop information
     """
 
-    arguments: tuple[Var[K], ...]
+    arguments: tuple[Var[VarKind], ...]
 
 
-del K
+def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
+    visitor(expr)
+    if isinstance(expr, ExprOp):
+        for operator in expr.operands:
+            visitor(operator)
+    elif isinstance(expr, ExprArray):
+        for value in expr.values:
+            visitor(value)
+    elif not isinstance(expr, ExprVar | ExprNum | ExprType):
+        assert_never(expr)
 
 
 def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
@@ -316,30 +558,70 @@ def compute_loops(nodes: dict[str, Node[ProgVarName]], cfg: CFG) -> dict[str, Lo
     return loops
 
 
+def convert_type(typ: syntax.Type) -> Type:
+    if typ.kind == 'Word':
+        return TypeBitVec(typ.num)
+    elif typ.kind == 'Ptr':
+        assert typ.el_typ_symb is not None
+        return TypePtr(typ.el_typ_symb)
+    elif typ.kind == 'Array':
+        assert typ.el_typ_symb is not None
+        return TypeArray(typ.el_typ_symb, typ.num)
+    elif typ.kind == 'FloatingPoint':
+        return TypeFloatingPoint(typ.nums[0], typ.nums[1])
+    elif typ.kind == 'Struct':
+        return TypeStruct(typ.name)
+    elif typ.kind == 'Builtin':
+        return TypeBuiltin(Builtin(typ.name))
+    elif typ.kind == 'WordArray':
+        return TypeWordArray(typ.nums[0], typ.nums[1])
+    raise NotImplementedError(f"Type {typ.kind} not implemented")
+
+
+def convert_expr(expr: syntax.Expr) -> Expr[ProgVarName]:
+    typ = convert_type(expr.typ)
+    if expr.kind == 'Op':
+        return ExprOp(typ, Operator(expr.name), tuple(convert_expr(operand) for operand in expr.vals))
+    elif expr.kind == 'Var':
+        return ExprVar(typ, ProgVarName(expr.name))
+    elif expr.kind == 'Num':
+        return ExprNum(typ, expr.val)
+    elif expr.kind == 'Type':
+        return ExprType(typ, convert_type(expr.val))
+    raise NotImplementedError
+
+
 def _convert_function(func: syntax.Function) -> Function:
     cfg = compute_cfg_from_func(func)
-    safe_nodes = {}
+    safe_nodes: dict[str, Node[ProgVarName]] = {}
     for name, node in func.nodes.items():
         if node.kind == "Basic":
             if len(node.upds) == 0:
                 safe_nodes[name] = EmptyNode(succ=node.cont)
             else:
-                assert len(node.upds) == 1
-                var = Var(ProgVarName(node.upds[0][0][0]), node.upds[0][0][1])
-                upd = Update(var=var, expr=node.upds[0][1])
+                assert len(
+                    node.upds) == 1, "multiple simultaneous updates isn't supported yet"
+                var = Var(ProgVarName(node.upds[0][0][0]), convert_type(
+                    node.upds[0][0][1]))
+                upd = Update(var=var, expr=convert_expr(node.upds[0][1]))
                 safe_nodes[name] = BasicNode(upd=upd, succ=node.cont)
         elif node.kind == "Call":
+            node.args
             safe_nodes[name] = CallNode(
-                succ=node.cont, fname=node.fname, args=tuple(node.args), rets=tuple(Var(ProgVarName(name), typ) for name, typ in node.rets))
+                succ=node.cont,
+                fname=node.fname,
+                args=tuple(convert_expr(arg) for arg in node.args),
+                rets=tuple(Var(ProgVarName(name), convert_type(typ)) for name, typ in node.rets))
         elif node.kind == "Cond":
             safe_nodes[name] = CondNode(
-                succ_then=node.left, succ_else=node.right, expr=node.cond)
+                succ_then=node.left, succ_else=node.right, expr=convert_expr(node.cond))
         else:
             raise ValueError(f"unknown kind {node.kind!r}")
 
     loops = compute_loops(safe_nodes, cfg)
 
-    args = tuple(Var(ProgVarName(name), typ) for name, typ in func.inputs)
+    args = tuple(Var(ProgVarName(name), convert_type(typ))
+                 for name, typ in func.inputs)
 
     return Function(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=args, name=func.name)
 
@@ -420,7 +702,7 @@ class Insertion(NamedTuple):
     """ Will insert the update after the node 'after' """
 
     lhs_dsa_name: DSAVarName
-    typ: syntax.Type
+    typ: Type
 
     rhs_dsa_value: DSAVarName
 
@@ -477,7 +759,7 @@ def find_latest_incarnation(
         s: DSABuilderMutableState,
         current_node: str,
         prog_var_name: ProgVarName,
-        typ: syntax.Type,
+        typ: Type,
         skip_current_node=False) -> DSAVarName:
 
     # see loop_targets_incarnations' comment
@@ -545,23 +827,26 @@ def apply_incarnations(
         graph: Mapping[str, Node],
         s: DSABuilderMutableState,
         current_node: str,
-        root: syntax.Expr) -> syntax.Expr:
+        root: Expr[ProgVarName]) -> Expr[DSAVarName]:
 
     # using the Expr.visit is annoying because I need to keep track of state
     # to rebuild the expression
-    if root.kind == "Num":
+    if isinstance(root, ExprNum):
         return root
-    elif root.kind == 'Var':
+    elif isinstance(root, ExprVar):
         dsa_name = find_latest_incarnation(
             func, graph, s, current_node, root.name, root.typ, skip_current_node=True)
-        return syntax.Expr('Var', root.typ, name=dsa_name)
+        return ExprVar(root.typ, name=dsa_name)
+    elif isinstance(root, ExprOp):
+        return ExprOp(root.typ, Operator(root.operator), operands=tuple(
+            apply_incarnations(func, graph, s, current_node, operand) for operand in root.operands
+        ))
+    elif isinstance(root, ExprArray | ExprType):
+        raise NotImplementedError
+    else:
+        assert_never(root)
 
-    elif root.kind == 'Op':
-        return syntax.Expr('Op', root.typ, name=root.name, vals=[
-            apply_incarnations(func, graph, s, current_node, item) for item in root.vals
-        ])
-
-    raise NotImplementedError(f"expr.kind={root.kind}")
+    raise NotImplementedError(f"expr={root}")
 
 
 def apply_insertions(graph: dict[str, Node[DSAVarName]], insertions: Collection[Insertion]):
@@ -583,12 +868,13 @@ def apply_insertions(graph: dict[str, Node[DSAVarName]], insertions: Collection[
             after, CondNode), "i didn't think this was possible"
 
         var = Var(DSAVarName(ins.lhs_dsa_name), ins.typ)
-        expr = syntax.Expr('Var', ins.typ, name=ins.rhs_dsa_value)
+        expr = ExprVar(ins.typ, ins.rhs_dsa_value)
         joiner = BasicNode(Update(var, expr), succ=after.succ)
         joiner_name = f'j{i}'
         graph[joiner_name] = joiner
 
-        graph[ins.after] = dataclass.replace(after, succ=joiner_name)
+        # not type safe according to pyright!
+        graph[ins.after] = dataclasses.replace(after, succ=joiner_name)
 
 
 def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
@@ -603,9 +889,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
         if len(preds) == 0 and n != func.cfg.entry:
             # assert len(expr_variables(func.nodes[n])) == 0  # TODO
             node = func.nodes[n]
-            assert isinstance(node, CondNode) and node.expr == syntax.Expr(
-                'Op', syntax.Type('Builtin', 'Bool'), name='False', vals=[])
-            dsa_nodes[n] = node
+            assert isinstance(node, CondNode) and node.expr == ExprOp(
+                TypeBuiltin(Builtin.BOOL), Operator.FALSE, tuple()), "different weird case in c parser"
+            dsa_nodes[n] = cast(CondNode[DSAVarName], node)
             visited.add(n)
 
     k = 0
@@ -634,7 +920,6 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
 
         node = func.nodes[n]
         if isinstance(node, BasicNode):
-            upds: list[tuple[Var, syntax.Expr]] = []
             s.k += 1
             varp = Var(make_dsa_var_name(
                 node.upd.var.name, s.k), node.upd.var.typ)

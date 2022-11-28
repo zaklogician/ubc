@@ -1,15 +1,16 @@
 """ standalone file to visualize graph lang
 """
 
+import logic
 from collections.abc import Callable
 from io import IOBase
+from re import split
 import subprocess
-from typing import Any, Tuple
+from typing import Any, Iterator, Tuple
 import tempfile
 
 import sys
 import os
-from logic import split_conjuncts
 from typing import TypeVar, Mapping
 import ubc
 import copy
@@ -38,6 +39,14 @@ def fix_func_name(name):
     if name[: len("tmp.")] == "tmp.":
         return name[len("tmp."):]
     return name
+
+
+def split_conjuncts(expr: ubc.Expr) -> Iterator[ubc.Expr]:
+    if isinstance(expr, ubc.ExprOp) and expr.operator == ubc.Operator.AND:
+        yield from split_conjuncts(expr.operands[0])
+        yield from split_conjuncts(expr.operands[1])
+    else:
+        yield expr
 
 
 # not complete
@@ -86,6 +95,34 @@ def pretty_expr(expr, print_type=False):
         return str(expr)
 
 
+def pretty_safe_expr(expr: ubc.Expr, print_type=False):
+    if print_type:
+        return "{}:{}".format(pretty_safe_expr(expr), syntax.pretty_type(expr.typ))
+    elif isinstance(expr, ubc.ExprVar):
+        return pretty_name(expr.name)
+    elif isinstance(expr, ubc.ExprNum):
+        return str(expr.num)
+    elif isinstance(expr, ubc.ExprOp) and expr.operator.value in pretty_opers:
+        [x, y] = expr.operands
+        return "({} {} {})".format(
+            pretty_safe_expr(x, print_type),
+            pretty_opers[expr.operator.value],
+            pretty_safe_expr(y, print_type),
+        )
+    elif isinstance(expr, ubc.ExprOp):
+        if expr.operator.value in known_typ_change:
+            vals = [pretty_safe_expr(v) for v in expr.operands]
+        else:
+            vals = [
+                pretty_safe_expr(
+                    v, print_type=print_type and v.typ != expr.typ)
+                for v in expr.operands
+            ]
+        return "{}({})".format(expr.operator.value, ", ".join(vals))
+    else:
+        return str(expr)
+
+
 def pretty_updates(update):
     # type: (Tuple[Tuple[str, syntax.Type], syntax.Expr]) -> str
     (name, typ), expr = update
@@ -93,7 +130,7 @@ def pretty_updates(update):
 
 
 def pretty_safe_update(upd: ubc.Update) -> str:
-    return "{} := {}".format(pretty_name(upd.var.name), pretty_expr(upd.expr))
+    return "{} := {}".format(pretty_name(upd.var.name), pretty_safe_expr(upd.expr))
 
 
 P = TypeVar("P")
@@ -145,7 +182,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
             content += "{}({})".format(
                 fix_func_name(node.fname),
                 ", ".join(
-                    pretty_expr(arg)
+                    pretty_safe_expr(arg)
                     for arg in node.args
                     # if arg.typ.kind != "Builtin" and arg.name != "GhostAssertions"
                 ),
@@ -153,12 +190,12 @@ def viz_function(file: IOBase, fun: ubc.Function):
         elif isinstance(node, ubc.CondNode):
 
             if node.succ_else == "Err":
-                operands = split_conjuncts(node.expr)
-                content = "<b>assert</b> " + pretty_expr(operands[0])
+                operands = list(split_conjuncts(node.expr))
+                content = "<b>assert</b> " + pretty_safe_expr(operands[0])
                 for operand in operands[1:]:
-                    content += "<BR/><b>and</b> " + pretty_expr(operand)
+                    content += "<BR/><b>and</b> " + pretty_safe_expr(operand)
             else:
-                content = pretty_expr(node.expr)
+                content = pretty_safe_expr(node.expr)
         elif isinstance(node, ubc.EmptyNode):
             content = ''
         else:
@@ -213,7 +250,7 @@ def viz_raw_function(file: IOBase, fun: syntax.Function):
         elif node.kind == "Cond":
 
             if node.right == "Err":
-                operands = split_conjuncts(node.cond)
+                operands = logic.split_conjuncts(node.cond)
                 content = "<b>assert</b> " + pretty_expr(operands[0])
                 for operand in operands[1:]:
                     content += "<BR/><b>and</b> " + pretty_expr(operand)
