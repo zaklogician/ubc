@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
+# mypy: ignore-errors
+
 import syntax
 from syntax import word64T, word32T, word8T, boolT, builtinTs, Expr, Node
 from syntax import true_term, false_term, mk_num

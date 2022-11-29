@@ -313,7 +313,7 @@ class BasicNode(Generic[VarKind]):
 class CallNode(Generic[VarKind]):
     succ: str
     fname: str
-    args: tuple[Expr[VarKind]]
+    args: tuple[Expr[VarKind], ...]
     rets: tuple[Var[VarKind], ...]
 
 
@@ -382,8 +382,8 @@ def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
         assert_never(expr)
 
 
-def compute_all_successors_from_unsafe_function(function: syntax.Function) -> dict[str, list[str]]:
-    all_succs = {}
+def compute_all_successors_from_unsafe_function(function: syntax.Function) -> Mapping[str, list[str]]:
+    all_succs: dict[str, list[str]] = {}
     for name, node in function.nodes.items():
         all_succs[name] = []
         for cont in node.get_conts():
@@ -398,7 +398,7 @@ def compute_all_successors_from_unsafe_function(function: syntax.Function) -> di
 
 
 def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str, list[str]]:
-    all_succs = {}
+    all_succs: dict[str, list[str]] = {}
     for name, node in nodes.items():
         all_succs[name] = []
         if isinstance(node, BasicNode | CallNode | EmptyNode):
@@ -418,7 +418,7 @@ def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str,
 
 
 def compute_all_predecessors(all_succs: Mapping[str, list[str]]) -> Mapping[str, list[str]]:
-    g = {n: [] for n in all_succs}
+    g: Mapping[str, list[str]] = {n: [] for n in all_succs}
     for n, succs in all_succs.items():
         for succ in succs:
             g[succ].append(n)
@@ -446,7 +446,8 @@ def compute_dominators(all_succs: Mapping[str, list[str]], all_preds: Mapping[st
             npreds = list(all_preds[n])
             if not npreds:
                 continue
-            new_dom = set([n]) | reduce(set.intersection,
+
+            new_dom = set([n]) | reduce(set.intersection,  # type: ignore [arg-type]
                                         (doms[p] for p in npreds), doms[npreds[0]])
             if new_dom != doms[n]:
                 changed = True
@@ -516,7 +517,7 @@ def compute_loop_targets(
         nodes: Mapping[str, Node[VarKind]],
         cfg: CFG,
         loop_header: str,
-        loop_nodes: tuple[str]) -> Collection[VarKind]:
+        loop_nodes: tuple[str, ...]) -> Collection[VarKind]:
     # traverse the loop nodes in topological order
     # (if there is a loop in the body, we ignore its back edge)
     q: list[str] = [loop_header]

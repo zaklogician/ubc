@@ -6,6 +6,8 @@
 
 # these objects are to be filled in by the target
 
+# mypy: ignore-errors
+
 import sys
 
 

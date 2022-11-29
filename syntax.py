@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
+# mypy: ignore-errors
+
 # Syntax and simple operations for types, expressions, graph nodes
 # and graph functions (functions in graph-language format).
 
