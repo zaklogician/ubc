@@ -198,16 +198,15 @@ def test_is_not_reducible(all_succs):
         ubc.compute_cfg_from_all_succs(all_succs, "_start"))
 
 
-def test_kernel_functions_all_reducible():
+with open('examples/kernel_CFunctions.txt') as f:
+    kernel_C = syntax.parse_and_install_all(f, None)
+
+
+@pytest.mark.parametrize('unsafe_func', (f for f in kernel_C[1].values() if f.entry is not None))
+def test_kernel_functions_all_reducible(unsafe_func):
     """ we haven't checked manually """
-    with open('examples/kernel_CFunctions.txt') as f:
-        structs, functions, const_globals = syntax.parse_and_install_all(
-            f, None)
-        for func in functions.values():
-            if not func.entry:
-                continue
-            cfg = ubc.compute_cfg_from_func(func)
-            assert ubc.cfg_is_reducible(cfg)
+    func = ubc.convert_function(unsafe_func)
+    assert ubc.cfg_is_reducible(func.cfg)
 
 
 if __name__ == "__main__":

@@ -11,6 +11,9 @@ with open('examples/kernel_CFunctions.txt') as f:
     kernel_CFunctions = syntax.parse_and_install_all(
         f, None)
 
+with open('examples/dsa.txt') as f:
+    example_dsa_CFunctions = syntax.parse_and_install_all(f, None)
+
 
 def compute_all_path(cfg: ubc.CFG) -> Sequence[Sequence[str]]:
     # binary number, 1 means go left 0 means go right
@@ -141,13 +144,9 @@ def ensure_exactly_one_assignment_in_all_path(unsafe_func: syntax.Function):
         ensure_exactly_one_assignment_in_path(dsa_func, path)
 
 
-def test_dsa_custom_tests():
-    with open('examples/dsa.txt') as f:
-        structs, functions, const_globals = syntax.parse_and_install_all(
-            f, None)
-        for func in functions.values():
-            print('test function', func.name)
-            ensure_exactly_one_assignment_in_all_path(func)
+@pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values()))
+def test_dsa_custom_tests(func: syntax.Function):
+    ensure_exactly_one_assignment_in_all_path(func)
 
 
 @pytest.mark.skip

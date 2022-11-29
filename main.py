@@ -63,15 +63,17 @@ if __name__ == "__main__":
 
     # assert_all_kernel_functions_are_reducible()
 
-    check_all_kernel()
+    # check_all_kernel()
 
-    exit(0)
+    # exit(0)
 
-    with open('examples/for_loops.txt') as f:
+    with open('examples/dsa.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
-        func = ubc.convert_function(functions['tmp.loop_write_single'])
-        print(func.loops)
+        func = ubc.convert_function(
+            functions['tmp.if_join_multiple_variables'])
+        # print(func.loops)
+        viz_function(ubc.dsa(func))
     exit(0)
 
     with open('examples/for_loops.txt') as f:
