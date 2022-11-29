@@ -25,7 +25,7 @@ def pretty_name(name):
         return name
 
     if '.' in name:
-        full_name, num = name.split('.')
+        full_name, num = name.rsplit('.', maxsplit=1)
         if '__' in full_name:
             prog_name, type_info = full_name.split('__')
             return f'{prog_name}<sub>{num}</sub>'

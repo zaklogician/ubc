@@ -907,6 +907,9 @@ class Function:
         import problem
         problem.save_graph(self.nodes, fname)
 
+    def __repr__(self):
+        return "<syntax.Function {!r}>".format(self.name)
+
 
 def mk_builtinTs():
     # type: () -> Dict[str, Type]

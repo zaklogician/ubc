@@ -1,9 +1,15 @@
+import pytest
 from typing import Collection, Iterable, Mapping, Sequence
 from typing_extensions import assert_never
 from logic import all_vars_in_set
 from main import assert_all_kernel_functions_are_reducible
 import ubc
 import syntax
+
+
+with open('examples/kernel_CFunctions.txt') as f:
+    kernel_CFunctions = syntax.parse_and_install_all(
+        f, None)
 
 
 def compute_all_path(cfg: ubc.CFG) -> Sequence[Sequence[str]]:
@@ -131,10 +137,17 @@ def ensure_exactly_one_assignment_in_all_path(unsafe_func: syntax.Function):
         ensure_exactly_one_assignment_in_path(dsa_func, path)
 
 
-def test_dsa():
+def test_dsa_custom_tests():
     with open('examples/dsa.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
         for func in functions.values():
             print('test function', func.name)
             ensure_exactly_one_assignment_in_all_path(func)
+
+
+@pytest.mark.skip
+@pytest.mark.parametrize('function', (f for f in kernel_CFunctions[1].values() if f.entry is not None))
+def test_dsa_kernel_functions(function: syntax.Function):
+
+    ensure_exactly_one_assignment_in_all_path(function)

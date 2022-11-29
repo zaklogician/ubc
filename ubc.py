@@ -48,7 +48,7 @@ def make_dsa_var_name(v: ProgVarName, k: int) -> DSAVarName:
 
 
 def unpack_dsa_var_name(v: DSAVarName) -> tuple[ProgVarName, int]:
-    name, num = v.split('.')
+    name, num = v.rsplit('.', maxsplit=1)
     return ProgVarName(name), int(num)
 
 
@@ -161,6 +161,11 @@ class ExprType(ABCExpr[VarKind]):
     val: Type
 
 
+@dataclass(frozen=True)
+class ExprSymbol(ABCExpr):
+    name: str
+
+
 @unique
 class Operator(Enum):
     """ To convert graph lang operator name to this enum, just do Operator(parsed_operator_name)
@@ -261,7 +266,7 @@ class ExprOp(ABCExpr[VarKind]):
     operands: tuple[Expr[VarKind], ...]
 
 
-Expr = ExprArray[VarKind] | ExprVar[VarKind] | ExprNum | ExprType[VarKind] | ExprOp[VarKind]
+Expr = ExprArray[VarKind] | ExprVar[VarKind] | ExprNum | ExprType[VarKind] | ExprOp[VarKind] | ExprSymbol
 
 # for the following commented out expr classes
 # not present in the kernel functions, I don't want to make an abstraction for
@@ -378,7 +383,7 @@ def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
     elif isinstance(expr, ExprArray):
         for value in expr.values:
             visitor(value)
-    elif not isinstance(expr, ExprVar | ExprNum | ExprType):
+    elif not isinstance(expr, ExprVar | ExprNum | ExprType | ExprSymbol):
         assert_never(expr)
 
 
@@ -534,7 +539,8 @@ def compute_loop_targets(
         if isinstance(node, BasicNode):
             loop_targets.add(node.upd.var.name)
         elif isinstance(node, CallNode):
-            raise NotImplementedError
+            for ret in node.rets:
+                loop_targets.add(ret.name)
         elif not isinstance(node, EmptyNode | CondNode):
             assert_never(node)
 
@@ -611,6 +617,8 @@ def convert_expr(expr: syntax.Expr) -> Expr[ProgVarName]:
         return ExprNum(typ, expr.val)
     elif expr.kind == 'Type':
         return ExprType(typ, convert_type(expr.val))
+    elif expr.kind == 'Symbol':
+        return ExprSymbol(typ, expr.name)
     raise NotImplementedError
 
 
@@ -649,7 +657,7 @@ def _convert_function(func: syntax.Function) -> Function:
     return Function(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=args, name=func.name)
 
 
-def convert_function(func: syntax.Function) -> Function:
+def convert_function(func: syntax.Function) -> Function[ProgVarName]:
     try:
         f = _convert_function(func)
     except Exception as e:
@@ -718,7 +726,7 @@ class Insertion(NamedTuple):
 
 
 @dataclass
-class DSABuilderMutableState:
+class DSABuilder:
     k: int
     """ Fresh incarnation count
 
@@ -736,7 +744,6 @@ class DSABuilderMutableState:
     Mutable during construction
     """
 
-    # TODO: use different types for raw var name and dsa var names
     loop_targets_incarnations: Mapping[str, dict[ProgVarName, DSAVarName]]
     """
     Loop header => prog_var_name => dsa_var_name
@@ -760,27 +767,29 @@ class DSABuilderMutableState:
     func_args: tuple[Var[DSAVarName], ...]
     """ The function's arguments in with DSA numbers associated to the
         arguments
+
+        Not mutated during construction
     """
 
 
 def find_latest_incarnation(
         func: Function[ProgVarName],
         dsa_nodes: Mapping[str, Node[DSAVarName]],
-        s: DSABuilderMutableState,
+        s: DSABuilder,
         current_node: str,
-        prog_var_name: ProgVarName,
+        target_var: ProgVarName,
         typ: Type,
         skip_current_node=False) -> DSAVarName:
 
     # see loop_targets_incarnations' comment
-    if current_node in func.loops and prog_var_name in func.loops[current_node].targets:
+    if current_node in func.loops and target_var in func.loops[current_node].targets:
 
-        if prog_var_name not in s.loop_targets_incarnations[current_node]:
+        if target_var not in s.loop_targets_incarnations[current_node]:
             s.k += 1
-            s.loop_targets_incarnations[current_node][prog_var_name] = make_dsa_var_name(
-                prog_var_name, s.k)
+            s.loop_targets_incarnations[current_node][target_var] = make_dsa_var_name(
+                target_var, s.k)
 
-        return s.loop_targets_incarnations[current_node][prog_var_name]
+        return s.loop_targets_incarnations[current_node][target_var]
 
     # i think skip_current_node == current_node in dsa_nodes, but i'd just like to make sure
     if not skip_current_node:
@@ -788,11 +797,17 @@ def find_latest_incarnation(
 
         node = dsa_nodes[current_node]
         if isinstance(node, BasicNode):
-            name, num = unpack_dsa_var_name(node.upd.var.name)
-            if prog_var_name == name:
+            name, _ = unpack_dsa_var_name(node.upd.var.name)
+            if target_var == name:
                 return node.upd.var.name
         elif isinstance(node, CallNode):
-            raise NotImplementedError
+            for ret in node.rets:
+                name, _ = unpack_dsa_var_name(ret.name)
+                if name == target_var:
+                    return ret.name
+        elif not isinstance(node, EmptyNode | CondNode):
+            assert_never(node)
+
         # otherwise, keep looking up the graph
 
     # don't go searching up back edges
@@ -803,18 +818,18 @@ def find_latest_incarnation(
         # is the variable an argument to the function?
         for arg in s.func_args:
             name, num = unpack_dsa_var_name(arg.name)
-            if name == prog_var_name:
+            if name == target_var:
                 return arg.name
 
         # maybe it's a global
         # TODO
-        assert False, f"trying to read {prog_var_name} but reached top of the function (is it a global?)"
+        assert False, f"trying to read {target_var} but reached top of the function (is it a global?)"
 
     if len(preds) == 1:
-        return find_latest_incarnation(func, dsa_nodes, s, preds[0], prog_var_name, typ)
+        return find_latest_incarnation(func, dsa_nodes, s, preds[0], target_var, typ)
 
     latest = [find_latest_incarnation(
-        func, dsa_nodes, s, p, prog_var_name, typ) for p in preds]
+        func, dsa_nodes, s, p, target_var, typ) for p in preds]
 
     if len(set(latest)) == 1:
         return latest[0]
@@ -822,7 +837,7 @@ def find_latest_incarnation(
     # different branch have given different variables
     # TODO: use Leino's optimisation to avoid excessive variables
     s.k = s.k + 1
-    fresh_name = DSAVarName(prog_var_name + f'.{s.k}')
+    fresh_name = DSAVarName(target_var + f'.{s.k}')
     for i, pred in enumerate(preds):
         s.insertions.append(
             Insertion(after=pred, lhs_dsa_name=fresh_name,
@@ -835,7 +850,7 @@ def find_latest_incarnation(
 def apply_incarnations(
         func: Function[ProgVarName],
         graph: Mapping[str, Node],
-        s: DSABuilderMutableState,
+        s: DSABuilder,
         current_node: str,
         root: Expr[ProgVarName]) -> Expr[DSAVarName]:
 
@@ -851,7 +866,7 @@ def apply_incarnations(
         return ExprOp(root.typ, Operator(root.operator), operands=tuple(
             apply_incarnations(func, graph, s, current_node, operand) for operand in root.operands
         ))
-    elif isinstance(root, ExprArray | ExprType):
+    elif isinstance(root, ExprArray | ExprType | ExprSymbol):
         raise NotImplementedError
     else:
         assert_never(root)
@@ -933,6 +948,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 TypeBuiltin(Builtin.BOOL), Operator.FALSE, tuple()), "different weird case in c parser"
             dsa_nodes[n] = cast(CondNode[DSAVarName], node)
             visited.add(n)
+            # if we can reach this annoying assert False, that means we must
+            # be able to reach Err.
+            visited.add('Err')
 
     k = 0
     dsa_args: list[Var[DSAVarName]] = []
@@ -940,9 +958,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
         k += 1
         dsa_args.append(Var(make_dsa_var_name(arg.name, k), arg.typ))
 
-    s = DSABuilderMutableState(k=k, insertions=[], loop_targets_incarnations={
-                               loop_header: {} for loop_header in func.loops},
-                               func_args=tuple(dsa_args))
+    s = DSABuilder(k=k, insertions=[], loop_targets_incarnations={
+                   loop_header: {} for loop_header in func.loops},
+                   func_args=tuple(dsa_args))
 
     while q:
         # bfs-like topological order so that we visit the longest branches last
@@ -951,7 +969,6 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
             visited.add(n)
             continue
 
-        # (if n in dsa_nodes.keys(), that means that n was visited)
         # visit in topolocial order ignoring back edges
         if not all(p in visited for p in func.cfg.all_preds[n] if (p, n) not in func.cfg.back_edges):
             continue
@@ -972,7 +989,17 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 succ_else=node.succ_else,
             )
         elif isinstance(node, CallNode):
-            raise NotImplementedError
+            rets: list[Var[DSAVarName]] = []
+            for ret in node.rets:
+                s.k += 1
+                rets.append(Var(make_dsa_var_name(ret.name, s.k), ret.typ))
+            dsa_nodes[n] = CallNode(
+                succ=node.succ,
+                args=tuple(apply_incarnations(func, dsa_nodes, s, n, arg)
+                           for arg in node.args),
+                rets=tuple(rets),
+                fname=node.fname,
+            )
         elif isinstance(node, EmptyNode):
             dsa_nodes[n] = node
         else:

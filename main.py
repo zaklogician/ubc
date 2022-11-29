@@ -22,7 +22,7 @@ def assert_all_kernel_functions_are_reducible():
     print("[check] all kernel functions with an entry are reducible")
 
 
-if __name__ == "__main__":
+def view_dsa_example():
     with open('examples/dsa.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
@@ -31,9 +31,30 @@ if __name__ == "__main__":
         func = ubc.dsa(func)
         viz_function(func)
 
-    exit(0)
 
-    assert_all_kernel_functions_are_reducible()
+def view_kernel_example():
+    with open('examples/kernel_CFunctions.txt') as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        for func in functions:
+            if not functions[func].entry:
+                continue
+            func = ubc.convert_function(functions[func])
+            try:
+                func_dsa = ubc.dsa(func)
+            except Exception as e:
+                print(len(func.nodes), func.name, e)
+
+        # viz_function(func)
+        # func = ubc.dsa(func)
+        # viz_function(func)
+
+
+if __name__ == "__main__":
+
+    # assert_all_kernel_functions_are_reducible()
+
+    view_kernel_example()
 
     exit(0)
 
