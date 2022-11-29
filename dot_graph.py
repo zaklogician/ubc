@@ -210,7 +210,6 @@ def viz_function(file: IOBase, fun: ubc.Function):
 
 @viz
 def viz_raw_function(file: IOBase, fun: syntax.Function):
-    # type: (syntax.Function, Any) -> None
     puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
     putsf = lambda fmt, * \
         args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
@@ -318,6 +317,7 @@ if __name__ == "__main__":
         )
         exit(1)
 
+    function_name: str | None
     if len(sys.argv) == 3:
         (_, file_name, function_name) = sys.argv
     elif len(sys.argv) == 2:
