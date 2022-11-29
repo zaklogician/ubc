@@ -986,6 +986,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     while q:
         # bfs-like topological order so that we visit the longest branches last
         n = q.pop(-1)
+        if n in visited:
+            continue
+
         if n == 'Err' or n == 'Ret':
             visited.add(n)
             continue
