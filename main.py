@@ -14,11 +14,11 @@ def assert_all_kernel_functions_are_reducible():
     with open('examples/kernel_CFunctions.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
-        for func in functions.values():
-            if not func.entry:
+        for unsafe_func in functions.values():
+            if not unsafe_func.entry:
                 continue
-            cfg = ubc.compute_cfg_from_func(func)
-            assert ubc.cfg_is_reducible(cfg)
+            func = ubc.convert_function(unsafe_func)
+            assert ubc.cfg_is_reducible(func.cfg)
     print("[check] all kernel functions with an entry are reducible")
 
 
@@ -32,18 +32,27 @@ def view_dsa_example():
         viz_function(func)
 
 
-def view_kernel_example():
+def check_all_kernel():
     with open('examples/kernel_CFunctions.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
+
+        # f = ubc.convert_function(functions['Kernel_C.Arch_activateIdleThread'])
+        # result = ubc.dsa(f)
+        # viz_function(f)
+        # viz_function(result)
+        # return
+
         for func in functions:
+            # print('doing', functions[func].name)
             if not functions[func].entry:
                 continue
             func = ubc.convert_function(functions[func])
             try:
                 func_dsa = ubc.dsa(func)
             except Exception as e:
-                print(len(func.nodes), func.name, e)
+                print(len(func.nodes), func.name, repr(e))
+            # print('ok', func.name)
 
         # viz_function(func)
         # func = ubc.dsa(func)
@@ -54,7 +63,7 @@ if __name__ == "__main__":
 
     # assert_all_kernel_functions_are_reducible()
 
-    view_kernel_example()
+    check_all_kernel()
 
     exit(0)
 

@@ -389,21 +389,6 @@ def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
         assert_never(expr)
 
 
-def compute_all_successors_from_unsafe_function(function: syntax.Function) -> Mapping[str, list[str]]:
-    all_succs: dict[str, list[str]] = {}
-    for name, node in function.nodes.items():
-        all_succs[name] = []
-        for cont in node.get_conts():
-            all_succs[name].append(cont)
-
-    assert 'Err' not in all_succs
-    all_succs['Err'] = []
-
-    assert 'Ret' not in all_succs
-    all_succs['Ret'] = []
-    return all_succs
-
-
 def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str, list[str]]:
     all_succs: dict[str, list[str]] = {}
     for name, node in nodes.items():
@@ -416,8 +401,16 @@ def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str,
         else:
             assert_never(node)
 
-    assert 'Err' not in all_succs
-    all_succs['Err'] = []
+    # if there is at least one node jumping to Err (ie. at least one assert)
+    # we add it
+    for succs in all_succs.values():
+        if 'Err' in succs:
+            assert 'Err' not in all_succs
+            all_succs['Err'] = []
+            break
+
+    assert any('Ret' in succs for succs in all_succs.values()
+               ), "I assumed at least one node should jump to 'Ret'"
 
     assert 'Ret' not in all_succs
     all_succs['Ret'] = []
@@ -474,12 +467,6 @@ def compute_cfg_from_all_succs(all_succs: Mapping[str, list[str]], entry: str):
     all_doms = compute_dominators(
         all_succs=all_succs, all_preds=all_preds, entry=entry)
     return CFG(entry=entry, all_succs=all_succs, all_preds=all_preds, all_doms=all_doms, back_edges=cfg_compute_back_edges(all_succs, all_doms))
-
-
-def compute_cfg_from_func(func: syntax.Function) -> CFG:
-    all_succs = compute_all_successors_from_unsafe_function(func)
-    assert func.entry is not None, f"func.entry is None in {func.name}"
-    return compute_cfg_from_all_succs(all_succs, func.entry)
 
 
 def cfg_compute_back_edges(all_succs: Mapping[str, list[str]], all_doms: Mapping[str, list[str]]) -> Collection[tuple[str, str]]:
@@ -630,7 +617,6 @@ def convert_var(v: tuple[str, syntax.Type]) -> Var:
 
 
 def _convert_function(func: syntax.Function) -> Function:
-    cfg = compute_cfg_from_func(func)
     safe_nodes: dict[str, Node[ProgVarName]] = {}
     for name, node in func.nodes.items():
         if node.kind == "Basic":
@@ -656,6 +642,9 @@ def _convert_function(func: syntax.Function) -> Function:
         else:
             raise ValueError(f"unknown kind {node.kind!r}")
 
+    all_succs = compute_all_successors_from_nodes(safe_nodes)
+    assert func.entry is not None
+    cfg = compute_cfg_from_all_succs(all_succs, func.entry)
     loops = compute_loops(safe_nodes, cfg)
 
     args = tuple(Var(ProgVarName(name), convert_type(typ))
@@ -950,8 +939,10 @@ def recompute_loops_post_dsa(pre_dsa_loops: Mapping[str, Loop], dsa_nodes: Mappi
                                   nodes=loop_nodes)
     return loops
 
+
 def make_dsa_var(v: Var[ProgVarName], k: int) -> Var[DSAVarName]:
     return Var(make_dsa_var_name(v.name, k), v.typ)
+
 
 def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     # q = [n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
@@ -961,7 +952,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     visited: set[str] = set()
 
     # this is hack to deal with the weird assert False() node
-    for n, preds in func.cfg.all_preds.items():
+    for n in func.nodes:
+
+        preds = func.cfg.all_preds[n]
         if len(preds) == 0 and n != func.cfg.entry:
             # assert len(expr_variables(func.nodes[n])) == 0  # TODO
             node = func.nodes[n]
@@ -1041,9 +1034,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     apply_insertions(dsa_nodes, s.insertions)
 
     assert len(visited) == num_reachable(
-        func.cfg), f"{visited} {len(visited)} {num_reachable(func.cfg)} {func.name}"
+        func.cfg), f"{visited=} {len(visited)=} {num_reachable(func.cfg)=} {func.cfg.all_succs=} {func.name}"
 
-    # need to recompute the cfg
+    # need to recompute the cfg from dsa_nodes
     all_succs = compute_all_successors_from_nodes(dsa_nodes)
     cfg = compute_cfg_from_all_succs(all_succs, func.cfg.entry)
     loops = recompute_loops_post_dsa(func.loops, dsa_nodes, cfg)
