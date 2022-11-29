@@ -725,6 +725,8 @@ class Insertion(NamedTuple):
 
     after: str
     """ Will insert the update after the node 'after' """
+    before: str
+    """ Will insert the update before the node 'before' """
 
     lhs_dsa_name: DSAVarName
     typ: Type
@@ -844,11 +846,11 @@ def find_latest_incarnation(
 
     # different branch have given different variables
     # TODO: use Leino's optimisation to avoid excessive variables
-    s.k = s.k + 1
-    fresh_name = DSAVarName(target_var + f'.{s.k}')
+    s.k += 1
+    fresh_name = make_dsa_var_name(target_var, s.k)
     for i, pred in enumerate(preds):
         s.insertions.append(
-            Insertion(after=pred, lhs_dsa_name=fresh_name,
+            Insertion(after=pred, before=current_node, lhs_dsa_name=fresh_name,
                       typ=typ, rhs_dsa_value=latest[i])
         )
 
@@ -896,17 +898,27 @@ def apply_insertions(graph: dict[str, Node[DSAVarName]], insertions: Collection[
         # not have had a conflict to resolve in the first place)
 
         # approach: insert a basic node
-        assert not isinstance(
-            after, CondNode), "i didn't think this was possible"
 
         var = Var(ins.lhs_dsa_name, ins.typ)
         expr = ExprVar(ins.typ, ins.rhs_dsa_value)
-        joiner = BasicNode((Update(var, expr), ), succ=after.succ)
+        joiner = BasicNode((Update(var, expr), ), succ=ins.before)
         joiner_name = f'j{i}'
         graph[joiner_name] = joiner
 
-        # not type safe according to pyright!
-        graph[ins.after] = dataclasses.replace(after, succ=joiner_name)
+        # pyright doesn't know about dataclasses.replace
+        if isinstance(after, CondNode):
+            assert after.succ_then == ins.before or after.succ_else == ins.before
+            if after.succ_then == ins.before:
+                graph[ins.after] = dataclasses.replace(
+                    after, succ_then=joiner_name)
+            else:
+                assert after.succ_else == ins.before
+                graph[ins.after] = dataclasses.replace(
+                    after, succ_else=joiner_name)
+        elif isinstance(after, BasicNode | EmptyNode | CallNode):
+            graph[ins.after] = dataclasses.replace(after, succ=joiner_name)
+        else:
+            assert_never(after)
 
 
 def recompute_loops_post_dsa(pre_dsa_loops: Mapping[str, Loop], dsa_nodes: Mapping[str, Node[DSAVarName]], cfg: CFG) -> Mapping[str, Loop]:
