@@ -153,5 +153,4 @@ def test_dsa_custom_tests():
 @pytest.mark.skip
 @pytest.mark.parametrize('function', (f for f in kernel_CFunctions[1].values() if f.entry is not None))
 def test_dsa_kernel_functions(function: syntax.Function):
-
     ensure_exactly_one_assignment_in_all_path(function)

@@ -781,7 +781,6 @@ def find_latest_incarnation(
 
     # see loop_targets_incarnations' comment
     if current_node in func.loops and target_var in func.loops[current_node].targets:
-
         if target_var not in s.loop_targets_incarnations[current_node]:
             s.k += 1
             s.loop_targets_incarnations[current_node][target_var] = make_dsa_var_name(
@@ -873,39 +872,40 @@ def apply_incarnations(
 
 
 def apply_insertions(graph: dict[str, Node[DSAVarName]], insertions: Collection[Insertion]):
-    for i, ins in enumerate(insertions):
-        assert ins.after in graph, "inserting after an unknown node"
-        after = graph[ins.after]
-        # if we have a BasicNode, we could technically add an update.
-        # However, I don't do this because (1) if the last node is a CallNode,
-        # i'll have to insert an extra BasicNode anyway (2) c parser doesn't generate
-        # basic nodes with more than one update anyway, so code handling multiple
-        # updates either doesn't exists and isn't well tested
+    # batch up all the insertions that go in the same place together. It's
+    # much simpler than keep track of what has been inserted so far so that
+    # we get the wiring right
 
-        # or we could find the latest basic node before the 'after' node
-        # (we are guaranteed to find on the branch because otherwise we would
-        # not have had a conflict to resolve in the first place)
+    batch_insertions: dict[tuple[str, str], list[Insertion]] = {}
+    for ins in insertions:
+        loc = (ins.after, ins.before)
+        if loc not in batch_insertions:
+            batch_insertions[loc] = []
+        batch_insertions[loc].append(ins)
 
-        # approach: insert a basic node
+    joiner_count = 0
 
-        var = Var(ins.lhs_dsa_name, ins.typ)
-        expr = ExprVar(ins.typ, ins.rhs_dsa_value)
-        joiner = BasicNode((Update(var, expr), ), succ=ins.before)
-        joiner_name = f'j{i}'
+    for (insert_after, insert_before), batch in batch_insertions.items():
+        updates = tuple(Update(Var(ins.lhs_dsa_name, ins.typ), ExprVar(
+            ins.typ, ins.rhs_dsa_value)) for ins in batch)
+
+        joiner = BasicNode(updates, succ=insert_before)
+        joiner_count += 1
+        joiner_name = f'j{joiner_count}'
         graph[joiner_name] = joiner
 
-        # pyright doesn't know about dataclasses.replace
+        after = graph[insert_after]
         if isinstance(after, CondNode):
-            assert after.succ_then == ins.before or after.succ_else == ins.before
-            if after.succ_then == ins.before:
-                graph[ins.after] = dataclasses.replace(
+            assert after.succ_then == insert_before or after.succ_else == insert_before
+            if after.succ_then == insert_before:
+                graph[insert_after] = dataclasses.replace(
                     after, succ_then=joiner_name)
             else:
-                assert after.succ_else == ins.before
-                graph[ins.after] = dataclasses.replace(
+                assert after.succ_else == insert_before
+                graph[insert_after] = dataclasses.replace(
                     after, succ_else=joiner_name)
         elif isinstance(after, BasicNode | EmptyNode | CallNode):
-            graph[ins.after] = dataclasses.replace(after, succ=joiner_name)
+            graph[insert_after] = dataclasses.replace(after, succ=joiner_name)
         else:
             assert_never(after)
 
@@ -1024,7 +1024,7 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
         elif isinstance(node, EmptyNode):
             dsa_nodes[n] = node
         else:
-            assert assert_never(node)
+            assert_never(node)
 
         succs = func.cfg.all_succs[n]
         for succ in succs:
