@@ -102,9 +102,13 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
 
         used_but_unassigned: set[ubc.DSAVarName] = set()
         if isinstance(node, ubc.BasicNode):
-            used_but_unassigned |= all_vars_in_expr(
-                node.upd.expr) - assignments
-            got_assignment(node.upd.var.name)
+            # copy the assignments, because the updates are simultaneous
+            # (they don't impact each other).
+            base_assignments = set(assignments)
+            for upd in node.upds:
+                used_but_unassigned |= all_vars_in_expr(
+                    upd.expr) - base_assignments
+                got_assignment(upd.var.name)
 
         elif isinstance(node, ubc.CallNode):
             for arg in node.args:
