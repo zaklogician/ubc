@@ -1003,8 +1003,8 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 # notice that we don't take into consideration the previous
                 # updates from the same node. That's because the updates are
                 # simultaneous.
-                s.k += 1
                 expr = apply_incarnations(func, dsa_nodes, s, n, upd.expr)
+                s.k += 1
                 upds.append(Update(make_dsa_var(upd.var, s.k), expr))
             dsa_nodes[n] = BasicNode(tuple(upds), succ=node.succ)
         elif isinstance(node, CondNode):
