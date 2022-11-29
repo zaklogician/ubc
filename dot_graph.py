@@ -24,8 +24,8 @@ def pretty_name(name):
     if "__" not in name:
         return name
 
-    if '.' in name:
-        full_name, num = name.rsplit('.', maxsplit=1)
+    if ':' in name:
+        full_name, num = name.rsplit(':', maxsplit=1)
         if '__' in full_name:
             prog_name, type_info = full_name.split('__')
             return f'{prog_name}<sub>{num}</sub>'
@@ -120,7 +120,7 @@ def pretty_safe_expr(expr: ubc.Expr, print_type=False):
             ]
         return "{}({})".format(expr.operator.value, ", ".join(vals))
     else:
-        return str(expr)
+        return str(expr).replace('<', '&lt;').replace('>', '&gt;')
 
 
 def pretty_updates(update):

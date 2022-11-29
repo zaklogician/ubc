@@ -44,11 +44,11 @@ DSAVarName = NewType('DSAVarName', str)
 
 
 def make_dsa_var_name(v: ProgVarName, k: int) -> DSAVarName:
-    return DSAVarName(f'{v}.{k}')
+    return DSAVarName(f'{v}:{k}')
 
 
 def unpack_dsa_var_name(v: DSAVarName) -> tuple[ProgVarName, int]:
-    name, num = v.rsplit('.', maxsplit=1)
+    name, num = v.rsplit(':', maxsplit=1)
     return ProgVarName(name), int(num)
 
 
@@ -155,7 +155,7 @@ class ExprNum(ABCExpr):
 
 
 @dataclass(frozen=True)
-class ExprType(ABCExpr[VarKind]):
+class ExprType(ABCExpr):
     """ should have typ builtin.Type
     """
     val: Type
@@ -212,6 +212,9 @@ class Operator(Enum):
     MEM_ACC = 'MemAcc'
     MEM_UPDATE = 'MemUpdate'
 
+    WORD_ARRAY_ACCESS = 'WordArrayAccess'
+    WORD_ARRAY_UPDATE = 'WordArrayUpdate'
+
     P_VALID = 'PValid'
     P_WEAK_VALID = 'PWeakValid'
     P_ALIGN_VALID = 'PAlignValid'
@@ -266,7 +269,7 @@ class ExprOp(ABCExpr[VarKind]):
     operands: tuple[Expr[VarKind], ...]
 
 
-Expr = ExprArray[VarKind] | ExprVar[VarKind] | ExprNum | ExprType[VarKind] | ExprOp[VarKind] | ExprSymbol
+Expr = ExprArray[VarKind] | ExprVar[VarKind] | ExprNum | ExprType | ExprOp[VarKind] | ExprSymbol
 
 # for the following commented out expr classes
 # not present in the kernel functions, I don't want to make an abstraction for
@@ -871,12 +874,11 @@ def apply_incarnations(
         return ExprOp(root.typ, Operator(root.operator), operands=tuple(
             apply_incarnations(func, graph, s, current_node, operand) for operand in root.operands
         ))
-    elif isinstance(root, ExprArray | ExprType | ExprSymbol):
+    elif isinstance(root, ExprArray):
         raise NotImplementedError
-    else:
-        assert_never(root)
-
-    raise NotImplementedError(f"expr={root}")
+    elif isinstance(root, ExprType | ExprSymbol):
+        return root
+    assert_never(root)
 
 
 def apply_insertions(graph: dict[str, Node[DSAVarName]], insertions: Collection[Insertion]):
