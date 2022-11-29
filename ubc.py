@@ -309,8 +309,7 @@ class Update(Generic[VarKind]):
 
 @dataclass(frozen=True)
 class BasicNode(Generic[VarKind]):
-    # only support one update per node
-    upd: Update[VarKind]
+    upds: tuple[Update[VarKind], ...]
     succ: str
 
 
@@ -537,7 +536,8 @@ def compute_loop_targets(
 
         node = nodes[n]
         if isinstance(node, BasicNode):
-            loop_targets.add(node.upd.var.name)
+            for upd in node.upds:
+                loop_targets.add(upd.var.name)
         elif isinstance(node, CallNode):
             for ret in node.rets:
                 loop_targets.add(ret.name)
@@ -622,6 +622,10 @@ def convert_expr(expr: syntax.Expr) -> Expr[ProgVarName]:
     raise NotImplementedError
 
 
+def convert_var(v: tuple[str, syntax.Type]) -> Var:
+    return Var(ProgVarName(v[0]), convert_type(v[1]))
+
+
 def _convert_function(func: syntax.Function) -> Function:
     cfg = compute_cfg_from_func(func)
     safe_nodes: dict[str, Node[ProgVarName]] = {}
@@ -630,12 +634,12 @@ def _convert_function(func: syntax.Function) -> Function:
             if len(node.upds) == 0:
                 safe_nodes[name] = EmptyNode(succ=node.cont)
             else:
-                assert len(
-                    node.upds) == 1, "multiple simultaneous updates isn't supported yet"
-                var = Var(ProgVarName(node.upds[0][0][0]), convert_type(
-                    node.upds[0][0][1]))
-                upd = Update(var=var, expr=convert_expr(node.upds[0][1]))
-                safe_nodes[name] = BasicNode(upd=upd, succ=node.cont)
+                upds: list[Update] = []
+                for var, expr in node.upds:
+                    upds.append(Update(
+                        var=convert_var(var),
+                        expr=convert_expr(expr)))
+                safe_nodes[name] = BasicNode(upds=tuple(upds), succ=node.cont)
         elif node.kind == "Call":
             node.args
             safe_nodes[name] = CallNode(
@@ -797,9 +801,10 @@ def find_latest_incarnation(
 
         node = dsa_nodes[current_node]
         if isinstance(node, BasicNode):
-            name, _ = unpack_dsa_var_name(node.upd.var.name)
-            if target_var == name:
-                return node.upd.var.name
+            for upd in node.upds:
+                name, _ = unpack_dsa_var_name(upd.var.name)
+                if target_var == name:
+                    return upd.var.name
         elif isinstance(node, CallNode):
             for ret in node.rets:
                 name, _ = unpack_dsa_var_name(ret.name)
@@ -892,9 +897,9 @@ def apply_insertions(graph: dict[str, Node[DSAVarName]], insertions: Collection[
         assert not isinstance(
             after, CondNode), "i didn't think this was possible"
 
-        var = Var(DSAVarName(ins.lhs_dsa_name), ins.typ)
+        var = Var(ins.lhs_dsa_name, ins.typ)
         expr = ExprVar(ins.typ, ins.rhs_dsa_value)
-        joiner = BasicNode(Update(var, expr), succ=after.succ)
+        joiner = BasicNode((Update(var, expr), ), succ=after.succ)
         joiner_name = f'j{i}'
         graph[joiner_name] = joiner
 
@@ -931,6 +936,8 @@ def recompute_loops_post_dsa(pre_dsa_loops: Mapping[str, Loop], dsa_nodes: Mappi
                                   nodes=loop_nodes)
     return loops
 
+def make_dsa_var(v: Var[ProgVarName], k: int) -> Var[DSAVarName]:
+    return Var(make_dsa_var_name(v.name, k), v.typ)
 
 def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     # q = [n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
@@ -956,7 +963,7 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     dsa_args: list[Var[DSAVarName]] = []
     for arg in func.arguments:
         k += 1
-        dsa_args.append(Var(make_dsa_var_name(arg.name, k), arg.typ))
+        dsa_args.append(make_dsa_var(arg, k))
 
     s = DSABuilder(k=k, insertions=[], loop_targets_incarnations={
                    loop_header: {} for loop_header in func.loops},
@@ -977,11 +984,15 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
 
         node = func.nodes[n]
         if isinstance(node, BasicNode):
-            s.k += 1
-            varp = Var(make_dsa_var_name(
-                node.upd.var.name, s.k), node.upd.var.typ)
-            exprp = apply_incarnations(func, dsa_nodes, s, n, node.upd.expr)
-            dsa_nodes[n] = BasicNode(Update(varp, exprp), succ=node.succ)
+            upds: list[Update[DSAVarName]] = []
+            for upd in node.upds:
+                # notice that we don't take into consideration the previous
+                # updates from the same node. That's because the updates are
+                # simultaneous.
+                s.k += 1
+                expr = apply_incarnations(func, dsa_nodes, s, n, upd.expr)
+                upds.append(Update(make_dsa_var(upd.var, s.k), expr))
+            dsa_nodes[n] = BasicNode(tuple(upds), succ=node.succ)
         elif isinstance(node, CondNode):
             dsa_nodes[n] = CondNode(
                 expr=apply_incarnations(func, dsa_nodes, s, n, node.expr),

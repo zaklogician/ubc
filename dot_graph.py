@@ -173,7 +173,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
             assert_never(node)
 
         if isinstance(node, ubc.BasicNode):
-            content = pretty_safe_update(node.upd)
+            content = '<BR/>'.join(pretty_safe_update(upd) for upd in node.upds)
         elif isinstance(node, ubc.CallNode):
             # TODO: node.rets[0] might be empty
             content = ''
