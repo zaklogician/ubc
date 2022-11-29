@@ -2,7 +2,6 @@ from __future__ import annotations
 import dataclasses
 from enum import Enum, unique
 from typing import Callable, Generic, Mapping, NamedTuple, NewType, Reversible, TypeAlias, TypeVar, cast
-from logic import find_loop_avoiding
 import syntax
 from collections.abc import Collection
 from dataclasses import dataclass
@@ -11,75 +10,23 @@ from collections import namedtuple
 
 from typing_extensions import assert_never
 
-
-def compute_all_successors(function: syntax.Function) -> dict[str, list[str]]:
-    all_succs = {}
-    for name, node in function.nodes.items():
-        all_succs[name] = []
-        for cont in node.get_conts():
-            all_succs[name].append(cont)
-
-    assert 'Err' not in all_succs
-    all_succs['Err'] = []
-
-    assert 'Ret' not in all_succs
-    all_succs['Ret'] = []
-    return all_succs
-
-
-def compute_all_predecessors(all_succs: dict[str, list[str]]) -> dict[str, list[str]]:
-    g = {n: [] for n in all_succs}
-    for n, succs in all_succs.items():
-        for succ in succs:
-            g[succ].append(n)
-    return g
-
-# algorithm from https://en.wikipedia.org/wiki/Dominator_(graph_theory) there
-# exists more efficient algorithms, but we can implement them if it turns out
-# this is a bottle neck
-
-
-def compute_dominators(all_succs: dict[str, list[str]], all_preds: dict[str, list[str]], entry: str) -> dict[str, list[str]]:
-    # all the nodes that dominate the given node
-    doms: dict[str, set[str]] = {}
-    for n, preds in all_preds.items():
-        if len(preds) == 0:
-            doms[n] = set([n])
-        else:
-            doms[n] = set(all_preds.keys())
-
-    changed = True
-    while changed:
-        changed = False
-
-        for n in all_succs.keys():
-            npreds = list(all_preds[n])
-            if not npreds:
-                continue
-            new_dom = set([n]) | reduce(set.intersection,
-                                        (doms[p] for p in npreds), doms[npreds[0]])
-            if new_dom != doms[n]:
-                changed = True
-                doms[n] = new_dom
-
-    return {n: list(doms[n]) for n in doms.keys()}
-
-
 # TODO: convert lists to tuples
+
+
 class CFG(NamedTuple):
     """
     Class that groups information about a function's control flow graph
     """
 
     entry: str
-
-    all_succs: dict[str, list[str]]
+    # TODO: make those lists a tuple/Collection/Sequence/Set?
+    all_succs: Mapping[str, list[str]]
     """ Successors """
 
-    all_preds: dict[str, list[str]]
+    all_preds: Mapping[str, list[str]]
     """ Predecessors """
 
-    all_doms: dict[str, list[str]]
+    all_doms: Mapping[str, list[str]]
     """ Dominators of key (a in all_doms[b] means a dominates b) """
 
     back_edges: Collection[tuple[str, str]]
@@ -380,7 +327,8 @@ class CondNode(Generic[VarKind]):
 Node = BasicNode[VarKind] | CallNode[VarKind] | CondNode[VarKind] | EmptyNode
 
 
-class Loop(NamedTuple):
+@dataclass(frozen=True)
+class Loop:
     back_edge: tuple[str, str]
     """
     back_edge = (latch, loop header)
@@ -418,6 +366,9 @@ class Function(Generic[VarKind]):
 
     arguments: tuple[Var[VarKind], ...]
 
+    def is_loop_header(self, node_name: str) -> bool:
+        return node_name in self.loops
+
 
 def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
     visitor(expr)
@@ -431,8 +382,81 @@ def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
         assert_never(expr)
 
 
-def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
-    assert is_valid_all_succs(all_succs)
+def compute_all_successors_from_unsafe_function(function: syntax.Function) -> dict[str, list[str]]:
+    all_succs = {}
+    for name, node in function.nodes.items():
+        all_succs[name] = []
+        for cont in node.get_conts():
+            all_succs[name].append(cont)
+
+    assert 'Err' not in all_succs
+    all_succs['Err'] = []
+
+    assert 'Ret' not in all_succs
+    all_succs['Ret'] = []
+    return all_succs
+
+
+def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str, list[str]]:
+    all_succs = {}
+    for name, node in nodes.items():
+        all_succs[name] = []
+        if isinstance(node, BasicNode | CallNode | EmptyNode):
+            all_succs[name].append(node.succ)
+        elif isinstance(node, CondNode):
+            all_succs[name].append(node.succ_then)
+            all_succs[name].append(node.succ_else)
+        else:
+            assert_never(node)
+
+    assert 'Err' not in all_succs
+    all_succs['Err'] = []
+
+    assert 'Ret' not in all_succs
+    all_succs['Ret'] = []
+    return all_succs
+
+
+def compute_all_predecessors(all_succs: Mapping[str, list[str]]) -> Mapping[str, list[str]]:
+    g = {n: [] for n in all_succs}
+    for n, succs in all_succs.items():
+        for succ in succs:
+            g[succ].append(n)
+    return g
+
+# algorithm from https://en.wikipedia.org/wiki/Dominator_(graph_theory) there
+# exists more efficient algorithms, but we can implement them if it turns out
+# this is a bottle neck
+
+
+def compute_dominators(all_succs: Mapping[str, list[str]], all_preds: Mapping[str, list[str]], entry: str) -> Mapping[str, list[str]]:
+    # all the nodes that dominate the given node
+    doms: dict[str, set[str]] = {}
+    for n, preds in all_preds.items():
+        if len(preds) == 0:
+            doms[n] = set([n])
+        else:
+            doms[n] = set(all_preds.keys())
+
+    changed = True
+    while changed:
+        changed = False
+
+        for n in all_succs.keys():
+            npreds = list(all_preds[n])
+            if not npreds:
+                continue
+            new_dom = set([n]) | reduce(set.intersection,
+                                        (doms[p] for p in npreds), doms[npreds[0]])
+            if new_dom != doms[n]:
+                changed = True
+                doms[n] = new_dom
+
+    return {n: list(doms[n]) for n in doms.keys()}
+
+
+def compute_cfg_from_all_succs(all_succs: Mapping[str, list[str]], entry: str):
+    assert_valid_all_succs(all_succs)
     assert entry in all_succs, f"entry {entry} not in all_succs"
 
     all_preds = compute_all_predecessors(all_succs)
@@ -445,12 +469,12 @@ def compute_cfg_from_all_succs(all_succs: dict[str, list[str]], entry: str):
 
 
 def compute_cfg_from_func(func: syntax.Function) -> CFG:
-    all_succs = compute_all_successors(func)
+    all_succs = compute_all_successors_from_unsafe_function(func)
     assert func.entry is not None, f"func.entry is None in {func.name}"
     return compute_cfg_from_all_succs(all_succs, func.entry)
 
 
-def cfg_compute_back_edges(all_succs: dict[str, list[str]], all_doms: dict[str, list[str]]) -> Collection[tuple[str, str]]:
+def cfg_compute_back_edges(all_succs: Mapping[str, list[str]], all_doms: Mapping[str, list[str]]) -> Collection[tuple[str, str]]:
     """ a back edge is an edge who's head dominates their tail
     """
 
@@ -489,16 +513,16 @@ def compute_natural_loop(cfg: CFG, back_edge: tuple[str, str]) -> tuple[str, ...
 
 
 def compute_loop_targets(
-        nodes: dict[str, Node[ProgVarName]],
+        nodes: Mapping[str, Node[VarKind]],
         cfg: CFG,
         loop_header: str,
-        loop_nodes: tuple[str]) -> Collection[ProgVarName]:
+        loop_nodes: tuple[str]) -> Collection[VarKind]:
     # traverse the loop nodes in topological order
     # (if there is a loop in the body, we ignore its back edge)
     q: list[str] = [loop_header]
     visited = set()
 
-    loop_targets: set[ProgVarName] = set()
+    loop_targets: set[VarKind] = set()
     while q:
         n = q.pop(0)
         if not all(p in visited for p in cfg.all_preds[n] if (p, n) not in cfg.back_edges and p in loop_nodes):
@@ -521,25 +545,22 @@ def compute_loop_targets(
     return loop_targets
 
 
-def compute_loops(nodes: dict[str, Node[ProgVarName]], cfg: CFG) -> dict[str, Loop]:
+def assert_single_loop_header_per_loop(cfg: CFG):
+    # This assert protects against this:
+    #
+    #   -> header <--
+    #  /   /     \    \
+    # |   /       \    |
+    #  \  v        v  /
+    #   left       right
+    assert len(set(loop_header for (t, loop_header) in cfg.back_edges)) == len(cfg.back_edges), \
+        "unhandle case: multiple back edges point to the same loop header in function"
+
+
+def compute_loops(nodes: Mapping[str, Node[ProgVarName]], cfg: CFG) -> Mapping[str, Loop]:
     """ Map from loop header to Loop
     """
-    # compute back edges
-    # for each back edge, compute the natural loop
-    # for each loop, inspect variables that are written to
-
-    if len(set(loop_header for (t, loop_header) in cfg.back_edges)) < len(cfg.back_edges):
-
-        # We have something like this (ie. multiple loops point use the same header)
-        #
-        #   -> header <--
-        #  /   /     \    \
-        # |   /       \    |
-        # \   v        v  /
-        #   left       right
-
-        raise ValueError(
-            "unhandle case: multiple back edges point to the same loop header in function")
+    assert_single_loop_header_per_loop(cfg)
 
     loops: dict[str, Loop] = {}
     # we could do this faster by traversing the entire graph once and keeping
@@ -550,7 +571,8 @@ def compute_loops(nodes: dict[str, Node[ProgVarName]], cfg: CFG) -> dict[str, Lo
 
         loop_nodes = compute_natural_loop(cfg, back_edge)
 
-        assert all(loop_header in cfg.all_doms[n] for n in loop_nodes)
+        assert all(loop_header in cfg.all_doms[n]
+                   for n in loop_nodes), "the loop header should dominate all the nodes in the loop body"
 
         loop_targets = compute_loop_targets(
             nodes, cfg, loop_header, loop_nodes)
@@ -672,25 +694,12 @@ def cfg_is_reducible(cfg: CFG):
     return len(visited) == num_reachable(cfg)
 
 
-def is_valid_all_succs(all_succs: dict[str, list[str]]) -> bool:
+def assert_valid_all_succs(all_succs: Mapping[str, list[str]]):
     # entry node should be a key of all_succs, even if they don't have any
     # successors
     for n, succs in all_succs.items():
         for succ in succs:
-            if succ not in all_succs:
-                return False
-    return True
-
-
-def is_valid_all_preds(all_preds: dict[str, list[str]]) -> bool:
-    # there should only ever be one entry point, that is one node with no predecessors
-    num_entries = 0
-    for n, preds in all_preds.items():
-        if len(preds) == 0:
-            num_entries += 1
-        if num_entries >= 2:
-            return False
-    return True
+            assert succ in all_succs
 
 
 class Insertion(NamedTuple):
@@ -877,6 +886,36 @@ def apply_insertions(graph: dict[str, Node[DSAVarName]], insertions: Collection[
         graph[ins.after] = dataclasses.replace(after, succ=joiner_name)
 
 
+def recompute_loops_post_dsa(pre_dsa_loops: Mapping[str, Loop], dsa_nodes: Mapping[str, Node[DSAVarName]], cfg: CFG) -> Mapping[str, Loop]:
+    """ Update the loop nodes (because dsa inserts some joiner nodes)
+        but keep everything else the same (in particular the loop targets are still ProgVarName!)
+    """
+    assert_single_loop_header_per_loop(cfg)
+
+    # loop header => loop nodes
+    all_loop_nodes: dict[str, tuple[str, ...]] = {}
+    for back_edge in cfg.back_edges:
+        _, loop_header = back_edge
+        loop_nodes = compute_natural_loop(cfg, back_edge)
+
+        assert all(loop_header in cfg.all_doms[n]
+                   for n in loop_nodes), "the loop header should dominate all the nodes in the loop body"
+
+        all_loop_nodes[loop_header] = loop_nodes
+
+    assert all_loop_nodes.keys() == pre_dsa_loops.keys(
+    ), "loop headers should remain the same through DSA transformation"
+
+    loops: dict[str, Loop] = {}
+    for loop_header, loop_nodes in all_loop_nodes.items():
+        assert set(pre_dsa_loops[loop_header].nodes).issubset(
+            loop_nodes), "dsa only inserts joiner nodes, all previous loop nodes should still be loop nodes"
+        loops[loop_header] = Loop(back_edge=pre_dsa_loops[loop_header].back_edge,
+                                  targets=pre_dsa_loops[loop_header].targets,
+                                  nodes=loop_nodes)
+    return loops
+
+
 def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     # q = [n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
     q = [func.cfg.entry]
@@ -948,9 +987,14 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     assert len(visited) == num_reachable(
         func.cfg), f"{visited} {len(visited)} {num_reachable(func.cfg)} {func.name}"
 
+    # need to recompute the cfg
+    all_succs = compute_all_successors_from_nodes(dsa_nodes)
+    cfg = compute_cfg_from_all_succs(all_succs, func.cfg.entry)
+    loops = recompute_loops_post_dsa(func.loops, dsa_nodes, cfg)
+
     return Function[DSAVarName](
-        cfg=func.cfg,
+        cfg=cfg,
         arguments=tuple(dsa_args),
-        loops=func.loops,
+        loops=loops,
         name=func.name,
         nodes=dsa_nodes)
