@@ -349,16 +349,16 @@ class Loop:
     """
 
     @property
-    def header(self):
+    def header(self) -> str:
         return self.back_edge[1]
 
 
 @dataclass(frozen=True)
 class Function(Generic[VarKind]):
 
-    cfg: CFG
-
     name: str
+
+    cfg: CFG
 
     # TODO: find good way to freeze dict and keep type hints
     nodes: Mapping[str, Node[VarKind]]
@@ -414,6 +414,7 @@ def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str,
 
     assert 'Ret' not in all_succs
     all_succs['Ret'] = []
+
     return all_succs
 
 
@@ -778,7 +779,6 @@ def find_latest_incarnation(
         target_var: ProgVarName,
         typ: Type,
         skip_current_node=False) -> DSAVarName:
-
     # see loop_targets_incarnations' comment
     if current_node in func.loops and target_var in func.loops[current_node].targets:
         if target_var not in s.loop_targets_incarnations[current_node]:
@@ -830,6 +830,7 @@ def find_latest_incarnation(
         func, dsa_nodes, s, p, target_var, typ) for p in preds]
 
     if len(set(latest)) == 1:
+        # if all the predecessors return the same value, no join is needed
         return latest[0]
 
     # different branch have given different variables

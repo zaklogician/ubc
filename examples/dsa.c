@@ -90,3 +90,18 @@ int simple_for_loop(int n)
     }
     return s;
 }
+
+struct point { int x; int y; };
+
+struct point origin();
+
+struct point shift_diag(struct point p, int offset)
+{
+    if (offset == 0)
+    {
+        return origin();
+    }
+    p.x += offset;
+    p.y += offset;
+    return p;
+}

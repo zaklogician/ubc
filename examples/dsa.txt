@@ -1,3 +1,8 @@
+Struct tmp.point_C 8 4
+StructField x_C Word 32 0
+StructField y_C Word 32 4
+
+Function tmp.origin 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 6 ret__struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 
 Function tmp.simple 5 a___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
@@ -34,6 +39,20 @@ Function tmp.two_vars 6 a___int#v Word 32 b___int#v Word 32 Mem Mem HTD HTD PMS 
 9 Basic 8 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
 10 Cond 9 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var b___int#v Word 32
 EntryPoint 10
+
+Function tmp.shift_diag 7 p___struct_point_C#v.x_C Word 32 p___struct_point_C#v.y_C Word 32 offset___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 6 ret__struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 2 ret__struct_point_C#v.x_C Word 32 Var p___struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Var p___struct_point_C#v.y_C Word 32
+4 Basic 3 1 p___struct_point_C#v.y_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.y_C Word 32 Var offset___int#v Word 32
+5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var p___struct_point_C#v.y_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.y_C Word 32 Var offset___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var offset___int#v Word 32
+6 Basic 5 1 p___struct_point_C#v.x_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.x_C Word 32 Var offset___int#v Word 32
+7 Cond 6 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var p___struct_point_C#v.x_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.x_C Word 32 Var offset___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var offset___int#v Word 32
+8 Basic 1 0
+9 Basic 8 2 ret__struct_point_C#v.x_C Word 32 Var rv#space#ret__struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Var rv#space#ret__struct_point_C#v.y_C Word 32
+10 Call 9 tmp.origin 4 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 64 6 rv#space#ret__struct_point_C#v.x_C Word 32 rv#space#ret__struct_point_C#v.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+11 Cond 10 7 Op Equals Bool 2 Var offset___int#v Word 32 Num 0 Word 32
+EntryPoint 11
 
 Function tmp.simple_for_loop 5 n___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0

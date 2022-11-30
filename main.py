@@ -59,21 +59,24 @@ def check_all_kernel():
         # viz_function(func)
 
 
+def view_function(filename: str, function_name: str):
+    with open(filename) as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        func = ubc.convert_function(
+            functions[function_name])
+        viz_function(func)
+        viz_function(ubc.dsa(func))
+
+
 if __name__ == "__main__":
 
     # assert_all_kernel_functions_are_reducible()
 
     # check_all_kernel()
 
-    # exit(0)
-
-    with open('examples/dsa.txt') as f:
-        structs, functions, const_globals = syntax.parse_and_install_all(
-            f, None)
-        func = ubc.convert_function(
-            functions['tmp.if_join_multiple_variables'])
-        # print(func.loops)
-        viz_function(ubc.dsa(func))
+    # view_function('examples/dsa.txt', 'tmp.shift_diag')
+    view_function('examples/kernel_CFunctions.txt', 'Kernel_C.deriveCap')
     exit(0)
 
     with open('examples/for_loops.txt') as f:

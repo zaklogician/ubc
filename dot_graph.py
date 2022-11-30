@@ -1,6 +1,7 @@
 """ standalone file to visualize graph lang
 """
 
+import typing
 import logic
 from collections.abc import Callable
 from io import IOBase
@@ -19,16 +20,35 @@ import syntax
 from typing_extensions import assert_never
 
 
-def pretty_name(name):
-    # type: (str) -> str
+def pretty_name(name: str) -> str:
+    # so many bloody cases
+
+    # : -> dsa
+    # . -> something i don't wanna throw away
+    # __ -> type info I wanna throw away
     if "__" not in name:
         return name
+    return name
+
+    name, type_info = name.split('__', maxsplit=1)
+    dsa_num = None
+    some_num = ''
+    if ':' in type_info:
+        type_info, dsa_num = type_info.rsplit(':', maxsplit=1)
+    if '.' in type_info:
+        type_info, some_num = type_info.split('.', maxsplit=1)
+        some_num = '.' + some_num
+
+    return name + some_num + (f'<sub>{dsa_num}</sub>' if dsa_num else '')
 
     if ':' in name:
         full_name, num = name.rsplit(':', maxsplit=1)
         if '__' in full_name:
             prog_name, type_info = full_name.split('__')
-            return f'{prog_name}<sub>{num}</sub>'
+            short = f'{prog_name}<sub>{num}</sub>'
+            if '.' in type_info:
+                short += '.' + type_info.split('.', maxsplit=1)[1]
+            return short
         return name
 
     c_name, extra = name.split("__")

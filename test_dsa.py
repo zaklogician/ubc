@@ -13,6 +13,7 @@ with open('examples/kernel_CFunctions.txt') as f:
 
 with open('examples/dsa.txt') as f:
     example_dsa_CFunctions = syntax.parse_and_install_all(f, None)
+del f
 
 
 def compute_all_path(cfg: ubc.CFG) -> Sequence[Sequence[str]]:
@@ -140,16 +141,24 @@ def ensure_exactly_one_assignment_in_all_path(unsafe_func: syntax.Function):
     plain_func = ubc.convert_function(unsafe_func)
     dsa_func = ubc.dsa(plain_func)
 
-    for path in compute_all_path(dsa_func.cfg):
+    all_paths = compute_all_path(dsa_func.cfg)
+    for i, path in enumerate(all_paths):
+        # print(f'path {i}/{len(all_paths)} = {i/len(all_paths)*100:.1f}%')
         ensure_exactly_one_assignment_in_path(dsa_func, path)
 
 
-@pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values()))
+@pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
 def test_dsa_custom_tests(func: syntax.Function):
     ensure_exactly_one_assignment_in_all_path(func)
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 @pytest.mark.parametrize('function', (f for f in kernel_CFunctions[1].values() if f.entry is not None))
 def test_dsa_kernel_functions(function: syntax.Function):
+    if function.name in ('Kernel_C.deriveCap', 'Kernel_C.decodeCNodeInvocation'):
+        pytest.skip("there's an assert true that messes DSA up")
+
+    if len(compute_all_path(ubc.convert_function(function).cfg)) > 10000:
+        pytest.skip("too many paths, checking them all is too slow")
+
     ensure_exactly_one_assignment_in_all_path(function)
