@@ -82,16 +82,31 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
     rather than reading from it first).
     """
 
+    print(f'{path=}')
+
     assignments: set[ubc.DSAVarName] = set(arg.name for arg in func.arguments)
 
     # list of (loop_header, variables that won't ever be assigned)
     loop_stack: list[tuple[str, set[ubc.ProgVarName]]] = []
 
     def got_assignment(var: ubc.DSAVarName):
-        # TODO: when assigning i.n, invalidate all the i.m for m < n. There
+        print(f'{node_name=} {var} is assigned')
+        nonlocal assignments
+
+        assert var not in assignments, f"found new assignment for {var}, but it was already defined"
+        # when assigning i.n, we invalidate all the i.m for m != n. There
         # should only be one. (we can do this because we are walking a single
         # path at a time)
-        assert var not in assignments, f"found new assignment for {var}, but it was already defined"
+        name, num = ubc.unpack_dsa_var_name(var)
+
+        previous_incarnations:set[ubc.DSAVarName] = set()
+        for assignment in assignments:
+            n, _ = ubc.unpack_dsa_var_name(assignment)
+            if n == name:
+                previous_incarnations.add(assignment)
+
+        assert len(previous_incarnations) <= 1, previous_incarnations
+        assignments -= previous_incarnations
         assignments.add(var)
 
     for node_name in path:
@@ -118,13 +133,11 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
             for arg in node.args:
                 used_but_unassigned |= all_vars_in_expr(arg) - assignments
 
-            for ret in node.rets:
-                got_assignment(ret.name)
         elif isinstance(node, ubc.CondNode):
             used_but_unassigned |= all_vars_in_expr(node.expr) - assignments
 
+        # it's only legal to use an unassigned variable if it's a loop target
         for dsa_var in used_but_unassigned:
-
             prog_var, num = ubc.unpack_dsa_var_name(dsa_var)
             for loop_header, loop_targets in reversed(loop_stack):
                 if prog_var in loop_targets:
@@ -133,8 +146,11 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
                     break
             else:
                 # we didn't break, ie we didn't find the loop target
-                # TODO: Should i even use for/else?
-                assert False, f"{dsa_var} wasn't assigned to, yet we read from it (and it's not a valid loop target)"
+                assert False, f"({node_name=} {path=}) {dsa_var} wasn't assigned to, yet we read from it (and it's not a valid loop target)"
+
+        if isinstance(node, ubc.CallNode):
+            for ret in node.rets:
+                got_assignment(ret.name)
 
 
 def ensure_exactly_one_assignment_in_all_path(unsafe_func: syntax.Function):
@@ -153,12 +169,19 @@ def test_dsa_custom_tests(func: syntax.Function):
 
 
 # @pytest.mark.skip
-@pytest.mark.parametrize('function', (f for f in kernel_CFunctions[1].values() if f.entry is not None))
+# sort so that the smallest functions fail first
+@pytest.mark.parametrize('function', (f for f in sorted(kernel_CFunctions[1].values(), key=lambda f: len(f.nodes)) if f.entry is not None))
 def test_dsa_kernel_functions(function: syntax.Function):
+    print(function.name)
     if function.name in ('Kernel_C.deriveCap', 'Kernel_C.decodeCNodeInvocation'):
         pytest.skip("there's an assert true that messes DSA up")
 
-    if len(compute_all_path(ubc.convert_function(function).cfg)) > 10000:
+    if len(compute_all_path(ubc.convert_function(function).cfg)) > 1000:
         pytest.skip("too many paths, checking them all is too slow")
 
     ensure_exactly_one_assignment_in_all_path(function)
+
+
+if __name__ == '__main__':
+    ensure_exactly_one_assignment_in_all_path(
+        kernel_CFunctions[1]['Kernel_C.setDomain'])

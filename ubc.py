@@ -834,7 +834,16 @@ def find_latest_incarnation(
         return latest[0]
 
     # different branch have given different variables
-    # TODO: use Leino's optimisation to avoid excessive variables
+
+    # check if we already inserted such join variable (if it's present in a
+    # join block between one predecessor and current_node, then it must have
+    # been inserted between all the predecesors and the current node)
+    for i, pred in enumerate(preds):
+        for ins in s.insertions:
+            if ins.after == pred and ins.before == current_node and typ == typ and ins.rhs_dsa_value == latest[i]:
+                return ins.lhs_dsa_name
+
+    # we haven't, so insert it
     s.k += 1
     fresh_name = make_dsa_var_name(target_var, s.k)
     for i, pred in enumerate(preds):
@@ -946,7 +955,16 @@ def make_dsa_var(v: Var[ProgVarName], k: int) -> Var[DSAVarName]:
 
 
 def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
-    # q = [n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
+
+    # for each node, for each prog variable, keep a set of possible dsa incarnations
+    # (this is going to use a lot of memory but oh well)
+    #
+    # when getting a fresh incarnation name, look up the direct predecessors'
+    # latest incarnations for that prog variable, and return the next one
+    #
+    # when getting the latest incarnation, lookup the direct predecessors'
+    # latest incarnations. If there are at least two distinct incarnations
+
     q = [func.cfg.entry]
 
     dsa_nodes: dict[str, Node[DSAVarName]] = {}
@@ -978,7 +996,6 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                    func_args=tuple(dsa_args))
 
     while q:
-        # bfs-like topological order so that we visit the longest branches last
         n = q.pop(-1)
         if n in visited:
             continue
@@ -1011,14 +1028,17 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 succ_else=node.succ_else,
             )
         elif isinstance(node, CallNode):
+            args = tuple(apply_incarnations(func, dsa_nodes, s, n, arg)
+                         for arg in node.args)
+
             rets: list[Var[DSAVarName]] = []
             for ret in node.rets:
                 s.k += 1
-                rets.append(Var(make_dsa_var_name(ret.name, s.k), ret.typ))
+                rets.append(make_dsa_var(ret, s.k))
+
             dsa_nodes[n] = CallNode(
                 succ=node.succ,
-                args=tuple(apply_incarnations(func, dsa_nodes, s, n, arg)
-                           for arg in node.args),
+                args=args,
                 rets=tuple(rets),
                 fname=node.fname,
             )

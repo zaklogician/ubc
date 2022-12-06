@@ -28,7 +28,7 @@ def pretty_name(name: str) -> str:
     # __ -> type info I wanna throw away
     if "__" not in name:
         return name
-    return name
+    # return name
 
     name, type_info = name.split('__', maxsplit=1)
     dsa_num = None
@@ -40,19 +40,6 @@ def pretty_name(name: str) -> str:
         some_num = '.' + some_num
 
     return name + some_num + (f'<sub>{dsa_num}</sub>' if dsa_num else '')
-
-    if ':' in name:
-        full_name, num = name.rsplit(':', maxsplit=1)
-        if '__' in full_name:
-            prog_name, type_info = full_name.split('__')
-            short = f'{prog_name}<sub>{num}</sub>'
-            if '.' in type_info:
-                short += '.' + type_info.split('.', maxsplit=1)[1]
-            return short
-        return name
-
-    c_name, extra = name.split("__")
-    return c_name
 
 
 def fix_func_name(name):
