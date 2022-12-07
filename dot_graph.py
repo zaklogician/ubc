@@ -20,12 +20,18 @@ import syntax
 from typing_extensions import assert_never
 
 
-def pretty_name(name: str) -> str:
+def pretty_name(name: str | tuple[str, int]) -> str:
     # so many bloody cases
 
     # : -> dsa
     # . -> something i don't wanna throw away
     # __ -> type info I wanna throw away
+    if isinstance(name, tuple):
+        name, inc = name
+        return _pretty_name(name) + f"<sub>{inc}</sub>"
+    return _pretty_name(name)
+
+def _pretty_name(name: str) -> str:
     if "__" not in name:
         return name
     # return name
@@ -43,8 +49,6 @@ def pretty_name(name: str) -> str:
 
 
 def fix_func_name(name):
-    if name[: len("tmp.")] == "tmp.":
-        return name[len("tmp."):]
     return name
 
 

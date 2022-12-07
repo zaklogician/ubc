@@ -72,9 +72,10 @@ def view_function(filename: str, function_name: str):
 if __name__ == "__main__":
 
     # assert_all_kernel_functions_are_reducible()
+    view_function('examples/dsa.txt', 'tmp.simple_for_loop')
 
     # check_all_kernel()
-    view_function('examples/kernel_CFunctions.txt', 'Kernel_C.init_irqs')
+    # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.init_irqs')
     # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.strncmp')
 
     # view_function('examples/dsa.txt', 'tmp.simple_for_loop')

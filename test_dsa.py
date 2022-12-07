@@ -86,8 +86,8 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
 
     assignments: set[ubc.DSAVarName] = set(arg.name for arg in func.arguments)
 
-    # list of (loop_header, variables that won't ever be assigned)
-    loop_stack: list[tuple[str, set[ubc.ProgVarName]]] = []
+    # list of loop headers
+    loop_stack: list[str] = []
 
     def got_assignment(var: ubc.DSAVarName):
         print(f'{node_name=} {var} is assigned')
@@ -99,7 +99,7 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
         # path at a time)
         name, num = ubc.unpack_dsa_var_name(var)
 
-        previous_incarnations:set[ubc.DSAVarName] = set()
+        previous_incarnations: set[ubc.DSAVarName] = set()
         for assignment in assignments:
             n, _ = ubc.unpack_dsa_var_name(assignment)
             if n == name:
@@ -115,9 +115,13 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
 
         node = func.nodes[node_name]
 
+        
+        while len(loop_stack) > 0 and node not in func.loops[loop_stack[-1]].nodes:
+            loop_stack.pop(-1)
+
         if func.is_loop_header(node_name):
             loop = func.loops[node_name]
-            loop_stack.append((loop.header, set(loop.targets)))
+            loop_stack.append(loop.header)
 
         used_but_unassigned: set[ubc.DSAVarName] = set()
         if isinstance(node, ubc.BasicNode):
@@ -138,15 +142,13 @@ def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], pa
 
         # it's only legal to use an unassigned variable if it's a loop target
         for dsa_var in used_but_unassigned:
-            prog_var, num = ubc.unpack_dsa_var_name(dsa_var)
-            for loop_header, loop_targets in reversed(loop_stack):
-                if prog_var in loop_targets:
+            for loop_header in reversed(loop_stack):
+                if dsa_var in func.loops[loop_header].targets:
                     got_assignment(dsa_var)
-                    loop_targets.remove(prog_var)
                     break
             else:
                 # we didn't break, ie we didn't find the loop target
-                assert False, f"({node_name=} {path=}) {dsa_var} wasn't assigned to, yet we read from it (and it's not a valid loop target)"
+                assert False, f"({node_name=} {path=}) {dsa_var} wasn't assigned to, yet we read from it (and it's not a loop target)"
 
         if isinstance(node, ubc.CallNode):
             for ret in node.rets:
