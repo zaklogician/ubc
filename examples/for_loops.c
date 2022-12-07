@@ -226,3 +226,14 @@ void global()
         ndks_boot2.resv_count++;
     }
 }
+
+// void insert_join()
+// {
+//     int a = 1;
+//     int i = 0;
+//     while (i < 10)
+//     {
+//         if (i > 5)
+//     }
+//     return a;
+// }

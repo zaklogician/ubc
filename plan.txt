@@ -1,0 +1,150 @@
+0. insert loop invariants in CFG[Prog]
+1. CFG[Prog] to CFG[DSA]
+2. CFG[DSA] to assume/prove
+3. compute wp on assume/prove script
+4. emit SMT
+
+Code:
+    {a <= 10}
+    int i = a;
+    while (i < 10) { i++ }    // INV: i <= 10
+    {i == 10}
+
+inserting loop invariants:
+
+    insert assert nodes on every loop header predecessors (we are still
+    considering back edges at this point).
+
+CFG[DSA]:
+              (1)
+            i1 = a1;
+               |
+               |
+              (g2)
+            i1 <= 10
+               |  \
+               T   F
+               |    \
+               |     (Err)
+              (2)               // note that i2 was havoc'd
+            i2 < 10
+            /     \
+           T       F
+          /         \
+         (3)       (Ret)
+  overflows i2 + 1
+    /            \
+   T              F
+  /                \
+(Err)              (4)
+               i3 = i2 + 1
+                    |
+                    |
+                   (g4)
+                 i3 <= 10
+                /        \
+               F          T
+              /            \
+             Err         back edge
+
+DSA contains meta information about every loop:
+    - invariants
+    - loop targets (DSA form)
+
+
+assume/prove: (not the same as Leino's because we have a different CFG structure)
+
+    Process:
+
+        Go through the graph (in any order) and emit based on the node type
+
+            BasicNode(upds, succ)
+                assume upd[i].lhs = upd[i].rhs    forall i
+                prove succ_ok
+
+            // FLAG: difference from leino
+            CondNode(expr, succ_then, succ_else)
+                prove expr --> succ_then_ok
+                prove not expr --> succ_else_ok
+
+            CallNode(func, args, rets, succ):
+                prove func.pre(args)
+                assume func.post(args, rets)
+                prove succ_ok
+
+        The 'Err' node is just a 'prove false'
+        The 'Ret' node is just a 'prove func.post_condition'
+
+        If a node is a loop header, then we add an extra `assume loop.invariant`
+        at the top (we know it won't have a to insert join nodes because(1) all
+        loop targets have just been havoc'd (2) all non loop targets have been
+        resolved by the assert that ensures that the loop invariant is
+        established on entry).
+
+        The entry node has an extra assumption: the function's precondition.
+
+    So we have
+
+        1: assume a1 <= 10                           // precondition
+           assume i1 = a1
+           prove g2_ok
+
+        g2: prove i1 <= 10 --> 2_ok
+            prove not (i1 <= 10) --> Err_ok
+
+        2: assume i2 <= 10                           // loop invariant
+           prove i2 < 10 --> 3_ok
+           prove not (i2 < 10) --> Ret_ok
+
+        3: prove (overflows i2 + 1) --> Err_ok
+           prove not (overflow i2 + 1) --> 4_ok
+
+        4: assume i3 = i2 + 1
+           prove g4_ok
+
+        g4: prove i3 <= 10 --> true
+            prove not (i3 <= 10) --> Err_ok
+
+        Err: prove false
+
+        Ret: prove i2 == 10
+
+WP rules:
+
+    To compute x_ok, we apply the wp rules (starting with Q=true)
+
+        wp(prove P, Q) = P && Q
+        wp(assume P, Q) = P --> Q
+        wp(S;T, Q) = wp(S, wp(T, Q))
+
+
+    1_ok: wp(assume a1 <= 10; assume i1 = a2; prove 2_ok, true) =
+          a1 <= 10 --> i1 = a1 --> 2_ok
+
+    2_ok: i2 <= 10 --> (i2 < 10 --> 3_ok) && (not (i2 < 10) --> Ret_ok)
+
+    3_ok: ((overflows i2 + 1) --> Err_ok) && (not (overflow i2 + 1) --> 4_ok)
+
+    4_ok: i3 = i2 + 1 --> i3 <= 10
+
+    Err_ok: false
+
+    Ret_ok: i2 == 10
+
+
+Emit to SMT:
+
+    Verification condition: forall i: i_ok = ... --> start_ok (Leino's)
+
+    Concretely (basically same as above)
+
+    assert (1_ok = a1 <= 10 --> i1 = a1 --> 2_ok)
+    assert (2_ok = i2 <= 10 --> (i2 < 10 --> 3_ok) && (not (i2 < 10) --> Ret_ok))
+    assert (3_ok = ((overflows i2 + 1) --> Err_ok) && (not (overflow i2 + 1) --> 4_ok))
+    assert (4_ok = i3 = i2 + 1 --> i3 <= 10)
+    assert (Err_ok = false)
+    assert (Ret_ok = i2 == 10)
+
+    assert (not (1_ok))  // ensure we get unsat
+
+

@@ -1,0 +1,46 @@
+    int one_branch_undefined(int b)
+    {
+        int a;
+        if (b)
+        {
+            a = 2;
+        }
+        return a;
+    }
+
+this is undefined behaviour, we are reading from a variable that is not defined
+on all paths (a isn't initialized on the line `return a`)
+
+    int one_branch_legal(int b)
+    {
+        if (b)
+        {
+            int a = 2;
+            (void) a;
+        }
+        return 0;
+    }
+
+here a isn't defined on all paths, but since we are not reading from it, it's
+fine.
+
+
+    int arr_undefined_behaviour(int i)
+    {
+        int arr[8];
+        arr[0] = 2;          // arr.0 = 2
+        return arr[i];       // if i==0 then arr.0 else if i==1 then arr.1 else ...
+    }
+
+In the graph, each element of the array is it's own variable. arr[i] is big
+switch on the value of i.
+
+Clearly, the code is only valid if we can establish that i is 0. However,
+from the DSA, when applying incarnations on the `return` expression, we
+won't be able to resolve arr.k for k >= 1.
+
+Right now, we trigger an error saying we are trying to read from uninitialized
+variables. It's hard (but possible) to do better (ie. encode a verification
+condition ensuring that we prove that i == 0), because DSA runs really early in
+the pipeline and doesn't do any reasoning. As I said above, I just bail.
+

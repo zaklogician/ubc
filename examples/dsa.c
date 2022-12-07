@@ -105,3 +105,82 @@ struct point shift_diag(struct point p, int offset)
     p.y += offset;
     return p;
 }
+
+int one_branch_undefined(int b)
+{
+    int a;
+    if (b)
+    {
+        a = 2;
+    }
+    return a;
+}
+
+int one_branch_legal(int b)
+{
+    if (b)
+    {
+        int a = 2;
+        (void) a;
+    }
+    return 0;
+}
+
+int uninit(int b)
+{
+    int a;
+    if (b)
+    {
+        a = 2;
+    }
+    return a + 1;
+}
+
+int init(int b)
+{
+    int a = 0;
+    if (b)
+    {
+        a = 2;
+    }
+    return a + 1;
+}
+
+int arr_undefined_behaviour(int i)
+{
+    int arr[8];
+    arr[0] = 2;
+    return arr[i];
+}
+
+int arr_undefined_behaviour2(int i, int j)
+{
+    int arr[8];
+    if (j)
+    {
+        arr[0] = 2;
+    }
+    else
+    {
+        arr[1] = 3;
+    }
+    return arr[i];
+}
+
+// doesn't compile to graph lang
+// int arr_loop_init(int j)
+// {
+//     int arr[8];
+//     for (int i = 0; i < 8; i++)
+//     {
+//         arr[i] = 1;
+//     }
+//     return arr[j];
+// }
+
+int arr_static()
+{
+    int arr[8];
+    arr[0] = 1;
+    return arr[0];
+}
