@@ -45,11 +45,6 @@ class CFG(NamedTuple):
     """
 
 
-@dataclass(frozen=True)
-class EmptyNode:
-    succ: NodeName
-
-
 ProgVarName = NewType('ProgVarName', str)
 DSAVarName = NewType('DSAVarName', tuple[ProgVarName, IncarnationNum])
 VarKind = TypeVar('VarKind', ProgVarName, DSAVarName)
@@ -66,8 +61,8 @@ class Var(Generic[VarKind]):
     typ: Type
 
 
-ProgVar = Var[ProgVarName]
-DSAVar = Var[DSAVarName]
+ProgVar: TypeAlias = Var[ProgVarName]
+DSAVar: TypeAlias = Var[DSAVarName]
 
 
 def make_dsa_var_name(v: ProgVarName, k: IncarnationNum) -> DSAVarName:
@@ -324,13 +319,18 @@ class Update(Generic[VarKind]):
 
 
 @dataclass(frozen=True)
-class BasicNode(Generic[VarKind]):
+class NodeEmpty:
+    succ: NodeName
+
+
+@dataclass(frozen=True)
+class NodeBasic(Generic[VarKind]):
     upds: tuple[Update[VarKind], ...]
     succ: NodeName
 
 
 @dataclass(frozen=True)
-class CallNode(Generic[VarKind]):
+class NodeCall(Generic[VarKind]):
     succ: NodeName
     fname: str
     args: tuple[Expr[VarKind], ...]
@@ -338,13 +338,13 @@ class CallNode(Generic[VarKind]):
 
 
 @dataclass(frozen=True)
-class CondNode(Generic[VarKind]):
+class NodeCond(Generic[VarKind]):
     expr: Expr  # TODO: Expr will take a VarKind
     succ_then: NodeName
     succ_else: NodeName
 
 
-Node = BasicNode[VarKind] | CallNode[VarKind] | CondNode[VarKind] | EmptyNode
+Node = NodeBasic[VarKind] | NodeCall[VarKind] | NodeCond[VarKind] | NodeEmpty
 
 
 LoopHeaderName = NewType('LoopHeaderName', NodeName)
@@ -412,9 +412,9 @@ def compute_all_successors_from_nodes(nodes: Mapping[NodeName, Node]) -> Mapping
     all_succs: dict[NodeName, list[NodeName]] = {}
     for name, node in nodes.items():
         all_succs[name] = []
-        if isinstance(node, BasicNode | CallNode | EmptyNode):
+        if isinstance(node, NodeBasic | NodeCall | NodeEmpty):
             all_succs[name].append(node.succ)
-        elif isinstance(node, CondNode):
+        elif isinstance(node, NodeCond):
             all_succs[name].append(node.succ_then)
             all_succs[name].append(node.succ_else)
         else:
@@ -545,13 +545,13 @@ def compute_loop_targets(
         visited.add(n)
 
         node = nodes[n]
-        if isinstance(node, BasicNode):
+        if isinstance(node, NodeBasic):
             for upd in node.upds:
                 loop_targets.add(upd.var)
-        elif isinstance(node, CallNode):
+        elif isinstance(node, NodeCall):
             for ret in node.rets:
                 loop_targets.add(ret)
-        elif not isinstance(node, EmptyNode | CondNode):
+        elif not isinstance(node, NodeEmpty | NodeCond):
             assert_never(node)
 
         for succ in cfg.all_succs[n]:
@@ -643,24 +643,24 @@ def _convert_function(func: syntax.Function) -> Function:
         name = NodeName(str(name))
         if node.kind == "Basic":
             if len(node.upds) == 0:
-                safe_nodes[name] = EmptyNode(succ=NodeName(str(node.cont)))
+                safe_nodes[name] = NodeEmpty(succ=NodeName(str(node.cont)))
             else:
                 upds: list[Update] = []
                 for var, expr in node.upds:
                     upds.append(Update(
                         var=convert_var(var),
                         expr=convert_expr(expr)))
-                safe_nodes[name] = BasicNode(upds=tuple(
+                safe_nodes[name] = NodeBasic(upds=tuple(
                     upds), succ=NodeName(str(node.cont)))
         elif node.kind == "Call":
             node.args
-            safe_nodes[name] = CallNode(
+            safe_nodes[name] = NodeCall(
                 succ=NodeName(str(node.cont)),
                 fname=node.fname,
                 args=tuple(convert_expr(arg) for arg in node.args),
                 rets=tuple(Var(ProgVarName(name), convert_type(typ)) for name, typ in node.rets))
         elif node.kind == "Cond":
-            safe_nodes[name] = CondNode(
+            safe_nodes[name] = NodeCond(
                 succ_then=NodeName(str(node.left)), succ_else=NodeName(str(node.right)), expr=convert_expr(node.cond))
         else:
             raise ValueError(f"unknown kind {node.kind!r}")
@@ -766,36 +766,91 @@ class DSABuilder:
     """
 
 
-# if cond
-#     a = 2
-# else:
-#     a = 3
-#     a = a + 1
-# a = a + 1
+def traverse_func_topologically_bottom_up(func: Function) -> Iterator[NodeName]:
+    q: list[NodeName] = [n for n, succs in func.cfg.all_succs.items() if len(
+        [succ for succ in succs if (n, succ) not in func.cfg.back_edges]) == 0]
+    visited: set[NodeName] = set()
 
-# if cond1  {cond: {1}}
-#     {cond: {1}}
-#     a1 = 2  {cond: {1}, a: {1}}
-#     ; a3 = a1
-# else:
-#     a1 = 3      {cond: {1}, a: {1}}
-#     {cond: {1}, a: {1}}
-#     a2 = a1 + 1 {cond: {1}, a: {2}}
-#     ; a3 = a2
-# {cond: {1}, a: {3}}     insertion for a
-# a4 = a3 + 1  {cond: {1}, a: {4}}
+    while q:
+        n = q.pop(-1)
+        if n in visited:
+            continue
+
+        if any(succ not in visited for succ in func.cfg.all_succs[n] if (n, succ) not in func.cfg.back_edges):
+            continue
+
+        visited.add(n)
+        yield n
+
+        for pred in func.cfg.all_preds[n]:
+            if (pred, n) not in func.cfg.back_edges:
+                q.append(pred)
+
+    assert len(visited - {NodeNameErr, NodeNameRet}
+               ) == len(func.nodes), visited
 
 
-# prog var: a
-# dsa var: a1, a2
+def traverse_func_topologically(func: Function) -> Iterator[NodeName]:
+    q: list[NodeName] = [
+        n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
+    visited: set[NodeName] = set()
+    while q:
+        n = q.pop(-1)
+        if n in visited:
+            continue
 
-# trying to build a context:
-# 1. merge predecessors context
-#     - if a prog var is present in all predecessors
-#         - take the intersection of the incarnations
-#         - if set is empty
-#             - insert join
-#         - use some value from the intersection
+        if not all(p in visited for p in func.acyclic_preds_of(n)):
+            continue
+
+        visited.add(n)
+        yield n
+
+        for succ in func.cfg.all_succs[n]:
+            if (n, succ) not in func.cfg.back_edges:
+                q.append(succ)
+
+    assert len(visited - {NodeNameErr, NodeNameRet}) == len(func.nodes)
+
+
+def all_vars_in_expr(expr: Expr[VarKind]) -> set[Var[VarKind]]:
+    s: set[Var[VarKind]] = set()
+
+    def visitor(expr: Expr):
+        if isinstance(expr, ExprVar):
+            s.add(Var(expr.name, expr.typ))
+    visit_expr(expr, visitor)
+    return s
+
+
+def used_variables_in_node(node: Node[VarKind]) -> Set[Var[VarKind]]:
+    used_variables: set[Var[VarKind]] = set()
+    if isinstance(node, NodeBasic):
+        for upd in node.upds:
+            used_variables.union(all_vars_in_expr(upd.expr))
+    elif isinstance(node, NodeCall):
+        for arg in node.args:
+            used_variables.union(all_vars_in_expr(arg))
+    elif isinstance(node, NodeCond):
+        used_variables.union(all_vars_in_expr(node.expr))
+    elif not isinstance(node, NodeEmpty):
+        assert_never(node)
+    return used_variables
+
+
+def compute_node_variable_dependencies(func: Function[ProgVarName]) -> Mapping[NodeName, Set[ProgVar]]:
+    """
+    For a given node name n, deps[n] gives the set of variables that are
+    refered to in n or any of its (possibly indirect) successors.
+    """
+    deps: dict[NodeName, Set[ProgVar]] = {}
+    for node_name in traverse_func_topologically_bottom_up(func):
+        if node_name in (NodeNameErr, NodeNameRet):
+            deps[node_name] = set()
+            continue
+        deps[node_name] = used_variables_in_node(func.nodes[node_name]).union(
+            *(deps[succ] for succ in func.cfg.all_succs[node_name] if (node_name, succ) not in func.cfg.back_edges))
+
+    return deps
 
 
 def make_dsa_var(v: ProgVar, inc: IncarnationNum) -> DSAVar:
@@ -877,6 +932,8 @@ def set_union(it: Iterator[set[K]]) -> set[K]:
 
 
 def apply_insertions(s: DSABuilder):
+    prog_var_deps = compute_node_variable_dependencies(s.original_func)
+
     j = 0
     for node_name, node_insertions in s.insertions.items():
         for pred_name in s.original_func.acyclic_preds_of(node_name):
@@ -889,6 +946,12 @@ def apply_insertions(s: DSABuilder):
                 #                dsa.txt@shift_diag  (look at the ret variable)
                 if prog_var not in s.incarnations[pred_name]:
                     continue
+
+                # the successors don't need this variable, so don't emit a
+                # joiner
+                if prog_var not in prog_var_deps[node_name]:
+                    continue
+
                 old_incarnation_number = max(
                     s.incarnations[pred_name][prog_var])
 
@@ -900,7 +963,7 @@ def apply_insertions(s: DSABuilder):
             j += 1
             join_node_name = NodeName(f'j{j}')
             pred = s.dsa_nodes[pred_name]
-            if isinstance(pred, CondNode):
+            if isinstance(pred, NodeCond):
                 assert node_name in (pred.succ_then, pred.succ_else)
                 if node_name == pred.succ_then:
                     s.dsa_nodes[pred_name] = dataclasses.replace(
@@ -908,7 +971,7 @@ def apply_insertions(s: DSABuilder):
                 else:
                     s.dsa_nodes[pred_name] = dataclasses.replace(
                         pred, succ_else=join_node_name)
-            elif isinstance(pred, BasicNode | EmptyNode | CallNode):
+            elif isinstance(pred, NodeBasic | NodeEmpty | NodeCall):
                 # carefull, type hints for dataclasses.replace are too
                 # permissive right now
                 s.dsa_nodes[pred_name] = dataclasses.replace(
@@ -917,7 +980,7 @@ def apply_insertions(s: DSABuilder):
                 assert_never(pred)
 
             assert len(updates) > 0, f"{node_insertions=}"
-            join_node = BasicNode(tuple(updates), node_name)
+            join_node = NodeBasic(tuple(updates), node_name)
             s.dsa_nodes[join_node_name] = join_node
 
 
@@ -988,9 +1051,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
         preds = func.cfg.all_preds[n]
         if len(preds) == 0 and n != func.cfg.entry:
             node = func.nodes[n]
-            assert isinstance(node, CondNode) and node.expr == ExprOp(
+            assert isinstance(node, NodeCond) and node.expr == ExprOp(
                 TypeBuiltin(Builtin.BOOL), Operator.FALSE, tuple()), "different weird case in c parser"
-            s.dsa_nodes[n] = cast(CondNode[DSAVarName], node)
+            s.dsa_nodes[n] = cast(NodeCond[DSAVarName], node)
             visited.add(n)
             # if we can reach this annoying assert False, that means we must
             # be able to reach Err.
@@ -1079,7 +1142,7 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 f'  {var.name}', context[var], '  [joiner]' if curr_node_insertions and var in curr_node_insertions else '')
 
         node = func.nodes[current_node]
-        if isinstance(node, BasicNode):
+        if isinstance(node, NodeBasic):
             upds: list[Update[DSAVarName]] = []
             for upd in node.upds:
                 # notice that we don't take into consideration the previous
@@ -1093,14 +1156,14 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 assert upd.var not in added_incarnations, "duplicate updates in BasicNode"
                 added_incarnations[upd.var] = dsa_var
 
-            s.dsa_nodes[current_node] = BasicNode(tuple(upds), succ=node.succ)
-        elif isinstance(node, CondNode):
-            s.dsa_nodes[current_node] = CondNode(
+            s.dsa_nodes[current_node] = NodeBasic(tuple(upds), succ=node.succ)
+        elif isinstance(node, NodeCond):
+            s.dsa_nodes[current_node] = NodeCond(
                 expr=apply_incarnations(s, context, node.expr),
                 succ_then=node.succ_then,
                 succ_else=node.succ_else,
             )
-        elif isinstance(node, CallNode):
+        elif isinstance(node, NodeCall):
             args = tuple(apply_incarnations(s, context, arg)
                          for arg in node.args)
 
@@ -1111,13 +1174,13 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 rets.append(make_dsa_var(ret, inc))
                 added_incarnations[ret] = rets[-1]
 
-            s.dsa_nodes[current_node] = CallNode(
+            s.dsa_nodes[current_node] = NodeCall(
                 succ=node.succ,
                 args=args,
                 rets=tuple(rets),
                 fname=node.fname,
             )
-        elif isinstance(node, EmptyNode):
+        elif isinstance(node, NodeEmpty):
             s.dsa_nodes[current_node] = node
         else:
             assert_never(node)

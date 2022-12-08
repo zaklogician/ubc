@@ -48,48 +48,23 @@ def compute_all_path(cfg: ubc.CFG) -> Sequence[Sequence[ubc.NodeName]]:
     return all_paths
 
 
-def all_vars_in_expr(expr: ubc.Expr[ubc.VarKind]) -> set[ubc.Var[ubc.VarKind]]:
-    s: set[ubc.Var[ubc.VarKind]] = set()
-
-    def visitor(expr: ubc.Expr):
-        if isinstance(expr, ubc.ExprVar):
-            s.add(ubc.Var(expr.name, expr.typ))
-    ubc.visit_expr(expr, visitor)
-    return s
-
-
 def assigned_variables_in_node(func: ubc.Function[ubc.DSAVarName], n: ubc.NodeName) -> Collection[ubc.DSAVar]:
     if n in (ubc.NodeNameRet, ubc.NodeNameErr):
         return []
 
     assigned_variables: list[ubc.DSAVar] = []
     node = func.nodes[n]
-    if isinstance(node, ubc.BasicNode):
+    if isinstance(node, ubc.NodeBasic):
         assigned_variables.extend(upd.var for upd in node.upds)
-    elif isinstance(node, ubc.CallNode):
+    elif isinstance(node, ubc.NodeCall):
         assigned_variables.extend(ret for ret in node.rets)
-    elif not isinstance(node, ubc.EmptyNode | ubc.CondNode):
+    elif not isinstance(node, ubc.NodeEmpty | ubc.NodeCond):
         assert_never(node)
 
     if loop_header := func.is_loop_header(n):
         assigned_variables.extend(func.loops[loop_header].targets)
 
     return assigned_variables
-
-
-def read_variables_in_node(node: ubc.Node[ubc.DSAVarName]) -> Collection[ubc.DSAVar]:
-    read_variables: list[ubc.DSAVar] = []
-    if isinstance(node, ubc.BasicNode):
-        for upd in node.upds:
-            read_variables.extend(all_vars_in_expr(upd.expr))
-    elif isinstance(node, ubc.CallNode):
-        for arg in node.args:
-            read_variables.extend(all_vars_in_expr(arg))
-    elif isinstance(node, ubc.CondNode):
-        read_variables.extend(all_vars_in_expr(node.expr))
-    elif not isinstance(node, ubc.EmptyNode):
-        assert_never(node)
-    return read_variables
 
 
 def ensure_assigned_at_most_once(func: ubc.Function[ubc.DSAVarName], path: Collection[ubc.NodeName]):
@@ -111,7 +86,7 @@ def ensure_using_latest_incarnation(func: ubc.Function[ubc.DSAVarName], path: Co
         if n in (ubc.NodeNameErr, ubc.NodeNameRet):
             continue
 
-        for dsa_var in set(read_variables_in_node(func.nodes[n])):
+        for dsa_var in set(ubc.used_variables_in_node(func.nodes[n])):
             # loop targets are havoc'd at the top of the loop header
             # that is, it is legal to use them in the loop header itself
             if loop_header := func.is_loop_header(n):
@@ -136,28 +111,6 @@ def ensure_valid_dsa(dsa_func: ubc.Function[ubc.DSAVarName]):
     for i, path in enumerate(all_paths):
         ensure_assigned_at_most_once(dsa_func, path)
         ensure_using_latest_incarnation(dsa_func, path)
-
-
-def traverse_func(func: ubc.Function) -> Iterator[ubc.NodeName]:
-    q: list[ubc.NodeName] = [
-        n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
-    visited: set[ubc.NodeName] = set()
-    while q:
-        n = q.pop(-1)
-        if n in visited:
-            continue
-
-        if not all(p in visited for p in func.acyclic_preds_of(n)):
-            continue
-
-        visited.add(n)
-        yield n
-
-        for succ in func.cfg.all_succs[n]:
-            if (n, succ) not in func.cfg.back_edges:
-                q.append(succ)
-
-    assert len(visited - {ubc.NodeNameErr, ubc.NodeNameRet}) == len(func.nodes)
 
 
 def assert_expr_equals_mod_dsa(lhs: ubc.Expr[ubc.ProgVarName], rhs: ubc.Expr[ubc.DSAVarName]):
@@ -198,7 +151,7 @@ def ensure_correspondence(prog_func: ubc.Function[ubc.ProgVarName], dsa_func: ub
 
             assert node_name.startswith('j')  # not required semantically
 
-            assert isinstance(dsa_node, ubc.BasicNode)
+            assert isinstance(dsa_node, ubc.NodeBasic)
             for upd in dsa_node.upds:
                 # ensure every update is of the form A.X = A.Y
                 lhs_name, _ = ubc.unpack_dsa_var_name(upd.var.name)
@@ -212,8 +165,8 @@ def ensure_correspondence(prog_func: ubc.Function[ubc.ProgVarName], dsa_func: ub
 
         prog_node = prog_func.nodes[node_name]
 
-        if isinstance(prog_node, ubc.BasicNode):
-            assert isinstance(dsa_node, ubc.BasicNode)
+        if isinstance(prog_node, ubc.NodeBasic):
+            assert isinstance(dsa_node, ubc.NodeBasic)
 
             assert len(prog_node.upds) == len(dsa_node.upds)
             for i in range(len(prog_node.upds)):
@@ -223,8 +176,8 @@ def ensure_correspondence(prog_func: ubc.Function[ubc.ProgVarName], dsa_func: ub
                 assert_expr_equals_mod_dsa(
                     prog_node.upds[i].expr, dsa_node.upds[i].expr)
 
-        elif isinstance(prog_node, ubc.CallNode):
-            assert isinstance(dsa_node, ubc.CallNode)
+        elif isinstance(prog_node, ubc.NodeCall):
+            assert isinstance(dsa_node, ubc.NodeCall)
 
             assert len(prog_node.args) == len(dsa_node.args)
             for i in range(len(prog_node.args)):
@@ -234,16 +187,16 @@ def ensure_correspondence(prog_func: ubc.Function[ubc.ProgVarName], dsa_func: ub
             for i in range(len(prog_node.rets)):
                 assert_var_equal_mod_dsa(prog_node.rets[i], dsa_node.rets[i])
 
-        elif isinstance(prog_node, ubc.CondNode):
-            assert isinstance(dsa_node, ubc.CondNode)
+        elif isinstance(prog_node, ubc.NodeCond):
+            assert isinstance(dsa_node, ubc.NodeCond)
             assert_expr_equals_mod_dsa(prog_node.expr, dsa_node.expr)
 
-        elif isinstance(prog_node, ubc.EmptyNode):
-            assert isinstance(dsa_node, ubc.EmptyNode)
+        elif isinstance(prog_node, ubc.NodeEmpty):
+            assert isinstance(dsa_node, ubc.NodeEmpty)
         else:
             assert_never(prog_node)
 
-    for node_name in traverse_func(prog_func):
+    for node_name in ubc.traverse_func_topologically(prog_func):
         prog_succs = prog_func.cfg.all_succs[node_name]
         dsa_succs = dsa_func.cfg.all_succs[node_name]
 

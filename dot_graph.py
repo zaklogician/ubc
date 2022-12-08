@@ -173,10 +173,10 @@ def viz_function(file: IOBase, fun: ubc.Function):
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
     for idx, node in fun.nodes.items():
-        if isinstance(node, ubc.BasicNode | ubc.CallNode | ubc.EmptyNode):
+        if isinstance(node, ubc.NodeBasic | ubc.NodeCall | ubc.NodeEmpty):
             puts(
                 f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
-        elif isinstance(node, ubc.CondNode):
+        elif isinstance(node, ubc.NodeCond):
             puts(
                 f"  {idx} -> {node.succ_then} [label=T] {dom if (idx, node.succ_then) in fun.cfg.back_edges else non_dom}")
             if node.succ_else != "Err":
@@ -185,10 +185,10 @@ def viz_function(file: IOBase, fun: ubc.Function):
         else:
             assert_never(node)
 
-        if isinstance(node, ubc.BasicNode):
+        if isinstance(node, ubc.NodeBasic):
             content = '<BR/>'.join(pretty_safe_update(upd)
                                    for upd in node.upds)
-        elif isinstance(node, ubc.CallNode):
+        elif isinstance(node, ubc.NodeCall):
             # TODO: node.rets[0] might be empty
             content = ''
             if len(node.rets):
@@ -201,7 +201,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
                     # if arg.typ.kind != "Builtin" and arg.name != "GhostAssertions"
                 ),
             )
-        elif isinstance(node, ubc.CondNode):
+        elif isinstance(node, ubc.NodeCond):
 
             if node.succ_else == "Err":
                 operands = list(split_conjuncts(node.expr))
@@ -210,7 +210,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
                     content += "<BR/><b>and</b> " + pretty_safe_expr(operand)
             else:
                 content = pretty_safe_expr(node.expr)
-        elif isinstance(node, ubc.EmptyNode):
+        elif isinstance(node, ubc.NodeEmpty):
             content = ''
         else:
             assert_never(node)
