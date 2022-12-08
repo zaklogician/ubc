@@ -624,7 +624,7 @@ class Node:
             the_cont = conts
 
         if kind == 'Basic':
-            self.cont = the_cont  # type: str
+            self.cont = the_cont  # type: str | int
             self.upds = [(lv, v) for (lv, v) in args
                          if not v.is_var(lv)]  # type: List[Tuple[Tuple[str, Type], Expr]]
         elif kind == 'Call':
@@ -633,7 +633,9 @@ class Node:
             self.args = args[1]  # type: List[Expr]
             self.rets = args[2]  # type: List[Tuple[str, Type]]
         elif kind == 'Cond':
-            (self.left, self.right) = conts
+            # (self.left, self.right) = conts
+            self.left = conts[0]  # type: str | int
+            self.right = conts[1]  # type: str | int
             self.cond = args
         else:
             assert not 'node kind understood', self.kind

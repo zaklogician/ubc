@@ -32,6 +32,7 @@ def pretty_name(name: str | tuple[str, int]) -> str:
     return _pretty_name(name)
 
 def _pretty_name(name: str) -> str:
+    return name
     if "__" not in name:
         return name
     # return name
@@ -190,7 +191,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
             # TODO: node.rets[0] might be empty
             content = ''
             if len(node.rets):
-                content += f"{', '.join(r.name for r in node.rets)} := "
+                content += f"{', '.join(pretty_name(r.name) for r in node.rets)} := "
             content += "{}({})".format(
                 fix_func_name(node.fname),
                 ", ".join(
@@ -355,4 +356,5 @@ if __name__ == "__main__":
         print(" ", "\n  ".join(functions.keys()), file=sys.stderr)
         exit(2)
 
-    viz_raw_function(functions[function_name])
+    # viz_raw_function(functions[function_name])
+    viz_function(ubc.dsa(ubc.convert_function(functions[function_name])))

@@ -1,3 +1,6 @@
+// all functions that start with fail_ should fail
+// to be transformed to DSA
+
 int simple(int a)
 {
     a += 2;
@@ -106,7 +109,7 @@ struct point shift_diag(struct point p, int offset)
     return p;
 }
 
-int one_branch_undefined(int b)
+int fail_one_branch_undefined(int b)
 {
     int a;
     if (b)
@@ -126,7 +129,7 @@ int one_branch_legal(int b)
     return 0;
 }
 
-int uninit(int b)
+int fail_uninit(int b)
 {
     int a;
     if (b)
@@ -146,14 +149,23 @@ int init(int b)
     return a + 1;
 }
 
-int arr_undefined_behaviour(int i)
+int fail_arr_undefined_behaviour(int i)
 {
     int arr[8];
     arr[0] = 2;
     return arr[i];
 }
 
-int arr_undefined_behaviour2(int i, int j)
+int fail_zoltans_horrible_fail_arr_undefined_behaviour(int i)
+{
+    int arr[8];
+    arr[0] = 2;
+    arr[0] = 2 + arr[i];
+    return arr[0];
+    // technically, `return 4` is a valid compilation of this fn.
+}
+
+int fail_arr_undefined_behaviour2(int i, int j)
 {
     int arr[8];
     if (j)

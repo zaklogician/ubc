@@ -15,23 +15,30 @@ from typing_extensions import assert_never
 # TODO: convert lists to tuples
 
 
+NodeName = NewType('NodeName', str)
+IncarnationNum = NewType('IncarnationNum', int)
+
+NodeNameErr = NodeName('Err')
+NodeNameRet = NodeName('Ret')
+
+
 class CFG(NamedTuple):
     """
     Class that groups information about a function's control flow graph
     """
 
-    entry: str
+    entry: NodeName
     # TODO: make those lists a tuple/Collection/Sequence/Set?
-    all_succs: Mapping[str, list[str]]
+    all_succs: Mapping[NodeName, list[NodeName]]
     """ Successors """
 
-    all_preds: Mapping[str, list[str]]
+    all_preds: Mapping[NodeName, list[NodeName]]
     """ Predecessors """
 
-    all_doms: Mapping[str, list[str]]
+    all_doms: Mapping[NodeName, list[NodeName]]
     """ Dominators of key (a in all_doms[b] means a dominates b) """
 
-    back_edges: Collection[tuple[str, str]]
+    back_edges: Collection[tuple[NodeName, NodeName]]
     """ edges where the head dominates the tail
         Stored as (tail, head), that is (latch, loop_header)
     """
@@ -39,10 +46,10 @@ class CFG(NamedTuple):
 
 @dataclass(frozen=True)
 class EmptyNode:
-    succ: str
+    succ: NodeName
 
 ProgVarName = NewType('ProgVarName', str)
-DSAVarName = NewType('DSAVarName', tuple[ProgVarName, int])
+DSAVarName = NewType('DSAVarName', tuple[ProgVarName, IncarnationNum])
 VarKind = TypeVar('VarKind', ProgVarName, DSAVarName)
 
 # can't inherit from NamedTuple and Generic[...], the fix is only in
@@ -58,14 +65,16 @@ class Var(Generic[VarKind]):
 ProgVar = Var[ProgVarName]
 DSAVar = Var[DSAVarName]
 
-def make_dsa_var_name(v: ProgVarName, k: int) -> DSAVarName:
+def make_dsa_var_name(v: ProgVarName, k: IncarnationNum) -> DSAVarName:
     return DSAVarName((v, k))
 
 
-def unpack_dsa_var_name(v: DSAVarName) -> tuple[ProgVarName, int]:
+def unpack_dsa_var_name(v: DSAVarName) -> tuple[ProgVarName, IncarnationNum]:
     return v[0], v[1]
 
-
+def unpack_dsa_var(var: DSAVar) -> tuple[ProgVar, IncarnationNum]:
+    name, inc = unpack_dsa_var_name(var.name)
+    return Var(name, var.typ), inc
 
 
 @dataclass(frozen=True)
@@ -317,12 +326,12 @@ class Update(Generic[VarKind]):
 @dataclass(frozen=True)
 class BasicNode(Generic[VarKind]):
     upds: tuple[Update[VarKind], ...]
-    succ: str
+    succ: NodeName
 
 
 @dataclass(frozen=True)
 class CallNode(Generic[VarKind]):
-    succ: str
+    succ: NodeName
     fname: str
     args: tuple[Expr[VarKind], ...]
     rets: tuple[Var[VarKind], ...]
@@ -331,21 +340,22 @@ class CallNode(Generic[VarKind]):
 @dataclass(frozen=True)
 class CondNode(Generic[VarKind]):
     expr: Expr  # TODO: Expr will take a VarKind
-    succ_then: str
-    succ_else: str
+    succ_then: NodeName
+    succ_else: NodeName
 
 
 Node = BasicNode[VarKind] | CallNode[VarKind] | CondNode[VarKind] | EmptyNode
 
 
+# TODO: LoopHeaderName = Node('LoopHeaderName', NodeName)
 @dataclass(frozen=True)
 class Loop(Generic[VarKind]):
-    back_edge: tuple[str, str]
+    back_edge: tuple[NodeName, NodeName]
     """
     back_edge = (latch, loop header)
     """
 
-    nodes: tuple[str, ...]
+    nodes: tuple[NodeName, ...]
     """ nodes forming a natural loop """
 
     targets: Collection[Var[VarKind]]
@@ -353,7 +363,7 @@ class Loop(Generic[VarKind]):
     """
 
     @property
-    def header(self) -> str:
+    def header(self) -> NodeName:
         return self.back_edge[1]
 
 
@@ -365,22 +375,22 @@ class Function(Generic[VarKind]):
     cfg: CFG
 
     # TODO: find good way to freeze dict and keep type hints
-    nodes: Mapping[str, Node[VarKind]]
+    nodes: Mapping[NodeName, Node[VarKind]]
     """
     Node name => Node
     """
 
-    loops: Mapping[str, Loop[VarKind]]
+    loops: Mapping[NodeName, Loop[VarKind]]
     """
     loop header => loop information
     """
 
     arguments: tuple[Var[VarKind], ...]
 
-    def is_loop_header(self, node_name: str) -> bool:
+    def is_loop_header(self, node_name: NodeName) -> bool:
         return node_name in self.loops
 
-    def cycleless_preds_of(self, node_name: str) -> tuple[str, ...]:
+    def cycleless_preds_of(self, node_name: NodeName) -> tuple[NodeName, ...]:
         """ returns all the direct predecessors, removing the ones that would follow back edges """
         return tuple(p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
 
@@ -397,8 +407,8 @@ def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
         assert_never(expr)
 
 
-def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str, list[str]]:
-    all_succs: dict[str, list[str]] = {}
+def compute_all_successors_from_nodes(nodes: Mapping[NodeName, Node]) -> Mapping[NodeName, list[NodeName]]:
+    all_succs: dict[NodeName, list[NodeName]] = {}
     for name, node in nodes.items():
         all_succs[name] = []
         if isinstance(node, BasicNode | CallNode | EmptyNode):
@@ -426,8 +436,8 @@ def compute_all_successors_from_nodes(nodes: Mapping[str, Node]) -> Mapping[str,
     return all_succs
 
 
-def compute_all_predecessors(all_succs: Mapping[str, list[str]]) -> Mapping[str, list[str]]:
-    g: Mapping[str, list[str]] = {n: [] for n in all_succs}
+def compute_all_predecessors(all_succs: Mapping[NodeName, list[NodeName]]) -> Mapping[NodeName, list[NodeName]]:
+    g: Mapping[NodeName, list[NodeName]] = {n: [] for n in all_succs}
     for n, succs in all_succs.items():
         for succ in succs:
             g[succ].append(n)
@@ -438,9 +448,9 @@ def compute_all_predecessors(all_succs: Mapping[str, list[str]]) -> Mapping[str,
 # this is a bottle neck
 
 
-def compute_dominators(all_succs: Mapping[str, list[str]], all_preds: Mapping[str, list[str]], entry: str) -> Mapping[str, list[str]]:
+def compute_dominators(all_succs: Mapping[NodeName, list[NodeName]], all_preds: Mapping[NodeName, list[NodeName]], entry: NodeName) -> Mapping[NodeName, list[NodeName]]:
     # all the nodes that dominate the given node
-    doms: dict[str, set[str]] = {}
+    doms: dict[NodeName, set[NodeName]] = {}
     for n, preds in all_preds.items():
         if len(preds) == 0:
             doms[n] = set([n])
@@ -465,7 +475,7 @@ def compute_dominators(all_succs: Mapping[str, list[str]], all_preds: Mapping[st
     return {n: list(doms[n]) for n in doms.keys()}
 
 
-def compute_cfg_from_all_succs(all_succs: Mapping[str, list[str]], entry: str):
+def compute_cfg_from_all_succs(all_succs: Mapping[NodeName, list[NodeName]], entry: NodeName):
     assert_valid_all_succs(all_succs)
     assert entry in all_succs, f"entry {entry} not in all_succs"
 
@@ -478,11 +488,11 @@ def compute_cfg_from_all_succs(all_succs: Mapping[str, list[str]], entry: str):
     return CFG(entry=entry, all_succs=all_succs, all_preds=all_preds, all_doms=all_doms, back_edges=cfg_compute_back_edges(all_succs, all_doms))
 
 
-def cfg_compute_back_edges(all_succs: Mapping[str, list[str]], all_doms: Mapping[str, list[str]]) -> Collection[tuple[str, str]]:
+def cfg_compute_back_edges(all_succs: Mapping[NodeName, list[NodeName]], all_doms: Mapping[NodeName, list[NodeName]]) -> Collection[tuple[NodeName, NodeName]]:
     """ a back edge is an edge who's head dominates their tail
     """
 
-    back_edges: set[tuple[str, str]] = set()
+    back_edges: set[tuple[NodeName, NodeName]] = set()
     for n, succs in all_succs.items():
         tail = n
         for head in succs:
@@ -491,7 +501,7 @@ def cfg_compute_back_edges(all_succs: Mapping[str, list[str]], all_doms: Mapping
     return frozenset(back_edges)
 
 
-def compute_natural_loop(cfg: CFG, back_edge: tuple[str, str]) -> tuple[str, ...]:
+def compute_natural_loop(cfg: CFG, back_edge: tuple[NodeName, NodeName]) -> tuple[NodeName, ...]:
     """ Returns all the nodes in the loop
 
     The loop header uniquely identifies the loop unless we have multiple back
@@ -517,13 +527,13 @@ def compute_natural_loop(cfg: CFG, back_edge: tuple[str, str]) -> tuple[str, ...
 
 
 def compute_loop_targets(
-        nodes: Mapping[str, Node[VarKind]],
+        nodes: Mapping[NodeName, Node[VarKind]],
         cfg: CFG,
-        loop_header: str,
-        loop_nodes: tuple[str, ...]) -> Collection[Var[VarKind]]:
+        loop_header: NodeName,
+        loop_nodes: tuple[NodeName, ...]) -> Collection[Var[VarKind]]:
     # traverse the loop nodes in topological order
     # (if there is a loop in the body, we ignore its back edge)
-    q: list[str] = [loop_header]
+    q: list[NodeName] = [loop_header]
     visited = set()
 
     loop_targets: set[Var[VarKind]] = set()
@@ -563,12 +573,12 @@ def assert_single_loop_header_per_loop(cfg: CFG):
         "unhandle case: multiple back edges point to the same loop header in function"
 
 
-def compute_loops(nodes: Mapping[str, Node[ProgVarName]], cfg: CFG) -> Mapping[str, Loop[ProgVarName]]:
+def compute_loops(nodes: Mapping[NodeName, Node[ProgVarName]], cfg: CFG) -> Mapping[NodeName, Loop[ProgVarName]]:
     """ Map from loop header to Loop
     """
     assert_single_loop_header_per_loop(cfg)
 
-    loops: dict[str, Loop[ProgVarName]] = {}
+    loops: dict[NodeName, Loop[ProgVarName]] = {}
     # we could do this faster by traversing the entire graph once and keeping
     # track of which loop we are currently in, but this is approach simpler
     # and good enough for now
@@ -626,34 +636,35 @@ def convert_var(v: tuple[str, syntax.Type]) -> Var:
 
 
 def _convert_function(func: syntax.Function) -> Function:
-    safe_nodes: dict[str, Node[ProgVarName]] = {}
+    safe_nodes: dict[NodeName, Node[ProgVarName]] = {}
     for name, node in func.nodes.items():
+        name = NodeName(str(name))
         if node.kind == "Basic":
             if len(node.upds) == 0:
-                safe_nodes[name] = EmptyNode(succ=node.cont)
+                safe_nodes[name] = EmptyNode(succ=NodeName(str(node.cont)))
             else:
                 upds: list[Update] = []
                 for var, expr in node.upds:
                     upds.append(Update(
                         var=convert_var(var),
                         expr=convert_expr(expr)))
-                safe_nodes[name] = BasicNode(upds=tuple(upds), succ=node.cont)
+                safe_nodes[name] = BasicNode(upds=tuple(upds), succ=NodeName(str(node.cont)))
         elif node.kind == "Call":
             node.args
             safe_nodes[name] = CallNode(
-                succ=node.cont,
+                succ=NodeName(str(node.cont)),
                 fname=node.fname,
                 args=tuple(convert_expr(arg) for arg in node.args),
                 rets=tuple(Var(ProgVarName(name), convert_type(typ)) for name, typ in node.rets))
         elif node.kind == "Cond":
             safe_nodes[name] = CondNode(
-                succ_then=node.left, succ_else=node.right, expr=convert_expr(node.cond))
+                succ_then=NodeName(str(node.left)), succ_else=NodeName(str(node.right)), expr=convert_expr(node.cond))
         else:
             raise ValueError(f"unknown kind {node.kind!r}")
 
     all_succs = compute_all_successors_from_nodes(safe_nodes)
     assert func.entry is not None
-    cfg = compute_cfg_from_all_succs(all_succs, func.entry)
+    cfg = compute_cfg_from_all_succs(all_succs, NodeName(str(func.entry)))
     loops = compute_loops(safe_nodes, cfg)
 
     args = tuple(Var(ProgVarName(name), convert_type(typ))
@@ -671,7 +682,7 @@ def convert_function(func: syntax.Function) -> Function[ProgVarName]:
 
 
 def num_reachable(cfg: CFG) -> int:
-    q: list[str] = [n for n, preds in cfg.all_preds.items() if len(preds) == 0]
+    q: list[NodeName] = [n for n, preds in cfg.all_preds.items() if len(preds) == 0]
     visited = set()
     while q:
         n = q.pop(0)
@@ -693,7 +704,7 @@ def cfg_is_reducible(cfg: CFG):
     #    (tail --> head)
 
     visited = set()
-    q: list[str] = [n for n, preds in cfg.all_preds.items() if len(preds) == 0]
+    q: list[NodeName] = [n for n, preds in cfg.all_preds.items() if len(preds) == 0]
     while q:
         n = q.pop(0)
         if n in visited:
@@ -708,12 +719,12 @@ def cfg_is_reducible(cfg: CFG):
     return len(visited) == num_reachable(cfg)
 
 
-def assert_valid_all_succs(all_succs: Mapping[str, list[str]]):
+def assert_valid_all_succs(all_succs: Mapping[NodeName, list[NodeName]]):
     # entry node should be a key of all_succs, even if they don't have any
     # successors
     for n, succs in all_succs.items():
         for succ in succs:
-            assert succ in all_succs
+            assert succ in all_succs, f"{succ=} {all_succs.keys()=}"
 
 
 class Insertion(NamedTuple):
@@ -725,14 +736,19 @@ class Insertion(NamedTuple):
 class DSABuilder:
     original_func: Function[ProgVarName]
 
-    dsa_nodes: dict[str, Node[DSAVarName]]
+    dsa_nodes: dict[NodeName, Node[DSAVarName]]
+    """
+    Mutated during construction
+    """
 
-    incarnations: dict[str, Mapping[Var[ProgVarName], set[int]]]
+    incarnations: dict[NodeName, Mapping[ProgVar, set[IncarnationNum]]]
     """
     node_name => prog_var_name => set of incarnation numbers
+
+    mutated during construction
     """
 
-    insertions: dict[str, Mapping[Var[ProgVarName], int]]
+    insertions: dict[NodeName, Mapping[ProgVar, IncarnationNum]]
     """ Nodes to insert (join nodes)
 
     node_name => prog_var_name => incarnation number
@@ -743,23 +759,59 @@ class DSABuilder:
     Mutable during construction
     """
 
-def make_dsa_var(v: Var[ProgVarName], k: int) -> Var[DSAVarName]:
-    return Var(make_dsa_var_name(v.name, k), v.typ)
 
+# if cond
+#     a = 2
+# else:
+#     a = 3
+#     a = a + 1
+# a = a + 1
+
+# if cond1  {cond: {1}}
+#     {cond: {1}}
+#     a1 = 2  {cond: {1}, a: {1}}
+#     ; a3 = a1
+# else:
+#     a1 = 3      {cond: {1}, a: {1}}
+#     {cond: {1}, a: {1}}
+#     a2 = a1 + 1 {cond: {1}, a: {2}}
+#     ; a3 = a2
+# {cond: {1}, a: {3}}     insertion for a
+# a4 = a3 + 1  {cond: {1}, a: {4}}
+
+
+# prog var: a
+# dsa var: a1, a2
+
+# trying to build a context:
+# 1. merge predecessors context
+#     - if a prog var is present in all predecessors
+#         - take the intersection of the incarnations
+#         - if set is empty
+#             - insert join
+#         - use some value from the intersection
+
+
+def make_dsa_var(v: ProgVar, inc: IncarnationNum) -> DSAVar:
+    return Var(make_dsa_var_name(v.name, inc), v.typ)
+
+class DSAPotentialUndefinedBehaviour(Exception):
+    pass
 
 def apply_incarnations(
         s: DSABuilder,
-        context: Mapping[ProgVar, Set[int]],
+        context: Mapping[ProgVar, Set[IncarnationNum]],
         root: Expr[ProgVarName]) -> Expr[DSAVarName]:
 
     if isinstance(root, ExprNum):
         return root
     elif isinstance(root, ExprVar):
-        var = Var(root.name, root.typ)
+        var: ProgVar = Var(root.name, root.typ)
         if var not in context:
-            raise ValueError(f"potential undefined behaviour: accessing uninitialized variable {root.name}")
-        incarnation_number = sorted(context[var])[-1]
+            raise DSAPotentialUndefinedBehaviour(f"accessing uninitialized variable {root.name}")
+        incarnation_number = max(context[var])
         dsa_name = make_dsa_var_name(root.name, incarnation_number)
+
         return ExprVar(root.typ, name=dsa_name)
     elif isinstance(root, ExprOp):
         return ExprOp(root.typ, Operator(root.operator), operands=tuple(
@@ -771,12 +823,24 @@ def apply_incarnations(
         return root
     assert_never(root)
 
-def get_next_dsa_var_incarnation_number(s: DSABuilder, current_node: str, var: Var[ProgVarName]) -> int:
-    return max(max({0} if var not in s.incarnations[p] else s.incarnations[p][var]) for p in s.original_func.cycleless_preds_of(current_node)) + 1
+def get_next_dsa_var_incarnation_number(s: DSABuilder, current_node: NodeName, var: ProgVar) -> IncarnationNum:
+    max_inc_num: int = 0
+    if current_node in s.insertions and var in s.insertions[current_node]:
+        max_inc_num = s.insertions[current_node][var]
 
-def get_next_dsa_var(s: DSABuilder, current_node: str, var: Var[ProgVarName]) -> Var[DSAVarName]:
-    incarnation_number = get_next_dsa_var_incarnation_number(s, current_node, var)
-    return make_dsa_var(var, incarnation_number)
+    for pred_name in s.original_func.cycleless_preds_of(current_node):
+        if var not in s.incarnations[pred_name]:
+            continue
+        for inc in s.incarnations[pred_name][var]:
+            if inc > max_inc_num:
+                max_inc_num = inc
+
+    return max_inc_num + 1
+
+def get_next_dsa_var_incarnation_number_from_context(s: DSABuilder, context: Mapping[ProgVar, set[IncarnationNum]], var: ProgVar) -> IncarnationNum:
+    if var in context:
+        return max(context[var]) + 1
+    return 1
 
 K = TypeVar('K')
 def set_intersection(it: Iterator[set[K]]) -> set[K]:
@@ -785,12 +849,34 @@ def set_intersection(it: Iterator[set[K]]) -> set[K]:
         acc = acc.intersection(s)
     return acc
 
+def set_union(it: Iterator[set[K]]) -> set[K]:
+    acc = next(it)
+    for s in it:
+        acc = acc.union(s)
+    return acc
+
 def apply_insertions(s: DSABuilder):
     j = 0
     for node_name, node_insertions in s.insertions.items():
         for pred_name in s.original_func.cycleless_preds_of(node_name):
+
+            updates: list[Update[DSAVarName]] = []
+            for prog_var, new_incarnation_number in node_insertions.items():
+                # some variables might not be defined on all paths and still
+                # represent legal code
+                # good examples: dsa.txt@fail_arr_undefined_behaviour
+                #                dsa.txt@shift_diag  (look at the ret variable)
+                if prog_var not in s.incarnations[pred_name]:
+                    continue
+                old_incarnation_number = max(s.incarnations[pred_name][prog_var])
+
+                updates.append(Update(make_dsa_var(prog_var, new_incarnation_number),
+                                      ExprVar(prog_var.typ, name=make_dsa_var_name(prog_var.name, old_incarnation_number))))
+            if len(updates) == 0:
+                continue
+
             j += 1
-            join_node_name = f'j{j}'
+            join_node_name = NodeName(f'j{j}')
             pred = s.dsa_nodes[pred_name]
             if isinstance(pred, CondNode):
                 assert node_name in (pred.succ_then, pred.succ_else)
@@ -805,24 +891,18 @@ def apply_insertions(s: DSABuilder):
             else:
                 assert_never(pred)
 
-            updates: list[Update[DSAVarName]] = []
-            for prog_var, new_incarnation_number in node_insertions.items():
-                old_incarnation_number = sorted(s.incarnations[pred_name][prog_var])[-1]
-                updates.append(Update(make_dsa_var(prog_var, new_incarnation_number),
-                                      ExprVar(prog_var.typ, name=make_dsa_var_name(prog_var.name, old_incarnation_number))))
-
             assert len(updates) > 0, f"{node_insertions=}"
             join_node = BasicNode(tuple(updates), node_name)
             s.dsa_nodes[join_node_name] = join_node
 
-def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[str, tuple[Var[DSAVarName], ...]], new_cfg: CFG) -> Mapping[str, Loop[DSAVarName]]:
+def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[NodeName, tuple[DSAVar, ...]], new_cfg: CFG) -> Mapping[NodeName, Loop[DSAVarName]]:
     """ Update the loop nodes (because dsa inserts some joiner nodes)
     but keep everything else the same (in particular the loop targets are still ProgVarName!)
     """
     assert_single_loop_header_per_loop(new_cfg)
 
     # loop header => loop nodes
-    all_loop_nodes: dict[str, tuple[str, ...]] = {}
+    all_loop_nodes: dict[NodeName, tuple[NodeName, ...]] = {}
     for back_edge in new_cfg.back_edges:
         _, loop_header = back_edge
         loop_nodes = compute_natural_loop(new_cfg, back_edge)
@@ -835,7 +915,7 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[str, tuple
     assert all_loop_nodes.keys() == s.original_func.loops.keys(
     ), "loop headers should remain the same through DSA transformation"
 
-    loops: dict[str, Loop[DSAVarName]] = {}
+    loops: dict[NodeName, Loop[DSAVarName]] = {}
     for loop_header, loop_nodes in all_loop_nodes.items():
         assert set(s.original_func.loops[loop_header].nodes).issubset(
             loop_nodes), "dsa only inserts joiner nodes, all previous loop nodes should still be loop nodes"
@@ -863,21 +943,17 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
 
     q = [func.cfg.entry]
 
-    visited: set[str] = set()
+    visited: set[NodeName] = set()
 
     s = DSABuilder(original_func=func, insertions={}, dsa_nodes={}, incarnations={})
 
-    entry_incarnations: dict[ProgVar, set[int]] = {}
-    dsa_args: list[Var[DSAVarName]] = []
+    entry_incarnations: dict[ProgVar, set[IncarnationNum]] = {}
+    dsa_args: list[DSAVar] = []
     for arg in func.arguments:
         dsa_args.append(make_dsa_var(arg, 1))
         entry_incarnations[arg] = {1}
 
-    s.incarnations[func.cfg.entry] = entry_incarnations
-
     assert len(set(unpack_dsa_var_name(arg.name)[0] for arg in dsa_args)) == len(dsa_args), "unexpected duplicate argument name"
-
-
 
     # this is hack to deal with the weird assert False() node
     for n in func.nodes:
@@ -894,7 +970,7 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
             visited.add('Err')
             s.incarnations[n] = {}
 
-    dsa_loop_targets: dict[str, tuple[Var[DSAVarName], ...]] = {}
+    dsa_loop_targets: dict[NodeName, tuple[DSAVar, ...]] = {}
 
     while q:
         current_node = q.pop(-1)
@@ -921,48 +997,58 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
         # potential undefined behaviour, see
         # potential_undefined_behaviour_explanation.txt
 
-        context: dict[ProgVar, set[int]]
+        # build up a context (map from prog var to incarnation numbers)
+        curr_node_insertions = None
+        context: dict[ProgVar, set[IncarnationNum]]
         if current_node == func.cfg.entry:
             context = entry_incarnations
         else:
-            var_names_defined_on_all_paths: set[Var[ProgVarName]]
-            if len(s.original_func.cycleless_preds_of(current_node)) == 0:
-                var_names_defined_on_all_paths = set()
-            else:
-                var_names_defined_on_all_paths = set_intersection(set(s.incarnations[p].keys()) for p in s.original_func.cycleless_preds_of(current_node))
-
             context = {}
 
-            curr_node_insertions: dict[Var[ProgVarName], int] = {}
-            for var in var_names_defined_on_all_paths:
-                context[var] = set_intersection(s.incarnations[p][var] for p in s.original_func.cycleless_preds_of(current_node))
+            all_variables: set[ProgVar] = set_union(set(s.incarnations[p].keys()) for p in s.original_func.cycleless_preds_of(current_node))
+
+            curr_node_insertions: dict[ProgVar, IncarnationNum] = {}
+            for var in all_variables:
+                var_defined_on_all_predecessors: bool = all(var in s.incarnations[p] for p in s.original_func.cycleless_preds_of(current_node))
+
+                if not var_defined_on_all_predecessors:
+                    # TODO: store this and then perform better analysis to
+                    # output clear error message
+                    print(f'WARNING: variable {var} not defined on all predecessor of node {current_node}')
+                    print(f'1. This might not be an issue if it\'s not used later on (TODO: we can work this out ourselves)')
+                    print(f'2. This might not be an issue if all paths on which it isn\'t defined are impossible')
+                    print(f'(2. is harder to work out because we need to reason about the program)')
+
+                context[var] = set_intersection(s.incarnations[p][var] for p in s.original_func.cycleless_preds_of(current_node) if var in s.incarnations[p])
 
                 if len(context[var]) == 0:
-                    # we need to insert a join node
+                    # predecessors have no incarnation numbers in common, we need to insert a join node
                     # optimisation: get rid of the + 1 and do smarter joins
                     fresh_incarnation_number = get_next_dsa_var_incarnation_number(s, current_node, var)
                     curr_node_insertions[var] = fresh_incarnation_number
                     context[var] = {fresh_incarnation_number}
 
             if curr_node_insertions:
-                # don't insert empty nodes
+                # we need to insert some join nodes
                 s.insertions[current_node] = curr_node_insertions
 
             if func.is_loop_header(current_node):
-                dsa_targets: list[Var[DSAVarName]] = []
+                dsa_targets: list[DSAVar] = []
 
                 for target in func.loops[current_node].targets:
+                    # havoc the loop targets
                     fresh_incarnation_number = get_next_dsa_var_incarnation_number(s, current_node, target)
                     context[target] = {fresh_incarnation_number}
                     dsa_targets.append(make_dsa_var(target, fresh_incarnation_number))
 
                 dsa_loop_targets[current_node] = tuple(dsa_targets)
 
-        added_incarnations: dict[Var[ProgVarName], Var[DSAVarName]] = {}
+        added_incarnations: dict[ProgVar, DSAVar] = {}
 
-        # print(f'{current_node=}')
-        # for var in context:
-        #     print(f'  {var.name}', context[var])
+        print(f'{current_node=}')
+        print(f'{curr_node_insertions=}')
+        for var in context:
+            print(f'  {var.name}', context[var], '  [joiner]' if curr_node_insertions and var in curr_node_insertions else '')
 
         node = func.nodes[current_node]
         if isinstance(node, BasicNode):
@@ -972,7 +1058,8 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 # updates from the same node. That's because the updates are
                 # simultaneous.
                 expr = apply_incarnations(s, context, upd.expr)
-                dsa_var = get_next_dsa_var(s, current_node, upd.var)
+                inc = get_next_dsa_var_incarnation_number_from_context(s, context, upd.var)
+                dsa_var = make_dsa_var(upd.var, inc)
                 upds.append(Update(dsa_var, expr))
                 assert upd.var not in added_incarnations, "duplicate updates in BasicNode"
                 added_incarnations[upd.var] = dsa_var
@@ -988,9 +1075,10 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
             args = tuple(apply_incarnations(s, context, arg)
                          for arg in node.args)
 
-            rets: list[Var[DSAVarName]] = []
+            rets: list[DSAVar] = []
             for ret in node.rets:
-                rets.append(get_next_dsa_var(s, current_node, ret))
+                inc = get_next_dsa_var_incarnation_number_from_context(s, context, ret)
+                rets.append(make_dsa_var(ret, inc))
                 added_incarnations[ret] = rets[-1]
 
             s.dsa_nodes[current_node] = CallNode(
@@ -1004,9 +1092,9 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
         else:
             assert_never(node)
 
-        # print("  + ")
-        # for var, incs in added_incarnations.items():
-        #     print(f'  {var.name}', incs.name[1])
+        print("  + ")
+        for var, incs in added_incarnations.items():
+            print(f'  {var.name}', incs.name[1])
 
         curr_node_incarnations = dict(context)
         for prog_var, dsa_var in added_incarnations.items():
