@@ -59,6 +59,24 @@ Function tmp.arr_static 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 6
 6 Cond 5 Err Op And Bool 2 Op SignedLess Bool 2 Num 0 Word 32 Num 8 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 0 Word 32
 EntryPoint 6
 
+Function tmp.elif_chain 6 x___int#v Word 32 y___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Var a___int#v Word 32
+4 Basic 3 1 a___int#v Word 32 Num 2 Word 32
+5 Basic 3 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 1 Word 32
+6 Cond 5 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+7 Basic 6 1 a___int#v Word 32 Num 2 Word 32
+8 Basic 3 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 1 Word 32
+9 Cond 8 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+10 Basic 9 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 1 Word 32
+11 Cond 10 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+12 Basic 11 1 a___int#v Word 32 Num 2 Word 32
+13 Cond 7 12 Op Not Bool 1 Op Equals Bool 2 Var y___int#v Word 32 Num 0 Word 32
+14 Cond 4 13 Op Not Bool 1 Op Equals Bool 2 Var x___int#v Word 32 Num 0 Word 32
+15 Basic 14 1 a___int#v Word 32 Num 1 Word 32
+EntryPoint 15
+
 Function tmp.shift_diag 7 p___struct_point_C#v.x_C Word 32 p___struct_point_C#v.y_C Word 32 offset___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 6 ret__struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0

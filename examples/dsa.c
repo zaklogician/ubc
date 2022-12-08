@@ -82,7 +82,14 @@ int if_join_multiple_variables_no_ret(int cond)
     return 0;
 }
 
-
+int elif_chain(int x, int y)
+{
+    int a = 1;
+    if (x) { a = 2; }
+    else if (y) { a = 2; a++; }
+    else { a = 2; a++; a++; }
+    return a;
+}
 
 int simple_for_loop(int n)
 {

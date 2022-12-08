@@ -392,6 +392,7 @@ class Function(Generic[VarKind]):
     def is_loop_header(self, node_name: NodeName) -> LoopHeaderName | None:
         if node_name in self.loops:
             return LoopHeaderName(node_name)
+        return None
 
     def acyclic_preds_of(self, node_name: NodeName) -> tuple[NodeName, ...]:
         """ returns all the direct predecessors, removing the ones that would follow back edges """
@@ -835,7 +836,7 @@ def apply_incarnations(
 
 
 def get_next_dsa_var_incarnation_number(s: DSABuilder, current_node: NodeName, var: ProgVar) -> IncarnationNum:
-    max_inc_num: IncarnationNum = 0
+    max_inc_num: IncarnationNum | None = None
     if current_node in s.insertions and var in s.insertions[current_node]:
         max_inc_num = s.insertions[current_node][var]
 
@@ -843,16 +844,19 @@ def get_next_dsa_var_incarnation_number(s: DSABuilder, current_node: NodeName, v
         if var not in s.incarnations[pred_name]:
             continue
         for inc in s.incarnations[pred_name][var]:
-            if inc > max_inc_num:
+            if max_inc_num is None or inc > max_inc_num:
                 max_inc_num = inc
 
-    return max_inc_num + 1
+    if not max_inc_num:
+        return IncarnationBase
+
+    return IncarnationNum(max_inc_num + IncarnationNum(1))
 
 
 def get_next_dsa_var_incarnation_number_from_context(s: DSABuilder, context: Mapping[ProgVar, set[IncarnationNum]], var: ProgVar) -> IncarnationNum:
     if var in context:
-        return max(context[var]) + 1
-    return 1
+        return IncarnationNum(max(context[var]) + IncarnationNum(1))
+    return IncarnationBase
 
 
 K = TypeVar('K')
@@ -917,7 +921,7 @@ def apply_insertions(s: DSABuilder):
             s.dsa_nodes[join_node_name] = join_node
 
 
-def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[NodeName, tuple[DSAVar, ...]], new_cfg: CFG) -> Mapping[NodeName, Loop[DSAVarName]]:
+def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[NodeName, tuple[DSAVar, ...]], new_cfg: CFG) -> Mapping[LoopHeaderName, Loop[DSAVarName]]:
     """ Update the loop nodes (because dsa inserts some joiner nodes)
     but keep everything else the same (in particular the loop targets are still ProgVarName!)
     """
@@ -932,12 +936,12 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[NodeName, 
         assert all(loop_header in new_cfg.all_doms[n]
                    for n in loop_nodes), "the loop header should dominate all the nodes in the loop body"
 
-        all_loop_nodes[loop_header] = loop_nodes
+        all_loop_nodes[LoopHeaderName(loop_header)] = loop_nodes
 
     assert all_loop_nodes.keys() == s.original_func.loops.keys(
     ), "loop headers should remain the same through DSA transformation"
 
-    loops: dict[NodeName, Loop[DSAVarName]] = {}
+    loops: dict[LoopHeaderName, Loop[DSAVarName]] = {}
     for loop_header, loop_nodes in all_loop_nodes.items():
         assert set(s.original_func.loops[loop_header].nodes).issubset(
             loop_nodes), "dsa only inserts joiner nodes, all previous loop nodes should still be loop nodes"

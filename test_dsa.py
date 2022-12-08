@@ -147,7 +147,7 @@ def traverse_func(func: ubc.Function) -> Iterator[ubc.NodeName]:
         if n in visited:
             continue
 
-        if not all(p in visited for p in func.cycleless_preds_of(n)):
+        if not all(p in visited for p in func.acyclic_preds_of(n)):
             continue
 
         visited.add(n)
