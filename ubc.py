@@ -393,7 +393,7 @@ class Function(Generic[VarKind]):
         if node_name in self.loops:
             return LoopHeaderName(node_name)
 
-    def cycleless_preds_of(self, node_name: NodeName) -> tuple[NodeName, ...]:
+    def acyclic_preds_of(self, node_name: NodeName) -> tuple[NodeName, ...]:
         """ returns all the direct predecessors, removing the ones that would follow back edges """
         return tuple(p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
 
@@ -839,7 +839,7 @@ def get_next_dsa_var_incarnation_number(s: DSABuilder, current_node: NodeName, v
     if current_node in s.insertions and var in s.insertions[current_node]:
         max_inc_num = s.insertions[current_node][var]
 
-    for pred_name in s.original_func.cycleless_preds_of(current_node):
+    for pred_name in s.original_func.acyclic_preds_of(current_node):
         if var not in s.incarnations[pred_name]:
             continue
         for inc in s.incarnations[pred_name][var]:
@@ -875,7 +875,7 @@ def set_union(it: Iterator[set[K]]) -> set[K]:
 def apply_insertions(s: DSABuilder):
     j = 0
     for node_name, node_insertions in s.insertions.items():
-        for pred_name in s.original_func.cycleless_preds_of(node_name):
+        for pred_name in s.original_func.acyclic_preds_of(node_name):
 
             updates: list[Update[DSAVarName]] = []
             for prog_var, new_incarnation_number in node_insertions.items():
@@ -983,7 +983,6 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     for n in func.nodes:
         preds = func.cfg.all_preds[n]
         if len(preds) == 0 and n != func.cfg.entry:
-            # assert len(expr_variables(func.nodes[n])) == 0  # TODO
             node = func.nodes[n]
             assert isinstance(node, CondNode) and node.expr == ExprOp(
                 TypeBuiltin(Builtin.BOOL), Operator.FALSE, tuple()), "different weird case in c parser"
@@ -1006,20 +1005,10 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
             continue
 
         # visit in topolocial order ignoring back edges
-        if not all(p in visited for p in func.cycleless_preds_of(current_node)):
+        if not all(p in visited for p in func.acyclic_preds_of(current_node)):
             continue
 
         visited.add(current_node)
-
-        # for all the variables that are in defined in all predecessors:
-        #
-        #   - merge by taking the intersection of the incarnation sets
-        #   - if an intersection set is empty we need to insert a join for
-        #     that variable
-        #
-        # if a variable is only defined in *some* predecessor, then there is
-        # potential undefined behaviour, see
-        # potential_undefined_behaviour_explanation.txt
 
         # build up a context (map from prog var to incarnation numbers)
         context: dict[ProgVar, set[IncarnationNum]]
@@ -1031,11 +1020,11 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
             curr_node_insertions = {}
 
             all_variables: set[ProgVar] = set_union(set(s.incarnations[p].keys(
-            )) for p in s.original_func.cycleless_preds_of(current_node))
+            )) for p in s.original_func.acyclic_preds_of(current_node))
 
             for var in all_variables:
                 var_defined_on_all_predecessors: bool = all(
-                    var in s.incarnations[p] for p in s.original_func.cycleless_preds_of(current_node))
+                    var in s.incarnations[p] for p in s.original_func.acyclic_preds_of(current_node))
 
                 if not var_defined_on_all_predecessors:
                     # TODO: store this and then perform better analysis to
@@ -1049,7 +1038,7 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                     print(
                         f'(2. is harder to work out because we need to reason about the program)')
 
-                context[var] = set_intersection(s.incarnations[p][var] for p in s.original_func.cycleless_preds_of(
+                context[var] = set_intersection(s.incarnations[p][var] for p in s.original_func.acyclic_preds_of(
                     current_node) if var in s.incarnations[p])
 
                 if len(context[var]) == 0:
