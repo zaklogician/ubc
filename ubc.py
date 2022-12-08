@@ -987,7 +987,7 @@ def apply_insertions(s: DSABuilder):
             s.dsa_nodes[join_node_name] = join_node
 
 
-def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[NodeName, tuple[DSAVar, ...]], new_cfg: CFG) -> Mapping[LoopHeaderName, Loop[DSAVarName]]:
+def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[LoopHeaderName, tuple[DSAVar, ...]], new_cfg: CFG) -> Mapping[LoopHeaderName, Loop[DSAVarName]]:
     """ Update the loop nodes (because dsa inserts some joiner nodes)
     but keep everything else the same (in particular the loop targets are still ProgVarName!)
     """
@@ -1045,7 +1045,7 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     assert len(set(unpack_dsa_var_name(arg.name)[0] for arg in dsa_args)) == len(
         dsa_args), "unexpected duplicate argument name"
 
-    dsa_loop_targets: dict[NodeName, tuple[DSAVar, ...]] = {}
+    dsa_loop_targets: dict[LoopHeaderName, tuple[DSAVar, ...]] = {}
     for current_node in traverse_func_topologically(func):
 
         if current_node in (NodeNameErr, NodeNameRet):
@@ -1094,18 +1094,18 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
                 # we need to insert some join nodes
                 s.insertions[current_node] = curr_node_insertions
 
-            if loop_header := func.is_loop_header(current_node):
-                dsa_targets: list[DSAVar] = []
+        if loop_header := func.is_loop_header(current_node):
+            targets: list[DSAVar] = []
 
-                for target in func.loops[loop_header].targets:
-                    # havoc the loop targets
-                    fresh_incarnation_number = get_next_dsa_var_incarnation_number(
-                        s, current_node, target)
-                    context[target] = {fresh_incarnation_number}
-                    dsa_targets.append(make_dsa_var(
-                        target, fresh_incarnation_number))
+            for target in func.loops[loop_header].targets:
+                # havoc the loop targets
+                fresh_incarnation_number = get_next_dsa_var_incarnation_number(
+                    s, current_node, target)
+                context[target] = {fresh_incarnation_number}
+                targets.append(make_dsa_var(
+                    target, fresh_incarnation_number))
 
-                dsa_loop_targets[current_node] = tuple(dsa_targets)
+            dsa_loop_targets[loop_header] = tuple(targets)
 
         added_incarnations: dict[ProgVar, DSAVar] = {}
 

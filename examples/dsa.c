@@ -213,3 +213,12 @@ int unreachable_entry()
     }
     return 3;
 }
+
+int straight_into_loop(int i)
+{
+    while (i < 10)
+    {
+        i++;
+    }
+    return i;
+}
