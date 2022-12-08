@@ -792,7 +792,7 @@ def traverse_func_topologically_bottom_up(func: Function) -> Iterator[NodeName]:
 
 def traverse_func_topologically(func: Function) -> Iterator[NodeName]:
     q: list[NodeName] = [
-        n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
+        n for n, preds in func.cfg.all_preds.items() if len([p for p in func.acyclic_preds_of(n)]) == 0]
     visited: set[NodeName] = set()
     while q:
         n = q.pop(-1)
@@ -925,7 +925,10 @@ def set_intersection(it: Iterator[set[K]]) -> set[K]:
 
 
 def set_union(it: Iterator[set[K]]) -> set[K]:
-    acc = next(it)
+    try:
+        acc = next(it)
+    except StopIteration:
+        return set()  # union of no set is the empty set
     for s in it:
         acc = acc.union(s)
     return acc
@@ -1030,10 +1033,6 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     # at the end, apply the insertions
     # recompute cfg
 
-    q = [func.cfg.entry]
-
-    visited: set[NodeName] = set()
-
     s = DSABuilder(original_func=func, insertions={},
                    dsa_nodes={}, incarnations={})
 
@@ -1046,36 +1045,11 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
     assert len(set(unpack_dsa_var_name(arg.name)[0] for arg in dsa_args)) == len(
         dsa_args), "unexpected duplicate argument name"
 
-    # this is hack to deal with the weird assert False() node
-    for n in func.nodes:
-        preds = func.cfg.all_preds[n]
-        if len(preds) == 0 and n != func.cfg.entry:
-            node = func.nodes[n]
-            assert isinstance(node, NodeCond) and node.expr == ExprOp(
-                TypeBuiltin(Builtin.BOOL), Operator.FALSE, tuple()), "different weird case in c parser"
-            s.dsa_nodes[n] = cast(NodeCond[DSAVarName], node)
-            visited.add(n)
-            # if we can reach this annoying assert False, that means we must
-            # be able to reach Err.
-            visited.add(NodeNameErr)
-            s.incarnations[n] = {}
-
     dsa_loop_targets: dict[NodeName, tuple[DSAVar, ...]] = {}
+    for current_node in traverse_func_topologically(func):
 
-    while q:
-        current_node = q.pop(-1)
-        if current_node in visited:
+        if current_node in (NodeNameErr, NodeNameRet):
             continue
-
-        if current_node == NodeNameErr or current_node == NodeNameRet:
-            visited.add(current_node)
-            continue
-
-        # visit in topolocial order ignoring back edges
-        if not all(p in visited for p in func.acyclic_preds_of(current_node)):
-            continue
-
-        visited.add(current_node)
 
         # build up a context (map from prog var to incarnation numbers)
         context: dict[ProgVar, set[IncarnationNum]]
@@ -1195,15 +1169,7 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
             curr_node_incarnations[prog_var] = {incarnation_number}
         s.incarnations[current_node] = curr_node_incarnations
 
-        succs = func.cfg.all_succs[current_node]
-        for succ in succs:
-            if (current_node, succ) not in func.cfg.back_edges:
-                q.append(succ)
-
     apply_insertions(s)
-
-    assert len(visited) == num_reachable(
-        func.cfg), f"{visited=} {len(visited)=} {num_reachable(func.cfg)=} {func.cfg.all_succs=} {func.name}"
 
     # need to recompute the cfg from dsa_nodes
     all_succs = compute_all_successors_from_nodes(s.dsa_nodes)

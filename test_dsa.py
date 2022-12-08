@@ -226,9 +226,6 @@ def ensure_correspondence(prog_func: ubc.Function[ubc.ProgVarName], dsa_func: ub
 
 @pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
 def test_dsa_custom_tests(func: syntax.Function):
-    if func.name == 'tmp.unreachable_entry':
-        pytest.skip(
-            'FIXME: i\'m not handling multiple "entry" points correctly')
     prog_func = ubc.convert_function(func)
     dsa_func = ubc.dsa(prog_func)
     ensure_valid_dsa(dsa_func)

@@ -358,5 +358,5 @@ if __name__ == "__main__":
         exit(2)
 
     # viz_raw_function(functions[function_name])
-    viz_function(ubc.convert_function(functions[function_name]))
-    # viz_function(ubc.dsa(ubc.convert_function(functions[function_name])))
+    # viz_function(ubc.convert_function(functions[function_name]))
+    viz_function(ubc.dsa(ubc.convert_function(functions[function_name])))
