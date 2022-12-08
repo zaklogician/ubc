@@ -203,3 +203,13 @@ int arr_static()
     arr[0] = 1;
     return arr[0];
 }
+
+int unreachable_entry()
+{
+    for (int i = 0; i < 10; i++)
+    {
+        break;
+        return 1;
+    }
+    return 3;
+}
