@@ -31,6 +31,7 @@ def pretty_name(name: str | tuple[str, int]) -> str:
         return _pretty_name(name) + f"<sub>{inc}</sub>"
     return _pretty_name(name)
 
+
 def _pretty_name(name: str) -> str:
     return name
     if "__" not in name:

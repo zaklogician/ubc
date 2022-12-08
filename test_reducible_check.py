@@ -123,7 +123,7 @@ syntax.set_arch('rv64')
 ])
 def test_is_reducible(all_succs):
     assert ubc.cfg_is_reducible(
-        ubc.compute_cfg_from_all_succs(all_succs, "_start"))
+        ubc.compute_cfg_from_all_succs(all_succs, ubc.NodeName("_start")))
 
 
 @pytest.mark.parametrize("all_succs", [
@@ -195,7 +195,7 @@ def test_is_reducible(all_succs):
 ])
 def test_is_not_reducible(all_succs):
     assert not ubc.cfg_is_reducible(
-        ubc.compute_cfg_from_all_succs(all_succs, "_start"))
+        ubc.compute_cfg_from_all_succs(all_succs, ubc.NodeName("_start")))
 
 
 with open('examples/kernel_CFunctions.txt') as f:

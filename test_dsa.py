@@ -1,5 +1,7 @@
+from sys import platform
+from _pytest.capture import pytest_load_initial_conftests
 import pytest
-from typing import Collection, Iterable, Mapping, Sequence, Set
+from typing import Collection, Iterable, Iterator, Mapping, Sequence, Set
 from typing_extensions import assert_never
 from logic import all_vars_in_set
 from main import assert_all_kernel_functions_are_reducible
@@ -56,92 +58,6 @@ def all_vars_in_expr(expr: ubc.Expr[ubc.VarKind]) -> set[ubc.Var[ubc.VarKind]]:
     return s
 
 
-# def ensure_exactly_one_assignment_in_path(func: ubc.Function[ubc.DSAVarName], path: Collection[ubc.NodeName]):
-#     """
-#     This is a bit more complicated than you'd like because we must handle loop
-#     targets
-
-#     Loop targets are only recorded as ProgVarNames, not DSAVarNames.
-
-#     Recall that loop targets are havoc'd at the start of loops.
-
-#     When we see a loop header, we push it on the loop stack.
-
-#     When we read from a variable that hasn't been assigned to yet:
-#         1. we assert that it was a loop target of a loop on the loop stack.
-#         2. we remove that loop target from the loop stack
-#         3. we record that this DSA variable was "assigned"
-
-#         (we do 2 and 3 so that you can't use the excuse that a variable is a
-#         loop target to incarnate it multiple times as different DSA variables.
-#         A loop target is havoc exactly once, not multiple times).
-
-#     When we exit a loop (that is, we are not in one of the loop's body nodes
-#     anymore), we pop it from the stack. Note that it is possible that not
-#     every loop target would have been incarnated (ie. we wrote to it directly,
-#     rather than reading from it first).
-#     """
-
-#     print(f'{path=}')
-
-#     assignments: set[ubc.DSAVar] = set(arg for arg in func.arguments)
-
-#     def got_assignment(var: ubc.DSAVar):
-#         print(f'{node_name=} {var} is assigned')
-#         nonlocal assignments
-
-#         assert var not in assignments, f"found new assignment for {var}, but it was already defined"
-#         # when assigning i.n, we invalidate all the i.m for m != n. There
-#         # should only be one. (we can do this because we are walking a single
-#         # path at a time)
-#         name, num = ubc.unpack_dsa_var_name(var.name)
-
-#         previous_incarnations: set[ubc.DSAVar] = set()
-#         for assignment in assignments:
-#             n, _ = ubc.unpack_dsa_var_name(assignment.name)
-#             if n == name:
-#                 previous_incarnations.add(assignment)
-
-#         assert len(previous_incarnations) <= 1, previous_incarnations
-#         assignments -= previous_incarnations
-#         assignments.add(var)
-
-#     for node_name in path:
-#         if node_name == 'Err' or node_name == 'Ret':
-#             continue
-
-#         node = func.nodes[node_name]
-
-#         if func.is_loop_header(node_name):
-#             # all the loop targets have been havocd
-#             for target in func.loops[node_name].targets:
-#                 got_assignment(target)
-
-#         used_but_unassigned: set[ubc.DSAVar] = set()
-#         if isinstance(node, ubc.BasicNode):
-#             # copy the assignments, because the updates are simultaneous
-#             # (they don't impact each other).
-#             base_assignments = set(assignments)
-#             for upd in node.upds:
-#                 used_but_unassigned |= all_vars_in_expr(
-#                     upd.expr) - base_assignments
-#                 got_assignment(upd.var)
-
-#         elif isinstance(node, ubc.CallNode):
-#             for arg in node.args:
-#                 used_but_unassigned |= all_vars_in_expr(arg) - assignments
-
-#         elif isinstance(node, ubc.CondNode):
-#             used_but_unassigned |= all_vars_in_expr(node.expr) - assignments
-
-#         if len(used_but_unassigned) > 0:
-#             assert False, f"({node_name=} {path=}) {used_but_unassigned} weren't assigned to, yet we read from them"
-
-#         if isinstance(node, ubc.CallNode):
-#             for ret in node.rets:
-#                 got_assignment(ret)
-
-
 def assigned_variables_in_node(func: ubc.Function[ubc.DSAVarName], n: ubc.NodeName) -> Collection[ubc.DSAVar]:
     if n in (ubc.NodeNameRet, ubc.NodeNameErr):
         return []
@@ -155,10 +71,11 @@ def assigned_variables_in_node(func: ubc.Function[ubc.DSAVarName], n: ubc.NodeNa
     elif not isinstance(node, ubc.EmptyNode | ubc.CondNode):
         assert_never(node)
 
-    if func.is_loop_header(n):
-        assigned_variables.extend(func.loops[n].targets)
+    if loop_header := func.is_loop_header(n):
+        assigned_variables.extend(func.loops[loop_header].targets)
 
     return assigned_variables
+
 
 def read_variables_in_node(node: ubc.Node[ubc.DSAVarName]) -> Collection[ubc.DSAVar]:
     read_variables: list[ubc.DSAVar] = []
@@ -174,12 +91,14 @@ def read_variables_in_node(node: ubc.Node[ubc.DSAVarName]) -> Collection[ubc.DSA
         assert_never(node)
     return read_variables
 
+
 def ensure_assigned_at_most_once(func: ubc.Function[ubc.DSAVarName], path: Collection[ubc.NodeName]):
     # this doesn't ensure that every variable that is assigned is used
     assigned_variables: list[ubc.DSAVar] = []
     for node in path:
         assigned_variables.extend(assigned_variables_in_node(func, node))
     assert len(assigned_variables) == len(set(assigned_variables))
+
 
 def ensure_using_latest_incarnation(func: ubc.Function[ubc.DSAVarName], path: Collection[ubc.NodeName]):
     latest_assignment: dict[ubc.ProgVar, ubc.IncarnationNum] = {}
@@ -195,8 +114,8 @@ def ensure_using_latest_incarnation(func: ubc.Function[ubc.DSAVarName], path: Co
         for dsa_var in set(read_variables_in_node(func.nodes[n])):
             # loop targets are havoc'd at the top of the loop header
             # that is, it is legal to use them in the loop header itself
-            if func.is_loop_header(n):
-                for target in func.loops[n].targets:
+            if loop_header := func.is_loop_header(n):
+                for target in func.loops[loop_header].targets:
                     prog_var, inc = ubc.unpack_dsa_var(target)
                     latest_assignment[prog_var] = inc
 
@@ -212,32 +131,151 @@ def ensure_using_latest_incarnation(func: ubc.Function[ubc.DSAVarName], path: Co
             latest_assignment[prog_var] = inc
 
 
-
-# ensure each variable is assigned to exactly once
-# ensure each
-
-def ensure_valid_dsa(unsafe_func: syntax.Function):
-    plain_func = ubc.convert_function(unsafe_func)
-    dsa_func = ubc.dsa(plain_func)
-
+def ensure_valid_dsa(dsa_func: ubc.Function[ubc.DSAVarName]):
     all_paths = compute_all_path(dsa_func.cfg)
     for i, path in enumerate(all_paths):
         ensure_assigned_at_most_once(dsa_func, path)
         ensure_using_latest_incarnation(dsa_func, path)
 
 
+def traverse_func(func: ubc.Function) -> Iterator[ubc.NodeName]:
+    q: list[ubc.NodeName] = [
+        n for n, preds in func.cfg.all_preds.items() if len(preds) == 0]
+    visited: set[ubc.NodeName] = set()
+    while q:
+        n = q.pop(-1)
+        if n in visited:
+            continue
+
+        if not all(p in visited for p in func.cycleless_preds_of(n)):
+            continue
+
+        visited.add(n)
+        yield n
+
+        for succ in func.cfg.all_succs[n]:
+            if (n, succ) not in func.cfg.back_edges:
+                q.append(succ)
+
+    assert len(visited - {ubc.NodeNameErr, ubc.NodeNameRet}) == len(func.nodes)
+
+
+def assert_expr_equals_mod_dsa(lhs: ubc.Expr[ubc.ProgVarName], rhs: ubc.Expr[ubc.DSAVarName]):
+    assert lhs.typ == rhs.typ
+
+    if isinstance(lhs, ubc.ExprNum | ubc.ExprSymbol | ubc.ExprType):
+        return lhs == rhs
+    elif isinstance(lhs, ubc.ExprVar):
+        assert isinstance(rhs, ubc.ExprVar)
+        assert lhs.name == ubc.unpack_dsa_var_name(rhs.name)[0]
+    elif isinstance(lhs, ubc.ExprOp):
+        assert isinstance(rhs, ubc.ExprOp)
+        assert lhs.operator == rhs.operator
+        assert len(lhs.operands) == len(rhs.operands)
+        for i in range(len(lhs.operands)):
+            assert_expr_equals_mod_dsa(lhs.operands[i], rhs.operands[i])
+    else:
+        assert_never(lhs)
+
+
+def assert_var_equal_mod_dsa(prog: ubc.ProgVar, dsa: ubc.DSAVar):
+    assert prog == ubc.unpack_dsa_var(dsa)[0]
+
+
+def ensure_correspondence(prog_func: ubc.Function[ubc.ProgVarName], dsa_func: ubc.Function[ubc.DSAVarName]):
+    assert set(prog_func.nodes.keys()).issubset(dsa_func.nodes.keys())
+
+    join_node_names: list[ubc.NodeName] = []
+
+    for node_name in dsa_func.nodes:
+        if node_name in (ubc.NodeNameErr, ubc.NodeNameRet):
+            continue
+
+        dsa_node = dsa_func.nodes[node_name]
+
+        if node_name not in prog_func.nodes:
+            # ensure it's a join node
+
+            assert node_name.startswith('j')  # not required semantically
+
+            assert isinstance(dsa_node, ubc.BasicNode)
+            for upd in dsa_node.upds:
+                # ensure every update is of the form A.X = A.Y
+                lhs_name, _ = ubc.unpack_dsa_var_name(upd.var.name)
+                assert isinstance(upd.expr, ubc.ExprVar)
+                rhs_name, _ = ubc.unpack_dsa_var_name(upd.expr.name)
+                assert upd.var.typ == upd.expr.typ
+
+            join_node_names.append(node_name)
+
+            continue
+
+        prog_node = prog_func.nodes[node_name]
+
+        if isinstance(prog_node, ubc.BasicNode):
+            assert isinstance(dsa_node, ubc.BasicNode)
+
+            assert len(prog_node.upds) == len(dsa_node.upds)
+            for i in range(len(prog_node.upds)):
+                assert_var_equal_mod_dsa(
+                    prog_node.upds[i].var, dsa_node.upds[i].var)
+
+                assert_expr_equals_mod_dsa(
+                    prog_node.upds[i].expr, dsa_node.upds[i].expr)
+
+        elif isinstance(prog_node, ubc.CallNode):
+            assert isinstance(dsa_node, ubc.CallNode)
+
+            assert len(prog_node.args) == len(dsa_node.args)
+            for i in range(len(prog_node.args)):
+                assert_expr_equals_mod_dsa(prog_node.args[i], dsa_node.args[i])
+
+            assert len(prog_node.rets) == len(dsa_node.rets)
+            for i in range(len(prog_node.rets)):
+                assert_var_equal_mod_dsa(prog_node.rets[i], dsa_node.rets[i])
+
+        elif isinstance(prog_node, ubc.CondNode):
+            assert isinstance(dsa_node, ubc.CondNode)
+            assert_expr_equals_mod_dsa(prog_node.expr, dsa_node.expr)
+
+        elif isinstance(prog_node, ubc.EmptyNode):
+            assert isinstance(dsa_node, ubc.EmptyNode)
+        else:
+            assert_never(prog_node)
+
+    for node_name in traverse_func(prog_func):
+        prog_succs = prog_func.cfg.all_succs[node_name]
+        dsa_succs = dsa_func.cfg.all_succs[node_name]
+
+        if prog_succs == dsa_succs:
+            continue
+
+        # the only reason the successors wouldn't been the same is if a dsa
+        # successor was a join node.
+
+        assert len(prog_succs) == len(dsa_succs)
+        for i in range(len(prog_succs)):
+            if prog_succs[i] == dsa_succs[i]:
+                continue
+
+            # we must have
+            # prog:  a -----------> b
+            # dsa :  a --> join --> b
+
+            assert dsa_succs[i] in join_node_names
+            join_node_succs = dsa_func.cfg.all_succs[dsa_succs[i]]
+            assert len(join_node_succs) == 1
+            assert join_node_succs[0] == prog_succs[i]
+
+
 @pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
 def test_dsa_custom_tests(func: syntax.Function):
-    if '.fail_' in func.name:
-        pass
-        # plain_func = ubc.convert_function(func)
-        # with pytest.raises(ubc.DSAPotentialUndefinedBehaviour):
-        #     ubc.dsa(plain_func)
-    else:
-        ensure_valid_dsa(func)
+    prog_func = ubc.convert_function(func)
+    dsa_func = ubc.dsa(prog_func)
+    # ensure_valid_dsa(dsa_func)
+    ensure_correspondence(prog_func, dsa_func)
 
 
-# @pytest.mark.skip
 # sort so that the smallest functions fail first
 @pytest.mark.parametrize('function', (f for f in sorted(kernel_CFunctions[1].values(), key=lambda f: len(f.nodes)) if f.entry is not None))
 def test_dsa_kernel_functions(function: syntax.Function):
@@ -248,9 +286,7 @@ def test_dsa_kernel_functions(function: syntax.Function):
     if len(compute_all_path(ubc.convert_function(function).cfg)) > 1000:
         pytest.skip("too many paths, checking them all is too slow")
 
-    ensure_valid_dsa(function)
-
-
-if __name__ == '__main__':
-    ensure_valid_dsa(
-        kernel_CFunctions[1]['Kernel_C.setDomain'])
+    prog_func = ubc.convert_function(function)
+    dsa_func = ubc.dsa(prog_func)
+    ensure_valid_dsa(dsa_func)
+    ensure_correspondence(prog_func, dsa_func)
