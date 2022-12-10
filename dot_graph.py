@@ -167,8 +167,10 @@ def viz_function(file: IOBase, fun: ubc.Function):
 
     puts("digraph grph {")
     puts("  node[shape=box]")
+    args = '<BR ALIGN="LEFT"/>'.join(pretty_name(arg.name)
+                                     for arg in fun.arguments)
     puts(
-        f"  FunctionDescription [label=<<u>{fun.name}</u>>] [shape=plaintext]")
+        f'  FunctionName [label=<<u>{fun.name}</u><BR ALIGN="LEFT"/>{args}>] [shape=plaintext]')
     puts()
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
@@ -215,8 +217,11 @@ def viz_function(file: IOBase, fun: ubc.Function):
         else:
             assert_never(node)
             assert False
-        putsf("  {idx} [xlabel={idx}] [label=<{content}>]",
-              idx=idx, content=content)
+        if idx == fun.cfg.entry:
+            puts(f"  {idx} [xlabel={idx}; label=<<i>Entry</i>>; penwidth=2]")
+        else:
+            putsf("  {idx} [xlabel={idx}] [label=<{content}>]",
+                  idx=idx, content=content)
 
     puts("}")
 

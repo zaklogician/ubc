@@ -26,10 +26,14 @@ def view_dsa_example():
     with open('examples/dsa.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
-        func = ubc.convert_function(functions['tmp.' + sys.argv[1]])
-        viz_function(func)
-        func = ubc.dsa(func)
-        viz_function(func)
+        for func in functions.values():
+            if func.entry is None:
+                continue
+            ubc.dsa(ubc.convert_function(func))
+        # func = ubc.convert_function(functions['tmp.' + sys.argv[1]])
+        # viz_function(func)
+        # func = ubc.dsa(func)
+        # viz_function(func)
 
 
 def check_all_kernel():
@@ -65,15 +69,18 @@ def view_function(filename: str, function_name: str):
             f, None)
         func = ubc.convert_function(
             functions[function_name])
-        viz_function(func)
-        viz_function(ubc.dsa(func))
+        dsa_func = ubc.dsa(func)
+        # viz_function(func)
+        viz_function(dsa_func)
 
 
 if __name__ == "__main__":
+    view_dsa_example()
 
     # assert_all_kernel_functions_are_reducible()
     # view_function('examples/dsa.txt', 'tmp.simple_for_loop')
-    view_function('examples/kernel_CFunctions.txt', 'Kernel_C.isHighestPrio')
+    # view_function('examples/dsa.txt', 'tmp.fail_arr_undefined_behaviour')
+    # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.isHighestPrio')
     # view_function('examples/dsa.txt', 'tmp.shift_diag')
     # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.create_untypeds')
 
@@ -82,13 +89,14 @@ if __name__ == "__main__":
 
     # view_function('examples/dsa.txt', 'tmp.simple_for_loop')
     # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.deriveCap')
-    exit(0)
 
-    with open('examples/for_loops.txt') as f:
-        structs, functions, const_globals = syntax.parse_and_install_all(
-            f, None)
-        for func in functions.values():
-            print("function:", func.name)
-            funcp = ubc.convert_function(func)
-            for loop_header, loop_data in funcp.loops.items():
-                print('  ', loop_header, loop_data)
+    # exit(0)
+
+    # with open('examples/for_loops.txt') as f:
+    #     structs, functions, const_globals = syntax.parse_and_install_all(
+    #         f, None)
+    #     for func in functions.values():
+    #         print("function:", func.name)
+    #         funcp = ubc.convert_function(func)
+    #         for loop_header, loop_data in funcp.loops.items():
+    #             print('  ', loop_header, loop_data)

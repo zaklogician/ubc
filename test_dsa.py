@@ -48,29 +48,10 @@ def compute_all_path(cfg: ubc.CFG) -> Sequence[Sequence[ubc.NodeName]]:
     return all_paths
 
 
-def assigned_variables_in_node(func: ubc.Function[ubc.DSAVarName], n: ubc.NodeName) -> Collection[ubc.DSAVar]:
-    if n in (ubc.NodeNameRet, ubc.NodeNameErr):
-        return []
-
-    assigned_variables: list[ubc.DSAVar] = []
-    node = func.nodes[n]
-    if isinstance(node, ubc.NodeBasic):
-        assigned_variables.extend(upd.var for upd in node.upds)
-    elif isinstance(node, ubc.NodeCall):
-        assigned_variables.extend(ret for ret in node.rets)
-    elif not isinstance(node, ubc.NodeEmpty | ubc.NodeCond):
-        assert_never(node)
-
-    if loop_header := func.is_loop_header(n):
-        assigned_variables.extend(func.loops[loop_header].targets)
-
-    return assigned_variables
-
-
 def ensure_assigned_at_most_once(func: ubc.Function[ubc.DSAVarName], path: Collection[ubc.NodeName]):
     assigned_variables: list[ubc.DSAVar] = []
     for node in path:
-        assigned_variables.extend(assigned_variables_in_node(func, node))
+        assigned_variables.extend(ubc.assigned_variables_in_node(func, node))
     assert len(assigned_variables) == len(set(assigned_variables))
 
 
@@ -85,7 +66,7 @@ def ensure_using_latest_incarnation(func: ubc.Function[ubc.DSAVarName], path: Co
         if n in (ubc.NodeNameErr, ubc.NodeNameRet):
             continue
 
-        for dsa_var in set(ubc.used_variables_in_node(func.nodes[n])):
+        for dsa_var in ubc.used_variables_in_node(func.nodes[n]):
             # loop targets are havoc'd at the top of the loop header
             # that is, it is legal to use them in the loop header itself
             if loop_header := func.is_loop_header(n):
@@ -100,7 +81,7 @@ def ensure_using_latest_incarnation(func: ubc.Function[ubc.DSAVarName], path: Co
             # might be used on some other path that joins with our own(and so
             # inc would be 2 for example)
 
-        for dsa_var in assigned_variables_in_node(func, n):
+        for dsa_var in ubc.assigned_variables_in_node(func, n):
             prog_var, inc = ubc.unpack_dsa_var(dsa_var)
             latest_assignment[prog_var] = inc
 
@@ -193,11 +174,9 @@ def ensure_correspondence(prog_func: ubc.Function[ubc.ProgVarName], dsa_func: ub
             assert_is_join_node(dsa_node)
             assert node_name.startswith('j')  # not required semantically
             join_node_names.append(node_name)
-            continue
-
-        prog_node = prog_func.nodes[node_name]
-
-        assert_node_equals_mod_dsa(prog_node, dsa_node)
+        else:
+            prog_node = prog_func.nodes[node_name]
+            assert_node_equals_mod_dsa(prog_node, dsa_node)
 
     for node_name in ubc.traverse_func_topologically(prog_func):
         prog_succs = prog_func.cfg.all_succs[node_name]
