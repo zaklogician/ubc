@@ -21,6 +21,12 @@ NodeNameErr = NodeName('Err')
 NodeNameRet = NodeName('Ret')
 
 
+def clen(it: Iterator) -> int:
+    """ returns the number of elemens in the iterator, even if that means it has to consume it
+    """
+    return sum(1 for _ in it)
+
+
 class CFG(NamedTuple):
     """
     Class that groups information about a function's control flow graph
@@ -419,9 +425,9 @@ class Function(Generic[VarNameKind]):
             return LoopHeaderName(node_name)
         return None
 
-    def acyclic_preds_of(self, node_name: NodeName) -> tuple[NodeName, ...]:
+    def acyclic_preds_of(self, node_name: NodeName) -> Iterator[NodeName]:
         """ returns all the direct predecessors, removing the ones that would follow back edges """
-        return tuple(p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
+        return (p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
 
 
 def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
@@ -1144,7 +1150,7 @@ def display_warning_used_but_sometimes_assigned_to_vars(func: Function[ProgVarNa
 
         node = func.nodes[n]
         preds = func.acyclic_preds_of(n)
-        if len(preds) == 0:
+        if clen(preds) == 0:
             # TODO: include globals
             vars_undefined_on_paths[n] = {var: set() if var in func.arguments else {
                 (n, )} for var in all_vars}
@@ -1210,7 +1216,7 @@ def display_warning_used_but_sometimes_assigned_to_vars(func: Function[ProgVarNa
             break
     else:
         return  # we don't have any problems :)
-        
+
     print("DYNAMIC SINGLE ASSIGNMENT WARNING")
     print("=================================")
     print()
