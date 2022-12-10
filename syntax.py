@@ -1076,7 +1076,7 @@ def parse_struct_elem(bits, n):
 
 def parse_expr(bits, n):
     # type: (List[str], int) -> Tuple[int, Expr]
-    if bits[n] in set(['Symbol', 'Var', 'ConstGlobal', 'Token']):
+    if bits[n] in {'Symbol', 'Var', 'ConstGlobal', 'Token'}:
         kind = bits[n]
         name = bits[n + 1]
         (n, typ) = parse_typ(bits, n + 2)

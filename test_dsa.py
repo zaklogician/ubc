@@ -34,7 +34,7 @@ def compute_all_path(cfg: ubc.CFG) -> Sequence[Sequence[ubc.NodeName]]:
             dfs(succs[0])
             return
 
-        path_so_far = [n for n in all_paths[-1]]
+        path_so_far = list(all_paths[-1])
         for i, succ in enumerate(succs):
             if (n, succ) not in cfg.back_edges:
                 if i > 0:

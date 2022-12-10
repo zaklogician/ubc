@@ -50,7 +50,13 @@ class CFG(NamedTuple):
 
 
 ProgVarName = NewType('ProgVarName', str)
-DSAVarName = NewType('DSAVarName', tuple[ProgVarName, IncarnationNum])
+
+
+class DSAVarName(NamedTuple):
+    prog: ProgVarName
+    inc: IncarnationNum
+
+
 VarNameKind = TypeVar('VarNameKind', ProgVarName, DSAVarName)
 
 # can't inherit from NamedTuple and Generic[...], the fix is only in
@@ -70,16 +76,15 @@ DSAVar: TypeAlias = Var[DSAVarName]
 
 
 def make_dsa_var_name(v: ProgVarName, k: IncarnationNum) -> DSAVarName:
-    return DSAVarName((v, k))
+    return DSAVarName(v, k)
 
 
 def unpack_dsa_var_name(v: DSAVarName) -> tuple[ProgVarName, IncarnationNum]:
-    return v[0], v[1]
+    return v.prog, v.inc
 
 
 def unpack_dsa_var(var: DSAVar) -> tuple[ProgVar, IncarnationNum]:
-    name, inc = unpack_dsa_var_name(var.name)
-    return Var(name, var.typ), inc
+    return Var(var.name.prog, var.typ), var.name.inc
 
 
 @dataclass(frozen=True)
@@ -494,13 +499,14 @@ def compute_dominators(all_succs: Mapping[NodeName, list[NodeName]], all_preds: 
         changed = False
 
         for n in all_succs.keys():
-            npreds = list(all_preds[n])
+            npreds = all_preds[n]
             if not npreds:
                 continue
 
-            new_dom = set([n]) | reduce(set.intersection,  # type: ignore [arg-type]
-                                        (doms[p] for p in npreds), doms[npreds[0]])
-            # new_dom =
+            new_dom = doms[next(iter(npreds))].intersection(
+                *(doms[p] for p in npreds))
+            new_dom.add(n)
+
             if new_dom != doms[n]:
                 changed = True
                 doms[n] = new_dom
@@ -630,8 +636,19 @@ def compute_loops(nodes: Mapping[NodeName, Node[ProgVarName]], cfg: CFG) -> Mapp
     return loops
 
 
+type_word8 = TypeBitVec(8)
+type_word32 = TypeBitVec(32)
+type_word64 = TypeBitVec(64)
+
+
 def convert_type(typ: syntax.Type) -> Type:
     if typ.kind == 'Word':
+        if typ.num == 8:
+            return type_word8
+        elif typ.num == 32:
+            return type_word32
+        elif typ.num == 64:
+            return type_word64
         return TypeBitVec(typ.num)
     elif typ.kind == 'Ptr':
         assert typ.el_typ_symb is not None
