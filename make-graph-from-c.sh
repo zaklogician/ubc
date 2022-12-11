@@ -89,6 +89,16 @@ if ! gcc -Wall -Werror -Wextra "$c_file" -o "$TMP_DIR/a.out" -c
 then
     exit 1
 fi
-"$TV_ROOT"/isabelle/bin/isabelle build -d "$TV_ROOT"/l4v -D . -c
-cp result.txt "$output_file"
+rm "$TMP_DIR/a.out"
+
+
+# "$TV_ROOT"/isabelle/bin/isabelle build -d "$TV_ROOT"/l4v -D . -c
+# cp result.txt "$output_file"
+
+# login to work machine, it's bigger so faster :)
+ssh vb-101 "rm -rf ~/.cparser-conversion"
+scp -r "$TMP_DIR" vb-101:.cparser-conversion
+ssh vb-101 "env L4V_ARCH='$L4V_ARCH' ~/verification/isabelle/bin/isabelle build -d ~/verification/l4v -D .cparser-conversion -c"
+scp vb-101:.cparser-conversion/result.txt "$output_file"
+
 popd

@@ -1,0 +1,7 @@
+
+Function tmp.cast1 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Op WordCast Word 32 1 Var c___char#v Word 8
+4 Basic 3 1 c___char#v Word 8 Op WordCastSigned Word 8 1 Num 255 Word 32
+EntryPoint 4
