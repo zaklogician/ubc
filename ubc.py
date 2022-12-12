@@ -236,8 +236,6 @@ class Operator(Enum):
     SIGNED_LESS_EQUALS = 'SignedLessEquals'
 
     BW_NOT = 'BWNot'
-    COUNT_LEADING_ZEROES = 'CountLeadingZeros'
-    COUNT_TRAILING_ZEROES = 'CountTrailingZeroes'
     WORD_REVERSE = 'WordReverse'
     WORD_CAST = 'WordCast'
     WORD_CAST_SIGNED = 'WordCastSigned'
@@ -258,11 +256,14 @@ class Operator(Enum):
     HTD_UPDATE = 'HTDUpdate'
     IF_THEN_ELSE = 'IfThenElse'
 
-    ROUND_NEAREST_TIES_TO_EVEN = 'roundNearestTiesToEven'
-    ROUND_NEAREST_TIES_TO_AWAY = 'roundNearestTiesToAway'
-    ROUND_TOWARD_POSITIVE = 'roundTowardPositive'
-    ROUND_TOWARD_NEGATIVE = 'roundTowardNegative'
-    ROUND_TOWARD_ZERO = 'roundTowardZero'
+    # COUNT_LEADING_ZEROES = 'CountLeadingZeros'
+    # COUNT_TRAILING_ZEROES = 'CountTrailingZeroes'
+
+    # ROUND_NEAREST_TIES_TO_EVEN = 'roundNearestTiesToEven'
+    # ROUND_NEAREST_TIES_TO_AWAY = 'roundNearestTiesToAway'
+    # ROUND_TOWARD_POSITIVE = 'roundTowardPositive'
+    # ROUND_TOWARD_NEGATIVE = 'roundTowardNegative'
+    # ROUND_TOWARD_ZERO = 'roundTowardZero'
 
     # optional apparently
     # FP_ABS = 'fp.abs'
