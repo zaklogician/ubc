@@ -167,7 +167,9 @@ class TypeWordArray(Type):
     """ number of bits used per value?
         same as for index_bits, i'm not actually sure
     """
-    pass
+
+
+type_bool = TypeBuiltin(Builtin.BOOL)
 
 
 @dataclass(frozen=True)
@@ -329,6 +331,9 @@ class ExprOp(ABCExpr[VarNameKind]):
 
 
 Expr = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprSymbol
+
+expr_true: Expr = ExprOp(type_bool, Operator.TRUE, ())
+expr_false: Expr = ExprOp(type_bool, Operator.FALSE, ())
 
 # for the following commented out expr classes
 # not present in the kernel functions, I don't want to make an abstraction for
@@ -1112,7 +1117,7 @@ def pretty_expr_ascii(expr: Expr) -> str:
     elif isinstance(expr, ExprOp):
         if expr.operator in pretty_binary_operators_ascii:
             assert len(expr.operands) == 2
-            return f'{pretty_expr_ascii(expr.operands[0])} {pretty_binary_operators_ascii[expr.operator]} {pretty_expr_ascii(expr.operands[1])}'
+            return f'({pretty_expr_ascii(expr.operands[0])} {pretty_binary_operators_ascii[expr.operator]} {pretty_expr_ascii(expr.operands[1])})'
         elif expr.operator == Operator.IF_THEN_ELSE:
             assert len(expr.operands) == 3
             cond, then, otherwise = (pretty_expr_ascii(operand)
@@ -1438,8 +1443,6 @@ APInstruction = APInstructionAssume | APInstructionProve
 
 AssumeProveScript = Sequence[APInstructionAssume | APInstructionProve]
 
-type_bool = TypeBuiltin(Builtin.BOOL)
-
 
 def node_ok_name(n: NodeName) -> NodeOkName:
     return NodeOkName(n + '_ok')
@@ -1489,6 +1492,12 @@ def expr_or(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]
     assert lhs.typ == type_bool
     assert rhs.typ == type_bool
     return ExprOp(type_bool, Operator.OR, (lhs, rhs))
+
+
+def expr_and(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]:
+    assert lhs.typ == type_bool
+    assert rhs.typ == type_bool
+    return ExprOp(type_bool, Operator.AND, (lhs, rhs))
 
 
 def expr_implies(antecedent: Expr[VarNameKind], consequent: Expr[VarNameKind]) -> Expr[VarNameKind]:
@@ -1592,3 +1601,40 @@ def ap_pretty_print_prog(prog: AssumeProveProg) -> None:
             if i > 0:
                 print(prefix, end='')
             print(ap_pretty_instruction_ascii(instruction))
+        print(prefix + '=>',
+              pretty_expr_ascii(apply_weakest_precondition(prog.nodes_script[n])))
+
+
+def apply_weakest_precondition(script: AssumeProveScript) -> Expr[APVarName]:
+    # A: wp(prove P, Q) = P && Q
+    # B: wp(assume P, Q) = P --> Q
+    # C: wp(S;T, Q) = wp(S, wp(T, Q))
+
+    # there are only a few instruction per script (about <= 5)
+    # so, we use recursion + copy because the performance won't matter
+    # but the correctness is much clearer that way
+
+    def wp_single(ins: APInstruction, post: Expr[APVarName]) -> Expr[APVarName]:
+        if isinstance(ins, APInstructionProve):
+            if post == expr_true:
+                return ins.expr
+            return expr_and(ins.expr, post)
+        elif isinstance(ins, APInstructionAssume):
+            if post == expr_true:
+                # a -> true is a tautology
+                return expr_true
+            return expr_implies(ins.expr, post)
+        assert_never(ins)
+
+    def wp(script: AssumeProveScript, post: Expr[APVarName]) -> Expr[APVarName]:
+        if len(script) == 0:
+            return post
+
+        if len(script) == 1:
+            return wp_single(script[0], post)
+
+        # from C you can show `wp(S;T;R, Q) = wp(S, wp(T;R, Q)`
+        # (; is associative, put the brackets are T;R)
+        return wp([script[0]], wp(script[1:], post))
+
+    return wp(script, expr_true)
