@@ -36,6 +36,30 @@ def view_dsa_example():
         # viz_function(func)
 
 
+def same_var_diff_type(func: ubc.Function[ubc.ProgVarName]):
+    vars: dict[str, set[ubc.ProgVarName]] = {}
+    for n in func.nodes:
+        for var in ubc.used_variables_in_node(func.nodes[n]).union(ubc.assigned_variables_in_node(func, n)):
+            if '__' in var.name:
+                real_name, type_info = var.name.split('__', maxsplit=1)
+
+                if '.' in type_info:
+                    real_name += type_info.split('.', maxsplit=1)[1]
+
+                if real_name not in vars:
+                    vars[real_name] = set()
+                vars[real_name].add(var.name)
+
+    diff = {var: uses for var, uses in vars.items() if len(uses) > 1}
+    if diff:
+        print(f"diffs: {func.name} {diff}")
+
+
+with open('examples/kernel_CFunctions.txt') as f:
+    kernel_stuff = syntax.parse_and_install_all(
+        f, None)
+
+
 def check_all_kernel():
     with open('examples/kernel_CFunctions.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
@@ -47,15 +71,20 @@ def check_all_kernel():
         # viz_function(result)
         # return
 
-        for func in functions:
-            # print('doing', functions[func].name)
-            if not functions[func].entry:
+        for unsafe_func in functions.values():
+            if not unsafe_func.entry:
                 continue
-            func = ubc.convert_function(functions[func])
-            try:
-                func_dsa = ubc.dsa(func)
-            except Exception as e:
-                print(len(func.nodes), func.name, repr(e))
+
+            func = ubc.convert_function(unsafe_func)
+            same_var_diff_type(func)
+            dsa_func = ubc.dsa(func)
+            ap_prog = ubc.make_assume_prove_prog(dsa_func)
+
+            # func = ubc.convert_function(functions[func])
+            # try:
+            #     func_dsa = ubc.dsa(func)
+            # except Exception as e:
+            #     print(len(func.nodes), func.name, repr(e))
             # print('ok', func.name)
 
         # viz_function(func)
@@ -75,7 +104,11 @@ def view_function(filename: str, function_name: str):
 
 
 if __name__ == "__main__":
-    view_dsa_example()
+    # view_dsa_example()
+    # check_all_kernel()
+    func = kernel_stuff[1]['tmp.simple_for_loop']
+    prog = ubc.make_assume_prove_prog(ubc.dsa(ubc.convert_function(func)))
+    ubc.ap_pretty_print_prog(prog)
 
     # assert_all_kernel_functions_are_reducible()
     # view_function('examples/dsa.txt', 'tmp.simple_for_loop')

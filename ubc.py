@@ -57,7 +57,10 @@ class DSAVarName(NamedTuple):
     inc: IncarnationNum
 
 
-VarNameKind = TypeVar('VarNameKind', ProgVarName, DSAVarName)
+# assume prove var name
+APVarName = NewType('APVarName', str)
+
+VarNameKind = TypeVar('VarNameKind', ProgVarName, DSAVarName, APVarName)
 
 # can't inherit from NamedTuple and Generic[...], the fix is only in
 # python3.11 and ubuntu comes with python3.10.
@@ -73,6 +76,7 @@ class Var(Generic[VarNameKind]):
 
 ProgVar: TypeAlias = Var[ProgVarName]
 DSAVar: TypeAlias = Var[DSAVarName]
+APVar: TypeAlias = Var[APVarName]
 
 
 def make_dsa_var_name(v: ProgVarName, k: IncarnationNum) -> DSAVarName:
@@ -308,6 +312,7 @@ pretty_binary_operators_ascii = {
 
     Operator.AND: '&&',
     Operator.OR: '||',
+    Operator.IMPLIES: '->',
 
     Operator.EQUALS: '=',
     Operator.LESS: '<',
@@ -320,7 +325,7 @@ pretty_binary_operators_ascii = {
 @dataclass(frozen=True)
 class ExprOp(ABCExpr[VarNameKind]):
     operator: Operator
-    operands: tuple[Expr[VarNameKind], ...]
+    operands: Sequence[Expr[VarNameKind]]
 
 
 Expr = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprSymbol
@@ -433,6 +438,9 @@ class Function(Generic[VarNameKind]):
     def acyclic_preds_of(self, node_name: NodeName) -> Iterator[NodeName]:
         """ returns all the direct predecessors, removing the ones that would follow back edges """
         return (p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
+
+# @dataclass(frozen=True)
+# class DSAFunction(Function[DSAVarName]):
 
 
 def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
@@ -1415,3 +1423,172 @@ def dsa(func: Function[ProgVarName]) -> Function[DSAVarName]:
         loops=loops,
         name=func.name,
         nodes=s.dsa_nodes)
+
+
+class APInstructionAssume(NamedTuple):
+    expr: Expr[APVarName]
+
+
+class APInstructionProve(NamedTuple):
+    expr: Expr[APVarName]
+
+
+NodeOkName = NewType('NodeOkName', str)
+APInstruction = APInstructionAssume | APInstructionProve
+
+AssumeProveScript = Sequence[APInstructionAssume | APInstructionProve]
+
+type_bool = TypeBuiltin(Builtin.BOOL)
+
+
+def node_ok_name(n: NodeName) -> NodeOkName:
+    return NodeOkName(n + '_ok')
+
+
+def node_ok_ap_var(n: NodeName) -> ExprVar[APVarName]:
+    return ExprVar(type_bool, APVarName(node_ok_name(n)))
+
+
+def convert_dsa_var_to_ap_var(var: DSAVarName) -> APVarName:
+    return APVarName(f'{var.prog}:{var.inc}')
+
+
+def convert_expr_dsa_vars_to_ap(expr: Expr[DSAVarName]) -> Expr[APVarName]:
+    if isinstance(expr, ExprNum):
+        return expr
+    elif isinstance(expr, ExprVar):
+        return ExprVar(expr.typ, name=convert_dsa_var_to_ap_var(expr.name))
+    elif isinstance(expr, ExprOp):
+        return ExprOp(expr.typ, Operator(expr.operator), operands=tuple(
+            convert_expr_dsa_vars_to_ap(operand) for operand in expr.operands
+        ))
+    elif isinstance(expr, ExprType | ExprSymbol):
+        return expr
+    assert_never(expr)
+
+
+def ap_assume(var: DSAVar, expr: Expr[DSAVarName]) -> APInstruction:
+    """ Helper function to make things as readable as possible, we really don't want to get this wrong
+    """
+    lhs = ExprVar(var.typ, convert_dsa_var_to_ap_var(var.name))
+    rhs = convert_expr_dsa_vars_to_ap(expr)
+    eq = ExprOp(type_bool, Operator.EQUALS, (lhs, rhs))
+    return APInstructionAssume(eq)
+
+
+def ap_prove(expr: Expr[APVarName]) -> APInstruction:
+    return APInstructionProve(expr)
+
+
+def expr_negate(expr: Expr[VarNameKind]) -> Expr[VarNameKind]:
+    assert expr.typ == type_bool
+    return ExprOp(type_bool, Operator.NOT, (expr, ))
+
+
+def expr_or(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]:
+    assert lhs.typ == type_bool
+    assert rhs.typ == type_bool
+    return ExprOp(type_bool, Operator.OR, (lhs, rhs))
+
+
+def expr_implies(antecedent: Expr[VarNameKind], consequent: Expr[VarNameKind]) -> Expr[VarNameKind]:
+    assert antecedent.typ == type_bool
+    assert consequent.typ == type_bool
+    return ExprOp(type_bool, Operator.IMPLIES, (antecedent, consequent))
+
+
+def make_assume_prove_script_for_node(node: Node[DSAVarName]) -> AssumeProveScript:
+    # TODO: loop invariants
+
+    if isinstance(node, NodeBasic):
+        # BasicNode(upds, succ)
+        #     assume upd[i].lhs = upd[i].rhs    forall i
+        #     prove succ_ok
+        script = []
+        for upd in node.upds:
+            script.append(ap_assume(upd.var, upd.expr))
+        script.append(APInstructionProve(node_ok_ap_var(node.succ)))
+        return script
+    elif isinstance(node, NodeCond):
+        # CondNode(expr, succ_then, succ_else)
+        #     prove expr --> succ_then_ok
+        #     prove not expr --> succ_else_ok
+        cond = convert_expr_dsa_vars_to_ap(node.expr)
+        return [
+            ap_prove(expr_implies(cond, node_ok_ap_var(node.succ_then))),
+            ap_prove(expr_implies(expr_negate(cond),
+                                  node_ok_ap_var(node.succ_else)))
+        ]
+    elif isinstance(node, NodeCall):
+        # CallNode(func, args, rets, succ):
+        #     prove func.pre(args)
+        #     assume func.post(args, rets)
+        #     prove succ_ok
+
+        # TODO: pre and post condition
+        return [ap_prove(node_ok_ap_var(node.succ))]
+    elif isinstance(node, NodeEmpty):
+        return [ap_prove(node_ok_ap_var(node.succ))]
+
+    assert_never(node)
+
+
+class AssumeProveProg(NamedTuple):
+    all_vars: Mapping[APVarName, Type]
+    nodes_script: Mapping[NodeOkName, AssumeProveScript]
+
+
+def make_assume_prove_prog(func: Function[DSAVarName]) -> AssumeProveProg:
+    # don't need to keep DSA artifcats because we don't have pre conditions,
+    # post conditions or loop invariants
+
+    # NOTE: lots of room to eliminate SMT variable here
+    #       a lot of blocks are just 'prove succ'
+
+    all_vars: dict[APVarName, Type] = {}
+    nodes_script: dict[NodeOkName, AssumeProveScript] = {
+        node_ok_name(NodeNameErr): [APInstructionProve(ExprOp(type_bool, Operator.FALSE, ()))],
+        # we don't have a post condition yet
+        node_ok_name(NodeNameRet): [APInstructionProve(ExprOp(type_bool, Operator.TRUE, ()))],
+    }
+
+    # traverse topologically to make the pretty printer nicer to read
+    for n in traverse_func_topologically(func):
+        if n in (NodeNameErr, NodeNameRet):
+            continue
+
+        nodes_script[node_ok_name(n)] = make_assume_prove_script_for_node(
+            func.nodes[n])
+        for var in assigned_variables_in_node(func, n):
+            ap_var_name = convert_dsa_var_to_ap_var(var.name)
+            if ap_var_name in all_vars:
+                assert var.typ == all_vars[ap_var_name]
+            else:
+                all_vars[ap_var_name] = var.typ
+
+    for script in nodes_script.values():
+        assert all(ins.expr.typ == type_bool for ins in script)
+
+    return AssumeProveProg(all_vars=all_vars, nodes_script=nodes_script)
+
+
+def ap_pretty_instruction_ascii(ins: APInstruction) -> str:
+    if isinstance(ins, APInstructionAssume):
+        return f"assume {pretty_expr_ascii(ins.expr)}"
+    elif isinstance(ins, APInstructionProve):
+        return f"prove {pretty_expr_ascii(ins.expr)}"
+    assert_never(ins)
+
+
+def ap_pretty_print_prog(prog: AssumeProveProg) -> None:
+    print(f'X_ok:', type_bool)
+    for var, typ in prog.all_vars.items():
+        print(f'{var}: {typ}')
+
+    for n in prog.nodes_script:
+        print(f'{n}: '.ljust(10), end='')
+        prefix = ' ' * 10
+        for i, instruction in enumerate(prog.nodes_script[n]):
+            if i > 0:
+                print(prefix, end='')
+            print(ap_pretty_instruction_ascii(instruction))

@@ -364,4 +364,7 @@ if __name__ == "__main__":
 
     # viz_raw_function(functions[function_name])
     # viz_function(ubc.convert_function(functions[function_name]))
-    viz_function(ubc.dsa(ubc.convert_function(functions[function_name])))
+    func = ubc.convert_function(functions[function_name])
+    dsa_func = ubc.dsa(func)
+    viz_function(dsa_func)
+    ubc.ap_pretty_print_prog(ubc.make_assume_prove_prog(dsa_func))
