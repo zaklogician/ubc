@@ -829,7 +829,7 @@ class Function:
         self.inputs = inputs  # type: List[Tuple[str, Type]]
         self.outputs = outputs  # type: List[Tuple[str, Type]]
         self.entry = None  # type: Optional[str]
-        self.nodes = {}  # type: Dict[str, Node]
+        self.nodes = {}  # type: Dict[int | str, Node]
 
     def __hash__(self):
         en = self.entry

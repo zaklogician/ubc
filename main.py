@@ -5,7 +5,11 @@ import os
 from dot_graph import viz_function
 
 import syntax
-import ubc
+import source
+import abc_cfg
+import solver
+import dsa
+import assume_prove
 
 syntax.set_arch('rv64')
 
@@ -17,8 +21,8 @@ def assert_all_kernel_functions_are_reducible():
         for unsafe_func in functions.values():
             if not unsafe_func.entry:
                 continue
-            func = ubc.convert_function(unsafe_func)
-            assert ubc.cfg_is_reducible(func.cfg)
+            func = source.convert_function(unsafe_func)
+            assert abc_cfg.is_reducible(func.cfg)
     print("[check] all kernel functions with an entry are reducible")
 
 
@@ -29,17 +33,17 @@ def view_dsa_example():
         for func in functions.values():
             if func.entry is None:
                 continue
-            ubc.dsa(ubc.convert_function(func))
-        # func = ubc.convert_function(functions['tmp.' + sys.argv[1]])
+            dsa.dsa(source.convert_function(func))
+        # func = convert_function(functions['tmp.' + sys.argv[1]])
         # viz_function(func)
-        # func = ubc.dsa(func)
+        # func = dsa(func)
         # viz_function(func)
 
 
-def same_var_diff_type(func: ubc.Function[ubc.ProgVarName]):
-    vars: dict[str, set[ubc.ProgVarName]] = {}
+def same_var_diff_type(func: source.Function[source.ProgVarName]):
+    vars: dict[str, set[source.ProgVarName]] = {}
     for n in func.nodes:
-        for var in ubc.used_variables_in_node(func.nodes[n]).union(ubc.assigned_variables_in_node(func, n)):
+        for var in source.used_variables_in_node(func.nodes[n]).union(source.assigned_variables_in_node(func, n)):
             if '__' in var.name:
                 real_name, type_info = var.name.split('__', maxsplit=1)
 
@@ -58,6 +62,9 @@ def same_var_diff_type(func: ubc.Function[ubc.ProgVarName]):
 with open('examples/kernel_CFunctions.txt') as f:
     kernel_stuff = syntax.parse_and_install_all(
         f, None)
+with open('examples/dsa.txt') as f:
+    dsa_stuff = syntax.parse_and_install_all(
+        f, None)
 
 
 def check_all_kernel():
@@ -65,8 +72,8 @@ def check_all_kernel():
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
 
-        # f = ubc.convert_function(functions['Kernel_C.Arch_activateIdleThread'])
-        # result = ubc.dsa(f)
+        # f = convert_function(functions['Kernel_C.Arch_activateIdleThread'])
+        # result = dsa(f)
         # viz_function(f)
         # viz_function(result)
         # return
@@ -75,20 +82,20 @@ def check_all_kernel():
             if not unsafe_func.entry:
                 continue
 
-            func = ubc.convert_function(unsafe_func)
+            func = source.convert_function(unsafe_func)
             same_var_diff_type(func)
-            dsa_func = ubc.dsa(func)
-            ap_prog = ubc.make_assume_prove_prog(dsa_func)
+            dsa_func = dsa.dsa(func)
+            ap_prog = assume_prove.make_assume_prove_prog(dsa_func)
 
-            # func = ubc.convert_function(functions[func])
+            # func = convert_function(functions[func])
             # try:
-            #     func_dsa = ubc.dsa(func)
+            #     func_dsa = dsa(func)
             # except Exception as e:
             #     print(len(func.nodes), func.name, repr(e))
             # print('ok', func.name)
 
         # viz_function(func)
-        # func = ubc.dsa(func)
+        # func = dsa(func)
         # viz_function(func)
 
 
@@ -96,9 +103,9 @@ def view_function(filename: str, function_name: str):
     with open(filename) as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
-        func = ubc.convert_function(
+        func = source.convert_function(
             functions[function_name])
-        dsa_func = ubc.dsa(func)
+        dsa_func = dsa.dsa(func)
         # viz_function(func)
         viz_function(dsa_func)
 
@@ -106,9 +113,12 @@ def view_function(filename: str, function_name: str):
 if __name__ == "__main__":
     # view_dsa_example()
     # check_all_kernel()
-    func = kernel_stuff[1]['tmp.simple_for_loop']
-    prog = ubc.make_assume_prove_prog(ubc.dsa(ubc.convert_function(func)))
-    ubc.ap_pretty_print_prog(prog)
+    func = dsa_stuff[1]['tmp.simple_for_loop']
+    dsa_func = dsa.dsa(source.convert_function(func))
+    viz_function(dsa_func)
+    p = assume_prove.make_assume_prove_prog(dsa_func)
+    assume_prove.ap_pretty_print_prog(p)
+    print(solver.check_assume_prove_prog(p))
 
     # assert_all_kernel_functions_are_reducible()
     # view_function('examples/dsa.txt', 'tmp.simple_for_loop')
@@ -130,6 +140,6 @@ if __name__ == "__main__":
     #         f, None)
     #     for func in functions.values():
     #         print("function:", func.name)
-    #         funcp = ubc.convert_function(func)
+    #         funcp = convert_function(func)
     #         for loop_header, loop_data in funcp.loops.items():
     #             print('  ', loop_header, loop_data)

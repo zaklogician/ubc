@@ -1,20 +1,19 @@
 """ standalone file to visualize graph lang
 """
 
-import typing
+from assume_prove import ap_pretty_print_prog, make_assume_prove_prog
+from dsa import dsa
 import logic
 from collections.abc import Callable
 from io import IOBase
-from re import split
 import subprocess
-from typing import Any, Iterator, Tuple
+from typing import Iterator, Tuple
 import tempfile
 
 import sys
 import os
 from typing import TypeVar, Mapping
-import ubc
-import copy
+from source import Expr, ExprNum, ExprOp, ExprVar, Function, NodeBasic, NodeCall, NodeCond, NodeEmpty, Operator, Update, convert_function
 
 import syntax
 from typing_extensions import assert_never
@@ -54,8 +53,8 @@ def fix_func_name(name):
     return name
 
 
-def split_conjuncts(expr: ubc.Expr) -> Iterator[ubc.Expr]:
-    if isinstance(expr, ubc.ExprOp) and expr.operator == ubc.Operator.AND:
+def split_conjuncts(expr: Expr) -> Iterator[Expr]:
+    if isinstance(expr, ExprOp) and expr.operator == Operator.AND:
         yield from split_conjuncts(expr.operands[0])
         yield from split_conjuncts(expr.operands[1])
     else:
@@ -108,21 +107,21 @@ def pretty_expr(expr, print_type=False):
         return str(expr)
 
 
-def pretty_safe_expr(expr: ubc.Expr, print_type=False):
+def pretty_safe_expr(expr: Expr, print_type=False):
     if print_type:
         return "{}:{}".format(pretty_safe_expr(expr), syntax.pretty_type(expr.typ))
-    elif isinstance(expr, ubc.ExprVar):
+    elif isinstance(expr, ExprVar):
         return pretty_name(expr.name)
-    elif isinstance(expr, ubc.ExprNum):
+    elif isinstance(expr, ExprNum):
         return str(expr.num)
-    elif isinstance(expr, ubc.ExprOp) and expr.operator.value in pretty_opers:
+    elif isinstance(expr, ExprOp) and expr.operator.value in pretty_opers:
         [x, y] = expr.operands
         return "({} {} {})".format(
             pretty_safe_expr(x, print_type),
             pretty_opers[expr.operator.value],
             pretty_safe_expr(y, print_type),
         )
-    elif isinstance(expr, ubc.ExprOp):
+    elif isinstance(expr, ExprOp):
         if expr.operator.value in known_typ_change:
             vals = [pretty_safe_expr(v) for v in expr.operands]
         else:
@@ -142,7 +141,7 @@ def pretty_updates(update):
     return "{} := {}".format(pretty_name(name), pretty_expr(expr))
 
 
-def pretty_safe_update(upd: ubc.Update) -> str:
+def pretty_safe_update(upd: Update) -> str:
     return "{} := {}".format(pretty_name(upd.var.name), pretty_safe_expr(upd.expr))
 
 
@@ -160,7 +159,7 @@ def viz(t: Callable[[IOBase, P], R]) -> Callable[[P], R]:
 
 
 @viz
-def viz_function(file: IOBase, fun: ubc.Function):
+def viz_function(file: IOBase, fun: Function):
     puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
     putsf = lambda fmt, * \
         args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
@@ -175,10 +174,10 @@ def viz_function(file: IOBase, fun: ubc.Function):
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
     for idx, node in fun.nodes.items():
-        if isinstance(node, ubc.NodeBasic | ubc.NodeCall | ubc.NodeEmpty):
+        if isinstance(node, NodeBasic | NodeCall | NodeEmpty):
             puts(
                 f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
-        elif isinstance(node, ubc.NodeCond):
+        elif isinstance(node, NodeCond):
             puts(
                 f"  {idx} -> {node.succ_then} [label=T] {dom if (idx, node.succ_then) in fun.cfg.back_edges else non_dom}")
             if node.succ_else != "Err":
@@ -187,10 +186,10 @@ def viz_function(file: IOBase, fun: ubc.Function):
         else:
             assert_never(node)
 
-        if isinstance(node, ubc.NodeBasic):
+        if isinstance(node, NodeBasic):
             content = '<BR/>'.join(pretty_safe_update(upd)
                                    for upd in node.upds)
-        elif isinstance(node, ubc.NodeCall):
+        elif isinstance(node, NodeCall):
             # TODO: node.rets[0] might be empty
             content = ''
             if len(node.rets):
@@ -203,7 +202,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
                     # if arg.typ.kind != "Builtin" and arg.name != "GhostAssertions"
                 ),
             )
-        elif isinstance(node, ubc.NodeCond):
+        elif isinstance(node, NodeCond):
 
             if node.succ_else == "Err":
                 operands = list(split_conjuncts(node.expr))
@@ -212,7 +211,7 @@ def viz_function(file: IOBase, fun: ubc.Function):
                     content += "<BR/><b>and</b> " + pretty_safe_expr(operand)
             else:
                 content = pretty_safe_expr(node.expr)
-        elif isinstance(node, ubc.NodeEmpty):
+        elif isinstance(node, NodeEmpty):
             content = ''
         else:
             assert_never(node)
@@ -363,8 +362,8 @@ if __name__ == "__main__":
         exit(2)
 
     # viz_raw_function(functions[function_name])
-    # viz_function(ubc.convert_function(functions[function_name]))
-    func = ubc.convert_function(functions[function_name])
-    dsa_func = ubc.dsa(func)
+    # viz_function(convert_function(functions[function_name]))
+    func = convert_function(functions[function_name])
+    dsa_func = dsa(func)
     viz_function(dsa_func)
-    ubc.ap_pretty_print_prog(ubc.make_assume_prove_prog(dsa_func))
+    ap_pretty_print_prog(make_assume_prove_prog(dsa_func))
