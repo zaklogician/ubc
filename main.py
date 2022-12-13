@@ -1,4 +1,5 @@
-from typing import Tuple, Any, Dict
+from enum import Enum
+from typing import Collection, Sequence, Tuple, Any, Dict
 
 import sys
 import os
@@ -7,7 +8,7 @@ from dot_graph import viz_function
 import syntax
 import source
 import abc_cfg
-import solver
+import smt
 import dsa
 import assume_prove
 
@@ -24,20 +25,6 @@ def assert_all_kernel_functions_are_reducible():
             func = source.convert_function(unsafe_func)
             assert abc_cfg.is_reducible(func.cfg)
     print("[check] all kernel functions with an entry are reducible")
-
-
-def view_dsa_example():
-    with open('examples/dsa.txt') as f:
-        structs, functions, const_globals = syntax.parse_and_install_all(
-            f, None)
-        for func in functions.values():
-            if func.entry is None:
-                continue
-            dsa.dsa(source.convert_function(func))
-        # func = convert_function(functions['tmp.' + sys.argv[1]])
-        # viz_function(func)
-        # func = dsa(func)
-        # viz_function(func)
 
 
 def same_var_diff_type(func: source.Function[source.ProgVarName]):
@@ -59,87 +46,127 @@ def same_var_diff_type(func: source.Function[source.ProgVarName]):
         print(f"diffs: {func.name} {diff}")
 
 
-with open('examples/kernel_CFunctions.txt') as f:
-    kernel_stuff = syntax.parse_and_install_all(
-        f, None)
-with open('examples/dsa.txt') as f:
-    dsa_stuff = syntax.parse_and_install_all(
-        f, None)
+class CmdlineOption(Enum):
+    SHOW_GRAPH = '--show-graph'
+    """ Show the graph lang """
+    SHOW_DSA = '--show-dsa'
+    """ Show the graph after having applied dynamic single assignment """
+    SHOW_AP = '--show-ap'
+    """ Show the assume prove prog """
+    SHOW_SMT = '--show-smt'
+    """ Show the SMT given to the solvers """
+    SHOW_SATS = '--show-sats'
+    """ Show the raw results from the smt solvers (sat/unsat) """
 
 
-def check_all_kernel():
-    with open('examples/kernel_CFunctions.txt') as f:
-        structs, functions, const_globals = syntax.parse_and_install_all(
-            f, None)
+def find_functions_by_name(function_names: Collection[str], target: str) -> str:
+    if target in function_names:
+        return target
 
-        # f = convert_function(functions['Kernel_C.Arch_activateIdleThread'])
-        # result = dsa(f)
-        # viz_function(f)
-        # viz_function(result)
-        # return
+    for option in function_names:
+        if option.endswith(target) and len(option) > len(target) and option[-len(target)-1] == '.':
+            return option
 
-        for unsafe_func in functions.values():
-            if not unsafe_func.entry:
-                continue
-
-            func = source.convert_function(unsafe_func)
-            same_var_diff_type(func)
-            dsa_func = dsa.dsa(func)
-            ap_prog = assume_prove.make_assume_prove_prog(dsa_func)
-
-            # func = convert_function(functions[func])
-            # try:
-            #     func_dsa = dsa(func)
-            # except Exception as e:
-            #     print(len(func.nodes), func.name, repr(e))
-            # print('ok', func.name)
-
-        # viz_function(func)
-        # func = dsa(func)
-        # viz_function(func)
+    selected: str | None = None
+    for option in function_names:
+        if target in option:
+            if selected is None:
+                selected = option
+            else:
+                print(
+                    f"{target} doesn't allow me to chose between {selected} and {option}")
+                print(f"Use a more specific name")
+                exit(1)
+    if selected is None:
+        print(f"{target} didn't match any function name")
+        print(f"The list of available functions is")
+        print('\n'.join(function_names))
+        exit(1)
+    return selected
 
 
-def view_function(filename: str, function_name: str):
-    with open(filename) as f:
-        structs, functions, const_globals = syntax.parse_and_install_all(
-            f, None)
-        func = source.convert_function(
-            functions[function_name])
-        dsa_func = dsa.dsa(func)
-        # viz_function(func)
-        viz_function(dsa_func)
+def run(filename: str, function_names: Collection[str], options: Collection[CmdlineOption]):
+    if filename.lower() == 'dsa':
+        filename = 'examples/dsa.txt'
+    elif filename.lower() == 'kernel':
+        filename = 'examples/Kernel_CFunctions.txt'
+
+    if os.path.isfile(filename):
+        with open(filename) as f:
+            stuff = syntax.parse_and_install_all(f, None)
+    else:
+        print(f"filename {filename} should be the path of a file")
+        exit(1)
+
+    if len(function_names) == 0:
+        print("list of functions in the file")
+        for func in stuff[1].values():
+            print(f'  {func.name} ({len(func.nodes)} nodes)')
+
+    _, functions, _ = stuff
+    for name in function_names:
+
+        unsafe_func = functions[find_functions_by_name(functions.keys(), name)]
+        prog_func = source.convert_function(unsafe_func)
+        dsa_func = dsa.dsa(prog_func)
+        prog = assume_prove.make_assume_prove_prog(dsa_func)
+        smtlib = smt.make_smtlib(prog)
+        sats = tuple(smt.send_smtlib_to_z3(smtlib))
+
+        if CmdlineOption.SHOW_GRAPH in options:
+            viz_function(prog_func)
+        if CmdlineOption.SHOW_DSA in options:
+            viz_function(dsa_func)
+        if CmdlineOption.SHOW_AP in options:
+            assume_prove.ap_pretty_print_prog(prog)
+        if CmdlineOption.SHOW_SMT in options:
+            print(smtlib)
+        if CmdlineOption.SHOW_SATS in options:
+            print(sats)
+
+        assert len(sats) == 1
+        if sats[0] == smt.CheckSatResult.SAT:
+            print("verification failed")
+        elif sats[0] == smt.CheckSatResult.UNSAT:
+            print("verification succeeded")
+
+
+def usage():
+    print('usage: python3 main.py [options] <graphfile.txt> function-names...')
+    print()
+    print('  --show-graph: Show the graph lang')
+    print('  --show-dsa: Show the graph after having applied dynamic single assignment')
+    print('  --show-ap: Show the assume prove prog')
+    print('  --show-smt: Show the SMT given to the solvers')
+    print('  --show-sats: Show the raw results from the smt solvers (sat/unsat)')
+    exit(0)
+
+
+def main() -> None:
+    if '--help' in sys.argv or '-h' in sys.argv or len(sys.argv) == 1:
+        usage()
+
+    options: list[CmdlineOption] = []
+    function_names: list[str] = []
+    for arg in sys.argv[1:]:
+        if arg in (opt.value for opt in CmdlineOption):
+            options.append(CmdlineOption(arg))
+        elif arg.startswith('-'):
+            print(f'err: unknown option {arg}')
+            print()
+            usage()
+        else:
+            function_names.append(arg)
+
+    if len(function_names) == 0:
+        print("err: you need to specify at least the graphfile")
+        print()
+        usage()
+
+    filename = function_names[0]
+    function_names = function_names[1:]
+    run(filename, function_names, options)
 
 
 if __name__ == "__main__":
-    # view_dsa_example()
-    # check_all_kernel()
-    func = dsa_stuff[1]['tmp.simple_for_loop']
-    dsa_func = dsa.dsa(source.convert_function(func))
-    viz_function(dsa_func)
-    p = assume_prove.make_assume_prove_prog(dsa_func)
-    assume_prove.ap_pretty_print_prog(p)
-    print(solver.check_assume_prove_prog(p))
-
-    # assert_all_kernel_functions_are_reducible()
-    # view_function('examples/dsa.txt', 'tmp.simple_for_loop')
-    # view_function('examples/dsa.txt', 'tmp.fail_arr_undefined_behaviour')
-    # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.isHighestPrio')
-    # view_function('examples/dsa.txt', 'tmp.shift_diag')
-    # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.create_untypeds')
-
-    # check_all_kernel()
-    # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.strncmp')
-
-    # view_function('examples/dsa.txt', 'tmp.simple_for_loop')
-    # view_function('examples/kernel_CFunctions.txt', 'Kernel_C.deriveCap')
-
-    # exit(0)
-
-    # with open('examples/for_loops.txt') as f:
-    #     structs, functions, const_globals = syntax.parse_and_install_all(
-    #         f, None)
-    #     for func in functions.values():
-    #         print("function:", func.name)
-    #         funcp = convert_function(func)
-    #         for loop_header, loop_data in funcp.loops.items():
-    #             print('  ', loop_header, loop_data)
+    main()

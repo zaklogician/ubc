@@ -67,6 +67,7 @@ trace_files = []
 
 
 def printout(s):
+    return
     print(s)
     sys.stdout.flush()
     for f in trace_files:
@@ -89,6 +90,7 @@ tracer = [default_tracer]
 
 
 def trace(s, push=0):
+    return
     print('trace %s' % str(s))
     tracer[0](str(s), push)
 

@@ -199,7 +199,11 @@ def cmd_assert_eq(name: assume_prove.APVarName, rhs: source.Expr[assume_prove.AP
     return CmdAssert(source.ExprOp(rhs.typ, source.Operator.EQUALS, (source.ExprVar(rhs.typ, name), rhs)))
 
 
-def emit_assume_prove_prog(p: assume_prove.AssumeProveProg) -> Sequence[Cmd]:
+def merge_smtlib(it: Iterator[SMTLIB]) -> SMTLIB:
+    return SMTLIB('\n'.join(it))
+
+
+def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     emited_identifiers: set[Identifier] = set()
     emited_variables: set[assume_prove.APVarName] = set()
 
@@ -232,7 +236,7 @@ def emit_assume_prove_prog(p: assume_prove.AssumeProveProg) -> Sequence[Cmd]:
         source.ExprVar(source.type_bool, p.entry))))
 
     cmds.append(CmdCheckSat())
-    return cmds
+    return merge_smtlib(emit_cmd(cmd) for cmd in cmds)
 
 
 class CheckSatResult(Enum):
@@ -240,19 +244,18 @@ class CheckSatResult(Enum):
     SAT = 'sat'
 
 
-def send_cmds(cmds: Sequence[Cmd]) -> Iterator[CheckSatResult]:
+def send_smtlib_to_z3(smtlib: SMTLIB) -> Iterator[CheckSatResult]:
     """ Send command to an smt solver and returns a boolean per (check-sat)
     """
-    smtlib = SMTLIB('\n'.join(emit_cmd(cmd) for cmd in cmds))
 
-    print("sending SMTLIB:")
-    for i, line in enumerate(emit_cmd(cmd) for cmd in cmds):
-        print(f'{str(i+1).rjust(int(math.log10(len(cmds)) + 1))} | {line}')
+    # print("sending SMTLIB:")
+    # for i, line in enumerate(emit_cmd(cmd) for cmd in cmds):
+    #     print(f'{str(i+1).rjust(int(math.log10(len(cmds)) + 1))} | {line}')
 
-    p = subprocess.Popen(["z3", "-version"])
-    err = p.wait()
-    if err:
-        raise ValueError("z3 not found")
+    # p = subprocess.Popen(["z3", "-version"])
+    # err = p.wait()
+    # if err:
+    #     raise ValueError("z3 not found")
 
     with open_temp_file(suffix='.smt2') as (f, fullpath):
         f.write(smtlib)
@@ -274,8 +277,3 @@ def send_cmds(cmds: Sequence[Cmd]) -> Iterator[CheckSatResult]:
     lines = p.stdout.read().splitlines()
     for ln in lines:
         yield CheckSatResult(ln.decode('utf-8'))
-
-
-def check_assume_prove_prog(p: assume_prove.AssumeProveProg) -> tuple[CheckSatResult, ...]:
-    cmds = emit_assume_prove_prog(p)
-    return tuple(send_cmds(cmds))
