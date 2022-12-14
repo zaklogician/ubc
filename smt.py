@@ -232,6 +232,7 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
         expr = assume_prove.apply_weakest_precondition(script)
         cmds.append(cmd_assert_eq(node_ok_name, expr))
 
+    cmds.append(CmdCheckSat())
     cmds.append(CmdAssert(source.expr_negate(
         source.ExprVar(source.type_bool, p.entry))))
 

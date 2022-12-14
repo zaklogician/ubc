@@ -124,11 +124,13 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_SATS in options:
             print(sats)
 
-        assert len(sats) == 1
-        if sats[0] == smt.CheckSatResult.SAT:
-            print("verification failed")
-        elif sats[0] == smt.CheckSatResult.UNSAT:
+        assert len(sats) == 2
+        if sats == (smt.CheckSatResult.SAT, smt.CheckSatResult.UNSAT):
             print("verification succeeded")
+        elif sats[0] == smt.CheckSatResult.UNSAT:
+            print("INTERNAL ERROR: smt is an inconsistent state")
+        elif sats[1] == smt.CheckSatResult.SAT:
+            print("verification failed (good luck figuring out why)")
 
 
 def usage():
