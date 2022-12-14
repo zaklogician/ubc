@@ -1,6 +1,6 @@
 from abc_cfg import compute_cfg_from_all_succs, is_reducible
-from source import NodeName, convert_function
 import syntax
+import source
 import pytest
 
 # global variables are bad :(
@@ -124,7 +124,7 @@ syntax.set_arch('rv64')
 ])
 def test_is_reducible(all_succs):
     assert is_reducible(compute_cfg_from_all_succs(
-        all_succs, NodeName("_start")))
+        all_succs, source.NodeName("_start")))
 
 
 @pytest.mark.parametrize("all_succs", [
@@ -196,7 +196,7 @@ def test_is_reducible(all_succs):
 ])
 def test_is_not_reducible(all_succs):
     assert not is_reducible(
-        compute_cfg_from_all_succs(all_succs, NodeName("_start")))
+        compute_cfg_from_all_succs(all_succs, source.NodeName("_start")))
 
 
 with open('examples/kernel_CFunctions.txt') as f:
@@ -206,7 +206,7 @@ with open('examples/kernel_CFunctions.txt') as f:
 @pytest.mark.parametrize('unsafe_func', (f for f in kernel_C[1].values() if f.entry is not None))
 def test_kernel_functions_all_reducible(unsafe_func):
     """ we haven't checked manually """
-    func = convert_function(unsafe_func)
+    func = source.convert_function(unsafe_func)
     assert is_reducible(func.cfg)
 
 

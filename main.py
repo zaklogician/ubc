@@ -109,7 +109,7 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         unsafe_func = functions[find_functions_by_name(functions.keys(), name)]
         prog_func = source.convert_function(unsafe_func)
         dsa_func = dsa.dsa(prog_func)
-        prog = assume_prove.make_assume_prove_prog(dsa_func)
+        prog = assume_prove.make_prog(dsa_func)
         smtlib = smt.make_smtlib(prog)
         sats = tuple(smt.send_smtlib_to_z3(smtlib))
 
@@ -118,7 +118,7 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_DSA in options:
             viz_function(dsa_func)
         if CmdlineOption.SHOW_AP in options:
-            assume_prove.ap_pretty_print_prog(prog)
+            assume_prove.pretty_print_prog(prog)
         if CmdlineOption.SHOW_SMT in options:
             print(smtlib)
         if CmdlineOption.SHOW_SATS in options:

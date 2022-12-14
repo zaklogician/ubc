@@ -52,7 +52,7 @@ RE_VALID_SMTLIB_SIMPLE_SYMBOL = re.compile(
 Identifier = NewType('Identifier', str)
 
 
-def identifier(illegal_name: assume_prove.APVarName) -> Identifier:
+def identifier(illegal_name: assume_prove.VarName) -> Identifier:
     # '#' are disallowed in SMT
     renamed = illegal_name.replace('#', '@')
     assert RE_VALID_SMTLIB_SIMPLE_SYMBOL.match(
@@ -83,7 +83,7 @@ def smt_bitvec_of_size(val: int, size: int) -> SMTLIB:
     return SMTLIB(f"(_ bv{val} {size})")
 
 
-def smt_extract(msb_idx: int, lsb_idx: int, expected_num_bits: int, lhs: source.Expr[assume_prove.APVarName]) -> SMTLIB:
+def smt_extract(msb_idx: int, lsb_idx: int, expected_num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
     """
     msb_idx: most significant bit index
     lsb_idx: least significant bit index
@@ -106,12 +106,12 @@ def smt_extract(msb_idx: int, lsb_idx: int, expected_num_bits: int, lhs: source.
     return SMTLIB(f"((_ extract {msb_idx} {lsb_idx}) {emit_expr(lhs)})")
 
 
-def smt_zero_extend(num_bits: int, lhs: source.Expr[assume_prove.APVarName]) -> SMTLIB:
+def smt_zero_extend(num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
     assert num_bits > 0
     return SMTLIB(f"((_ zero_extend {num_bits}) {emit_expr(lhs)})")
 
 
-def smt_sign_extend(num_bits: int, lhs: source.Expr[assume_prove.APVarName]) -> SMTLIB:
+def smt_sign_extend(num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
     assert num_bits > 0
     return SMTLIB(f"((_ sign_extend {num_bits}) {emit_expr(lhs)})")
 
@@ -128,7 +128,7 @@ def emit_num_with_correct_type(expr: source.ExprNum) -> SMTLIB:
     assert False, f"{expr} not supported"
 
 
-def emit_bitvec_cast(target_typ: source.TypeBitVec, operator: Literal[source.Operator.WORD_CAST, source.Operator.WORD_CAST_SIGNED], lhs: source.Expr[assume_prove.APVarName]) -> SMTLIB:
+def emit_bitvec_cast(target_typ: source.TypeBitVec, operator: Literal[source.Operator.WORD_CAST, source.Operator.WORD_CAST_SIGNED], lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
     assert isinstance(lhs.typ, source.TypeBitVec)
     if lhs.typ.size == target_typ.size:
         return emit_expr(lhs)
@@ -146,7 +146,7 @@ def emit_bitvec_cast(target_typ: source.TypeBitVec, operator: Literal[source.Ope
     assert_never(operator)
 
 
-def emit_expr(expr: source.Expr[assume_prove.APVarName]) -> SMTLIB:
+def emit_expr(expr: source.Expr[assume_prove.VarName]) -> SMTLIB:
     if isinstance(expr, source.ExprNum):
         return emit_num_with_correct_type(expr)
     elif isinstance(expr, source.ExprOp):
@@ -195,7 +195,7 @@ def emit_cmd(cmd: Cmd) -> SMTLIB:
     assert_never(cmd)
 
 
-def cmd_assert_eq(name: assume_prove.APVarName, rhs: source.Expr[assume_prove.APVarName]):
+def cmd_assert_eq(name: assume_prove.VarName, rhs: source.Expr[assume_prove.VarName]):
     return CmdAssert(source.ExprOp(rhs.typ, source.Operator.EQUALS, (source.ExprVar(rhs.typ, name), rhs)))
 
 
@@ -205,7 +205,7 @@ def merge_smtlib(it: Iterator[SMTLIB]) -> SMTLIB:
 
 def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     emited_identifiers: set[Identifier] = set()
-    emited_variables: set[assume_prove.APVarName] = set()
+    emited_variables: set[assume_prove.VarName] = set()
 
     # emit all auxilary variable declaration (declare-fun node_x_ok () Bool)
     cmds: list[Cmd] = []

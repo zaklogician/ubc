@@ -1,22 +1,21 @@
 """ standalone file to visualize graph lang
 """
 
-from assume_prove import ap_pretty_print_prog, make_assume_prove_prog
 from dsa import dsa
 import logic
 from collections.abc import Callable
 from io import IOBase
 import subprocess
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, TypeVar, Mapping
 import tempfile
 
 import sys
 import os
-from typing import TypeVar, Mapping
-from source import Expr, ExprNum, ExprOp, ExprVar, Function, NodeBasic, NodeCall, NodeCond, NodeEmpty, Operator, Update, convert_function
+import source
 
 import syntax
 from typing_extensions import assert_never
+import assume_prove
 
 
 def pretty_name(name: str | tuple[str, int]) -> str:
@@ -53,8 +52,8 @@ def fix_func_name(name):
     return name
 
 
-def split_conjuncts(expr: Expr) -> Iterator[Expr]:
-    if isinstance(expr, ExprOp) and expr.operator == Operator.AND:
+def split_conjuncts(expr: source.Expr) -> Iterator[source.Expr]:
+    if isinstance(expr, source.ExprOp) and expr.operator == source.Operator.AND:
         yield from split_conjuncts(expr.operands[0])
         yield from split_conjuncts(expr.operands[1])
     else:
@@ -77,8 +76,7 @@ known_typ_change = set(
     ["ROData", "MemAcc", "IfThenElse", "WordArrayUpdate", "MemDom"])
 
 
-def pretty_expr(expr, print_type=False):
-    # type: (syntax.Expr, bool) -> str
+def pretty_expr(expr: syntax.Expr, print_type=False) -> str:
     if print_type:
         return "{}:{}".format(pretty_expr(expr), syntax.pretty_type(expr.typ))
     elif expr.kind == "Var":
@@ -107,21 +105,21 @@ def pretty_expr(expr, print_type=False):
         return str(expr)
 
 
-def pretty_safe_expr(expr: Expr, print_type=False):
+def pretty_safe_expr(expr: source.Expr, print_type=False):
     if print_type:
         return "{}:{}".format(pretty_safe_expr(expr), syntax.pretty_type(expr.typ))
-    elif isinstance(expr, ExprVar):
+    elif isinstance(expr, source.ExprVar):
         return pretty_name(expr.name)
-    elif isinstance(expr, ExprNum):
+    elif isinstance(expr, source.ExprNum):
         return str(expr.num)
-    elif isinstance(expr, ExprOp) and expr.operator.value in pretty_opers:
+    elif isinstance(expr, source.ExprOp) and expr.operator.value in pretty_opers:
         [x, y] = expr.operands
         return "({} {} {})".format(
             pretty_safe_expr(x, print_type),
             pretty_opers[expr.operator.value],
             pretty_safe_expr(y, print_type),
         )
-    elif isinstance(expr, ExprOp):
+    elif isinstance(expr, source.ExprOp):
         if expr.operator.value in known_typ_change:
             vals = [pretty_safe_expr(v) for v in expr.operands]
         else:
@@ -135,13 +133,12 @@ def pretty_safe_expr(expr: Expr, print_type=False):
         return str(expr).replace('<', '&lt;').replace('>', '&gt;')
 
 
-def pretty_updates(update):
-    # type: (Tuple[Tuple[str, syntax.Type], syntax.Expr]) -> str
+def pretty_updates(update: tuple[tuple[str, syntax.Type], syntax.Expr]) -> str:
     (name, typ), expr = update
     return "{} := {}".format(pretty_name(name), pretty_expr(expr))
 
 
-def pretty_safe_update(upd: Update) -> str:
+def pretty_safe_update(upd: source.Update) -> str:
     return "{} := {}".format(pretty_name(upd.var.name), pretty_safe_expr(upd.expr))
 
 
@@ -159,7 +156,7 @@ def viz(t: Callable[[IOBase, P], R]) -> Callable[[P], R]:
 
 
 @viz
-def viz_function(file: IOBase, fun: Function):
+def viz_function(file: IOBase, fun: source.Function):
     puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
     putsf = lambda fmt, * \
         args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
@@ -174,10 +171,10 @@ def viz_function(file: IOBase, fun: Function):
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
     for idx, node in fun.nodes.items():
-        if isinstance(node, NodeBasic | NodeCall | NodeEmpty):
+        if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty):
             puts(
                 f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
-        elif isinstance(node, NodeCond):
+        elif isinstance(node, source.NodeCond):
             puts(
                 f"  {idx} -> {node.succ_then} [label=T] {dom if (idx, node.succ_then) in fun.cfg.back_edges else non_dom}")
             if node.succ_else != "Err":
@@ -186,10 +183,10 @@ def viz_function(file: IOBase, fun: Function):
         else:
             assert_never(node)
 
-        if isinstance(node, NodeBasic):
+        if isinstance(node, source.NodeBasic):
             content = '<BR/>'.join(pretty_safe_update(upd)
                                    for upd in node.upds)
-        elif isinstance(node, NodeCall):
+        elif isinstance(node, source.NodeCall):
             # TODO: node.rets[0] might be empty
             content = ''
             if len(node.rets):
@@ -202,7 +199,7 @@ def viz_function(file: IOBase, fun: Function):
                     # if arg.typ.kind != "Builtin" and arg.name != "GhostAssertions"
                 ),
             )
-        elif isinstance(node, NodeCond):
+        elif isinstance(node, source.NodeCond):
 
             if node.succ_else == "Err":
                 operands = list(split_conjuncts(node.expr))
@@ -211,7 +208,7 @@ def viz_function(file: IOBase, fun: Function):
                     content += "<BR/><b>and</b> " + pretty_safe_expr(operand)
             else:
                 content = pretty_safe_expr(node.expr)
-        elif isinstance(node, NodeEmpty):
+        elif isinstance(node, source.NodeEmpty):
             content = ''
         else:
             assert_never(node)
@@ -362,8 +359,8 @@ if __name__ == "__main__":
         exit(2)
 
     # viz_raw_function(functions[function_name])
-    # viz_function(convert_function(functions[function_name]))
-    func = convert_function(functions[function_name])
+    # viz_function(source.convert_function(functions[function_name]))
+    func = source.convert_function(functions[function_name])
     dsa_func = dsa(func)
     viz_function(dsa_func)
-    ap_pretty_print_prog(make_assume_prove_prog(dsa_func))
+    assume_prove.pretty_print_prog(assume_prove.make_prog(dsa_func))

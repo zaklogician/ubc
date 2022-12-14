@@ -90,6 +90,27 @@ class TypeWordArray:
 
 Type = TypeStruct | TypeBitVec | TypePtr | TypeArray | TypeFloatingPoint | TypeBuiltin | TypeWordArray
 
+
+def pretty_type_ascii(typ: Type):
+    if isinstance(typ, TypeBitVec):
+        return f'BitVec{typ.size}'
+    elif isinstance(typ, TypeBuiltin):
+        return typ.builtin.value
+    elif isinstance(typ, TypeStruct):
+        return str(typ)
+    elif isinstance(typ, TypePtr):
+        return str(typ)
+    elif isinstance(typ, TypeArray):
+        return str(typ)
+    elif isinstance(typ, TypeFloatingPoint):
+        return str(typ)
+    elif isinstance(typ, TypeBuiltin):
+        return str(typ)
+    elif isinstance(typ, TypeWordArray):
+        return str(typ)
+    assert_never(typ)
+
+
 type_bool = TypeBuiltin(Builtin.BOOL)
 type_word8 = TypeBitVec(8)
 type_word32 = TypeBitVec(32)
@@ -336,6 +357,7 @@ def pretty_expr_ascii(expr: Expr) -> str:
             return f'({cond} ? {then} : {otherwise})'
         else:
             return f'{expr.operator.value}({", ".join(pretty_expr_ascii(operand) for operand in expr.operands)})'
+    assert_never(expr)
 
 
 def convert_expr(expr: syntax.Expr) -> Expr[ProgVarName]:
