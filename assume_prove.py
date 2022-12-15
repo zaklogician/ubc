@@ -78,7 +78,7 @@ def make_assume_prove_script_for_node(node: source.Node[dsa.VarName]) -> Script:
         # BasicNode(upds, succ)
         #     assume upd[i].lhs = upd[i].rhs    forall i
         #     prove succ_ok
-        script = []
+        script: list[Instruction] = []
         for upd in node.upds:
             script.append(make_assume(upd.var, upd.expr))
         script.append(InstructionProve(node_ok_ap_var(node.succ)))

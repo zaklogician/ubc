@@ -116,7 +116,7 @@ def smt_sign_extend(num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SM
     return SMTLIB(f"((_ sign_extend {num_bits}) {emit_expr(lhs)})")
 
 
-def emit_num_with_correct_type(expr: source.ExprNum[assume_prove.VarName]) -> SMTLIB:
+def emit_num_with_correct_type(expr: source.ExprNum) -> SMTLIB:
     if isinstance(expr.typ, source.TypeBitVec):
         assert - \
             2 ** expr.typ.size <= expr.num < 2 ** expr.typ.size, f"{expr.num=} doesn't fit in the type {expr.typ=}"

@@ -154,19 +154,19 @@ class ExprVar(ABCExpr[VarNameKind]):
 
 
 @dataclass(frozen=True)
-class ExprNum(ABCExpr[VarNameKind]):
+class ExprNum(ABCExpr[Any]):
     num: int
 
 
 @dataclass(frozen=True)
-class ExprType(ABCExpr[VarNameKind]):
+class ExprType(ABCExpr[Any]):
     """ should have typ builtin.Type
     """
     val: Type
 
 
 @dataclass(frozen=True)
-class ExprSymbol(ABCExpr[VarNameKind]):
+class ExprSymbol(ABCExpr[Any]):
     name: str
 
 
@@ -305,7 +305,7 @@ class ExprOp(ABCExpr[VarNameKind]):
     operands: Sequence[Expr[VarNameKind]]
 
 
-Expr = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprSymbol
+Expr: TypeAlias = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprSymbol
 ProgVar: TypeAlias = ExprVar[ProgVarName]
 
 expr_true: Expr[Any] = ExprOp(type_bool, Operator.TRUE, ())
@@ -317,6 +317,7 @@ def visit_expr(expr: Expr[VarNameKind], visitor: Callable[[Expr[VarNameKind]], N
     if isinstance(expr, ExprOp):
         for operand in expr.operands:
             visit_expr(operand, visitor)
+    # elif not isinstance(expr, ExprVar | ExprNum | ExprType | ExprSymbol):
     elif not isinstance(expr, ExprVar | ExprNum | ExprType | ExprSymbol):
         assert_never(expr)
 
