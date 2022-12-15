@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Callable, Collection, Generic, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, TypeVar
+from typing import Any, Callable, Collection, Generic, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, TypeVar
 from typing_extensions import assert_never
 
 import syntax
@@ -91,7 +91,7 @@ class TypeWordArray:
 Type = TypeStruct | TypeBitVec | TypePtr | TypeArray | TypeFloatingPoint | TypeBuiltin | TypeWordArray
 
 
-def pretty_type_ascii(typ: Type):
+def pretty_type_ascii(typ: Type) -> str:
     if isinstance(typ, TypeBitVec):
         return f'BitVec{typ.size}'
     elif isinstance(typ, TypeBuiltin):
@@ -154,19 +154,19 @@ class ExprVar(ABCExpr[VarNameKind]):
 
 
 @dataclass(frozen=True)
-class ExprNum(ABCExpr):
+class ExprNum(ABCExpr[VarNameKind]):
     num: int
 
 
 @dataclass(frozen=True)
-class ExprType(ABCExpr):
+class ExprType(ABCExpr[VarNameKind]):
     """ should have typ builtin.Type
     """
     val: Type
 
 
 @dataclass(frozen=True)
-class ExprSymbol(ABCExpr):
+class ExprSymbol(ABCExpr[VarNameKind]):
     name: str
 
 
@@ -308,11 +308,11 @@ class ExprOp(ABCExpr[VarNameKind]):
 Expr = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprSymbol
 ProgVar: TypeAlias = ExprVar[ProgVarName]
 
-expr_true: Expr = ExprOp(type_bool, Operator.TRUE, ())
-expr_false: Expr = ExprOp(type_bool, Operator.FALSE, ())
+expr_true: Expr[Any] = ExprOp(type_bool, Operator.TRUE, ())
+expr_false: Expr[Any] = ExprOp(type_bool, Operator.FALSE, ())
 
 
-def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
+def visit_expr(expr: Expr[VarNameKind], visitor: Callable[[Expr[VarNameKind]], None]) -> None:
     visitor(expr)
     if isinstance(expr, ExprOp):
         for operand in expr.operands:
@@ -321,7 +321,7 @@ def visit_expr(expr: Expr, visitor: Callable[[Expr], None]):
         assert_never(expr)
 
 
-def expr_where_vars_are_used_in_node(node: Node, selection: Set[ExprVar[VarNameKind]]) -> Iterator[tuple[ExprVar[VarNameKind], Expr[VarNameKind]]]:
+def expr_where_vars_are_used_in_node(node: Node[VarNameKind], selection: Set[ExprVar[VarNameKind]]) -> Iterator[tuple[ExprVar[VarNameKind], Expr[VarNameKind]]]:
     if isinstance(node, NodeBasic):
         for upd in node.upds:
             for var in selection & all_vars_in_expr(upd.expr):
@@ -337,7 +337,7 @@ def expr_where_vars_are_used_in_node(node: Node, selection: Set[ExprVar[VarNameK
         assert_never(node)
 
 
-def pretty_expr_ascii(expr: Expr) -> str:
+def pretty_expr_ascii(expr: Expr[VarNameKind]) -> str:
     if isinstance(expr, ExprNum):
         return str(expr.num)
     elif isinstance(expr, ExprSymbol):
@@ -345,7 +345,14 @@ def pretty_expr_ascii(expr: Expr) -> str:
     elif isinstance(expr, ExprType):
         return str(expr.val)
     elif isinstance(expr, ExprVar):
-        return expr.name
+        if isinstance(expr.name, str):
+            return expr.name
+        if isinstance(expr.name, tuple):
+            assert len(expr.name) == 2
+            assert isinstance(expr.name[0], str)
+            assert isinstance(expr.name[1], int)
+            return f'{expr.name[0]}:{expr.name[1]}'
+        assert False, f'{expr}'
     elif isinstance(expr, ExprOp):
         if expr.operator in pretty_binary_operators_ascii:
             assert len(expr.operands) == 2
@@ -378,7 +385,7 @@ def convert_expr(expr: syntax.Expr) -> Expr[ProgVarName]:
 def all_vars_in_expr(expr: Expr[VarNameKind]) -> set[ExprVar[VarNameKind]]:
     s: set[ExprVar[VarNameKind]] = set()
 
-    def visitor(expr: Expr):
+    def visitor(expr: Expr[VarNameKind]) -> None:
         if isinstance(expr, ExprVar):
             s.add(ExprVar(expr.typ, expr.name))
     visit_expr(expr, visitor)
@@ -516,7 +523,7 @@ class Function(Generic[VarNameKind]):
         """ returns all the direct predecessors, removing the ones that would follow back edges """
         return (p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
 
-    def traverse_topologically_bottom_up(self: Function) -> Iterator[NodeName]:
+    def traverse_topologically_bottom_up(self: Function[VarNameKind]) -> Iterator[NodeName]:
         q: list[NodeName] = [n for n, succs in self.cfg.all_succs.items() if len(
             [succ for succ in succs if (n, succ) not in self.cfg.back_edges]) == 0]
         visited: set[NodeName] = set()
@@ -603,7 +610,7 @@ def convert_function_nodes(nodes: Mapping[str | int, syntax.Node]) -> Mapping[No
             if len(node.upds) == 0:
                 safe_nodes[name] = NodeEmpty(succ=NodeName(str(node.cont)))
             else:
-                upds: list[Update] = []
+                upds: list[Update[ProgVarName]] = []
                 for var, expr in node.upds:
                     upds.append(Update(
                         var=ExprVar[ProgVarName](
@@ -626,7 +633,7 @@ def convert_function_nodes(nodes: Mapping[str | int, syntax.Node]) -> Mapping[No
     return safe_nodes
 
 
-def convert_function(func: syntax.Function):
+def convert_function(func: syntax.Function) -> Function[ProgVarName]:
     safe_nodes = convert_function_nodes(func.nodes)
     all_succs = abc_cfg.compute_all_successors_from_nodes(safe_nodes)
     assert func.entry is not None

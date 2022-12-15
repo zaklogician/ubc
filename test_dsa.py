@@ -1,5 +1,5 @@
 import pytest
-from typing import Collection, Iterable, Iterator, Mapping, Sequence, Set
+from typing import Collection, Iterable, Iterator, Mapping, Sequence, Set, cast
 from typing_extensions import assert_never
 import abc_cfg
 import dsa
@@ -24,7 +24,7 @@ def compute_all_path(cfg: abc_cfg.CFG) -> Sequence[Sequence[source.NodeName]]:
     # start exploring tree all the way from the left
     all_paths: list[list[source.NodeName]] = []
 
-    def dfs(n: source.NodeName):
+    def dfs(n: source.NodeName) -> None:
         all_paths[-1].append(n)
 
         succs = cfg.all_succs[n]
@@ -49,7 +49,7 @@ def compute_all_path(cfg: abc_cfg.CFG) -> Sequence[Sequence[source.NodeName]]:
     return all_paths
 
 
-def ensure_assigned_at_most_once(func: source.Function[dsa.VarName], path: Collection[source.NodeName]):
+def ensure_assigned_at_most_once(func: source.Function[dsa.VarName], path: Collection[source.NodeName]) -> None:
     assigned_variables: list[dsa.Var] = []
     for node in path:
         assigned_variables.extend(
@@ -57,7 +57,7 @@ def ensure_assigned_at_most_once(func: source.Function[dsa.VarName], path: Colle
     assert len(assigned_variables) == len(set(assigned_variables))
 
 
-def ensure_using_latest_incarnation(func: source.Function[dsa.VarName], path: Collection[source.NodeName]):
+def ensure_using_latest_incarnation(func: source.Function[dsa.VarName], path: Collection[source.NodeName]) -> None:
     latest_assignment: dict[source.ProgVar, dsa.IncarnationNum] = {}
     for arg in func.arguments:
         prog_var, inc = dsa.unpack_dsa_var(arg)
@@ -88,18 +88,18 @@ def ensure_using_latest_incarnation(func: source.Function[dsa.VarName], path: Co
             latest_assignment[prog_var] = inc
 
 
-def ensure_valid_dsa(dsa_func: source.Function[dsa.VarName]):
+def ensure_valid_dsa(dsa_func: source.Function[dsa.VarName]) -> None:
     all_paths = compute_all_path(dsa_func.cfg)
     for i, path in enumerate(all_paths):
         ensure_assigned_at_most_once(dsa_func, path)
         ensure_using_latest_incarnation(dsa_func, path)
 
 
-def assert_expr_equals_mod_dsa(lhs: source.Expr[source.ProgVarName], rhs: source.Expr[dsa.VarName]):
+def assert_expr_equals_mod_dsa(lhs: source.Expr[source.ProgVarName], rhs: source.Expr[dsa.VarName]) -> None:
     assert lhs.typ == rhs.typ
 
     if isinstance(lhs, source.ExprNum | source.ExprSymbol | source.ExprType):
-        return lhs == rhs
+        assert lhs == rhs
     elif isinstance(lhs, source.ExprVar):
         assert isinstance(rhs, source.ExprVar)
         assert lhs.name == dsa.unpack_dsa_var_name(rhs.name)[0]
@@ -113,11 +113,11 @@ def assert_expr_equals_mod_dsa(lhs: source.Expr[source.ProgVarName], rhs: source
         assert_never(lhs)
 
 
-def assert_var_equals_mod_dsa(prog: source.ProgVar, var: dsa.Var):
+def assert_var_equals_mod_dsa(prog: source.ProgVar, var: dsa.Var) -> None:
     assert prog == dsa.unpack_dsa_var(var)[0]
 
 
-def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName], node: source.Node[dsa.VarName]):
+def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName], node: source.Node[dsa.VarName]) -> None:
     if isinstance(prog, source.NodeBasic):
         assert isinstance(node, source.NodeBasic)
 
@@ -150,7 +150,7 @@ def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName], node: sour
         assert_never(prog)
 
 
-def assert_is_join_node(node: source.Node[dsa.VarName]):
+def assert_is_join_node(node: source.Node[dsa.VarName]) -> None:
 
     assert isinstance(node, source.NodeBasic)
     for upd in node.upds:
@@ -161,7 +161,7 @@ def assert_is_join_node(node: source.Node[dsa.VarName]):
         assert upd.var.typ == upd.expr.typ
 
 
-def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_func: source.Function[dsa.VarName]):
+def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_func: source.Function[dsa.VarName]) -> None:
     assert set(prog_func.nodes.keys()).issubset(dsa_func.nodes.keys())
 
     join_node_names: list[source.NodeName] = []
@@ -206,7 +206,7 @@ def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_fu
 
 
 @pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
-def test_dsa_custom_tests(func: syntax.Function):
+def test_dsa_custom_tests(func: syntax.Function) -> None:
     prog_func = source.convert_function(func)
     dsa_func = dsa.dsa(prog_func)
     ensure_valid_dsa(dsa_func)
@@ -215,7 +215,7 @@ def test_dsa_custom_tests(func: syntax.Function):
 
 # sort so that the smallest functions fail first
 @pytest.mark.parametrize('function', (f for f in sorted(kernel_CFunctions[1].values(), key=lambda f: len(f.nodes)) if f.entry is not None))
-def test_dsa_kernel_functions(function: syntax.Function):
+def test_dsa_kernel_functions(function: syntax.Function) -> None:
     print(function.name)
     if function.name in ('Kernel_C.deriveCap', 'Kernel_C.decodeCNodeInvocation'):
         pytest.skip("there's an assert true that messes DSA up")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 import subprocess
-from typing import TYPE_CHECKING, Iterator, Literal, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Literal, Mapping, Sequence
 from typing_extensions import NamedTuple, NewType, assert_never
 
 import math
@@ -67,7 +67,7 @@ class CmdDeclareFun(NamedTuple):
 
 
 class CmdAssert(NamedTuple):
-    expr: source.Expr
+    expr: source.Expr[assume_prove.VarName]
 
 
 class CmdCheckSat(NamedTuple):
@@ -116,7 +116,7 @@ def smt_sign_extend(num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SM
     return SMTLIB(f"((_ sign_extend {num_bits}) {emit_expr(lhs)})")
 
 
-def emit_num_with_correct_type(expr: source.ExprNum) -> SMTLIB:
+def emit_num_with_correct_type(expr: source.ExprNum[assume_prove.VarName]) -> SMTLIB:
     if isinstance(expr.typ, source.TypeBitVec):
         assert - \
             2 ** expr.typ.size <= expr.num < 2 ** expr.typ.size, f"{expr.num=} doesn't fit in the type {expr.typ=}"
@@ -195,7 +195,7 @@ def emit_cmd(cmd: Cmd) -> SMTLIB:
     assert_never(cmd)
 
 
-def cmd_assert_eq(name: assume_prove.VarName, rhs: source.Expr[assume_prove.VarName]):
+def cmd_assert_eq(name: assume_prove.VarName, rhs: source.Expr[assume_prove.VarName]) -> Cmd:
     return CmdAssert(source.ExprOp(rhs.typ, source.Operator.EQUALS, (source.ExprVar(rhs.typ, name), rhs)))
 
 

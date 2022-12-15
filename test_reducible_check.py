@@ -1,3 +1,4 @@
+from typing import Mapping, Sequence, cast
 from abc_cfg import compute_cfg_from_all_succs, is_reducible
 import syntax
 import source
@@ -122,7 +123,7 @@ syntax.set_arch('rv64')
         "outer_for_join": [],
     },
 ])
-def test_is_reducible(all_succs):
+def test_is_reducible(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]]) -> None:
     assert is_reducible(compute_cfg_from_all_succs(
         all_succs, source.NodeName("_start")))
 
@@ -194,7 +195,7 @@ def test_is_reducible(all_succs):
     },
 
 ])
-def test_is_not_reducible(all_succs):
+def test_is_not_reducible(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]]) -> None:
     assert not is_reducible(
         compute_cfg_from_all_succs(all_succs, source.NodeName("_start")))
 
@@ -204,7 +205,7 @@ with open('examples/kernel_CFunctions.txt') as f:
 
 
 @pytest.mark.parametrize('unsafe_func', (f for f in kernel_C[1].values() if f.entry is not None))
-def test_kernel_functions_all_reducible(unsafe_func):
+def test_kernel_functions_all_reducible(unsafe_func: syntax.Function) -> None:
     """ we haven't checked manually """
     func = source.convert_function(unsafe_func)
     assert is_reducible(func.cfg)

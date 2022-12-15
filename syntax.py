@@ -1668,7 +1668,7 @@ def adjust_op_vals(expr, vals):
 # pretty printing code for the syntax - only used for printing reports
 
 
-def pretty_type(typ):
+def pretty_type(typ: Any) -> Any:
     if typ.kind == 'Word':
         return 'Word%d' % typ.num
     elif typ.kind == 'WordArray':
@@ -1798,7 +1798,7 @@ class Arch:
 arch = None
 
 
-def set_arch(name='armv7'):
+def set_arch(name: str = 'armv7'):
     global arch
     arch = Arch(name)
 

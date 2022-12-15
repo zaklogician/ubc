@@ -15,7 +15,7 @@ import assume_prove
 syntax.set_arch('rv64')
 
 
-def assert_all_kernel_functions_are_reducible():
+def assert_all_kernel_functions_are_reducible() -> None:
     with open('examples/kernel_CFunctions.txt') as f:
         structs, functions, const_globals = syntax.parse_and_install_all(
             f, None)
@@ -27,7 +27,7 @@ def assert_all_kernel_functions_are_reducible():
     print("[check] all kernel functions with an entry are reducible")
 
 
-def same_var_diff_type(func: source.Function[source.ProgVarName]):
+def same_var_diff_type(func: source.Function[source.ProgVarName]) -> None:
     vars: dict[str, set[source.ProgVarName]] = {}
     for n in func.nodes:
         for var in source.used_variables_in_node(func.nodes[n]).union(source.assigned_variables_in_node(func, n)):
@@ -85,7 +85,7 @@ def find_functions_by_name(function_names: Collection[str], target: str) -> str:
     return selected
 
 
-def run(filename: str, function_names: Collection[str], options: Collection[CmdlineOption]):
+def run(filename: str, function_names: Collection[str], options: Collection[CmdlineOption]) -> None:
     if filename.lower() == 'dsa':
         filename = 'examples/dsa.txt'
     elif filename.lower() == 'kernel':
@@ -133,7 +133,7 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
             print("verification failed (good luck figuring out why)")
 
 
-def usage():
+def usage() -> None:
     print('usage: python3 main.py [options] <graphfile.txt> function-names...')
     print()
     print('  --show-graph: Show the graph lang')

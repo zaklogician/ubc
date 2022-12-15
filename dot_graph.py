@@ -6,7 +6,7 @@ import logic
 from collections.abc import Callable
 from io import IOBase
 import subprocess
-from typing import Iterator, Tuple, TypeVar, Mapping
+from typing import Any, Iterator, Tuple, TypeVar, Mapping
 import tempfile
 
 import sys
@@ -18,15 +18,17 @@ from typing_extensions import assert_never
 import assume_prove
 
 
-def pretty_name(name: str | tuple[str, int]) -> str:
+def pretty_name(name: source.VarNameKind) -> str:
     # so many bloody cases
 
     # : -> dsa
     # . -> something i don't wanna throw away
     # __ -> type info I wanna throw away
     if isinstance(name, tuple):
-        name, inc = name
-        return _pretty_name(name) + f"<sub>{inc}</sub>"
+        base, inc = name
+        return _pretty_name(base) + f"<sub>{inc}</sub>"
+
+    assert isinstance(name, str)
     return _pretty_name(name)
 
 
@@ -48,11 +50,7 @@ def _pretty_name(name: str) -> str:
     return name + some_num + (f'<sub>{dsa_num}</sub>' if dsa_num else '')
 
 
-def fix_func_name(name):
-    return name
-
-
-def split_conjuncts(expr: source.Expr) -> Iterator[source.Expr]:
+def split_conjuncts(expr: source.Expr[source.VarNameKind]) -> Iterator[source.Expr[source.VarNameKind]]:
     if isinstance(expr, source.ExprOp) and expr.operator == source.Operator.AND:
         yield from split_conjuncts(expr.operands[0])
         yield from split_conjuncts(expr.operands[1])
@@ -76,7 +74,7 @@ known_typ_change = set(
     ["ROData", "MemAcc", "IfThenElse", "WordArrayUpdate", "MemDom"])
 
 
-def pretty_expr(expr: syntax.Expr, print_type=False) -> str:
+def pretty_expr(expr: syntax.Expr, print_type: bool = False) -> str:
     if print_type:
         return "{}:{}".format(pretty_expr(expr), syntax.pretty_type(expr.typ))
     elif expr.kind == "Var":
@@ -105,9 +103,9 @@ def pretty_expr(expr: syntax.Expr, print_type=False) -> str:
         return str(expr)
 
 
-def pretty_safe_expr(expr: source.Expr, print_type=False):
+def pretty_safe_expr(expr: source.Expr[Any], print_type: bool = False) -> str:
     if print_type:
-        return "{}:{}".format(pretty_safe_expr(expr), syntax.pretty_type(expr.typ))
+        return f"{pretty_safe_expr(expr)}:{syntax.pretty_type(expr.typ)}"
     elif isinstance(expr, source.ExprVar):
         return pretty_name(expr.name)
     elif isinstance(expr, source.ExprNum):
@@ -138,7 +136,7 @@ def pretty_updates(update: tuple[tuple[str, syntax.Type], syntax.Expr]) -> str:
     return "{} := {}".format(pretty_name(name), pretty_expr(expr))
 
 
-def pretty_safe_update(upd: source.Update) -> str:
+def pretty_safe_update(upd: source.Update[source.VarNameKind]) -> str:
     return "{} := {}".format(pretty_name(upd.var.name), pretty_safe_expr(upd.expr))
 
 
@@ -156,10 +154,9 @@ def viz(t: Callable[[IOBase, P], R]) -> Callable[[P], R]:
 
 
 @viz
-def viz_function(file: IOBase, fun: source.Function):
-    puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
-    putsf = lambda fmt, * \
-        args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
+def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
+    puts: Callable[...,
+                   None] = lambda *args, **kwargs: print(*args, file=file, **kwargs)
 
     puts("digraph grph {")
     puts("  node[shape=box]")
@@ -192,7 +189,7 @@ def viz_function(file: IOBase, fun: source.Function):
             if len(node.rets):
                 content += f"{', '.join(pretty_name(r.name) for r in node.rets)} := "
             content += "{}({})".format(
-                fix_func_name(node.fname),
+                node.fname,
                 ", ".join(
                     pretty_safe_expr(arg)
                     for arg in node.args
@@ -216,17 +213,15 @@ def viz_function(file: IOBase, fun: source.Function):
         if idx == fun.cfg.entry:
             puts(f"  {idx} [xlabel={idx}; label=<<i>Entry</i>>; penwidth=2]")
         else:
-            putsf("  {idx} [xlabel={idx}] [label=<{content}>]",
-                  idx=idx, content=content)
+            puts(f"  {idx} [xlabel={idx}] [label=<{content}>]")
 
     puts("}")
 
 
 @viz
-def viz_raw_function(file: IOBase, fun: syntax.Function):
-    puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
-    putsf = lambda fmt, * \
-        args, **kwargs: print(fmt.format(*args, **kwargs), file=file)
+def viz_raw_function(file: IOBase, fun: syntax.Function) -> None:
+    puts: Callable[...,
+                   None] = lambda *args, **kwargs: print(*args, file=file, **kwargs)
 
     puts("digraph grph {")
     puts("  node[shape=box]")
@@ -235,11 +230,11 @@ def viz_raw_function(file: IOBase, fun: syntax.Function):
     puts()
     for idx, node in fun.nodes.items():
         if node.kind == "Basic" or node.kind == "Call":
-            putsf("  {} -> {}", idx, node.cont)
+            puts(f"  {idx} -> {node.cont}")
         elif node.kind == "Cond":
-            putsf("  {} -> {} [label=T]", idx, node.left)
+            puts(f"  {idx} -> {node.left} [label=T]")
             if node.right != "Err":
-                putsf("  {} -> {} [label=F]", idx, node.right)
+                puts(f"  {idx} -> {node.right} [label=F]")
 
         if node.kind == "Basic":
             content = (
@@ -254,7 +249,7 @@ def viz_raw_function(file: IOBase, fun: syntax.Function):
             if len(rets):
                 content += f"{', '.join(rets)} := "
             content += "{}({})".format(
-                fix_func_name(node.fname),
+                node.fname,
                 ", ".join(
                     pretty_expr(arg)
                     for arg in node.args
@@ -272,15 +267,15 @@ def viz_raw_function(file: IOBase, fun: syntax.Function):
                 content = pretty_expr(node.cond)
         else:
             assert False
-        putsf("  {idx} [xlabel={idx}] [label=<{content}>]",
-              idx=idx, content=content)
+        puts(f"  {idx} [xlabel={idx}] [label=<{content}>]")
 
     puts("}")
 
 
 @viz
-def viz_successor_graph(file: IOBase, all_succs: dict[str, list[str]]):
-    puts = lambda *args, **kwargs: print(*args, file=file, **kwargs)
+def viz_successor_graph(file: IOBase, all_succs: dict[str, list[str]]) -> None:
+    puts: Callable[...,
+                   None] = lambda *args, **kwargs: print(*args, file=file, **kwargs)
     puts("digraph grph {")
     puts("  node[shape=box]")
     puts()
@@ -291,7 +286,7 @@ def viz_successor_graph(file: IOBase, all_succs: dict[str, list[str]]):
     puts("}")
 
 
-def make_and_open_image(filepath: str):
+def make_and_open_image(filepath: str) -> None:
     p = subprocess.Popen(
         ["dot", "-n2", "-Tpng", "-O", filepath],
         stdout=subprocess.PIPE,
@@ -341,14 +336,9 @@ if __name__ == "__main__":
         assert False
 
     with open(file_name) as f:
-        structs, functions_bad_names, const_globals = syntax.parse_and_install_all(
+        structs, functions, const_globals = syntax.parse_and_install_all(
             f, None
         )
-
-    functions = {
-        fix_func_name(bad_name): value
-        for bad_name, value in functions_bad_names.items()
-    }
 
     if not function_name or function_name not in functions:
         if function_name:

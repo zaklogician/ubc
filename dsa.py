@@ -135,7 +135,7 @@ def get_next_dsa_var_incarnation_number_from_context(s: DSABuilder, context: Map
     return IncarnationBase
 
 
-def apply_insertions(s: DSABuilder):
+def apply_insertions(s: DSABuilder) -> None:
     prog_var_deps = compute_node_variable_dependencies(s.original_func)
 
     j = 0
@@ -232,7 +232,7 @@ def pretty_path_condition(func: source.Function[source.ProgVarName], path: Colle
 Path: TypeAlias = tuple[source.NodeName, ...]
 
 
-def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[source.ProgVarName]):
+def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[source.ProgVarName]) -> None:
     all_vars = set_union(source.used_variables_in_node(func.nodes[n]) | source.assigned_variables_in_node(
         func, n) for n in func.traverse_topologically() if n not in (source.NodeNameErr, source.NodeNameRet))
 

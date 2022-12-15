@@ -27,7 +27,7 @@ class CFG(NamedTuple):
     """
 
 
-def compute_all_successors_from_nodes(nodes: Mapping[source.NodeName, source.Node]) -> Mapping[source.NodeName, list[source.NodeName]]:
+def compute_all_successors_from_nodes(nodes: Mapping[source.NodeName, source.Node[source.VarNameKind]]) -> Mapping[source.NodeName, list[source.NodeName]]:
     all_succs: dict[source.NodeName, list[source.NodeName]] = {}
     for name, node in nodes.items():
         all_succs[name] = []
@@ -56,7 +56,7 @@ def compute_all_successors_from_nodes(nodes: Mapping[source.NodeName, source.Nod
     return all_succs
 
 
-def compute_all_predecessors(all_succs: Mapping[source.NodeName, list[source.NodeName]]) -> Mapping[source.NodeName, list[source.NodeName]]:
+def compute_all_predecessors(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]]) -> Mapping[source.NodeName, Sequence[source.NodeName]]:
     g: Mapping[source.NodeName, list[source.NodeName]] = {
         n: [] for n in all_succs}
     for n, succs in all_succs.items():
@@ -69,7 +69,7 @@ def compute_all_predecessors(all_succs: Mapping[source.NodeName, list[source.Nod
 # this is a bottle neck
 
 
-def compute_dominators(all_succs: Mapping[source.NodeName, list[source.NodeName]], all_preds: Mapping[source.NodeName, list[source.NodeName]], entry: source.NodeName) -> Mapping[source.NodeName, list[source.NodeName]]:
+def compute_dominators(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]], all_preds: Mapping[source.NodeName, Sequence[source.NodeName]], entry: source.NodeName) -> Mapping[source.NodeName, Sequence[source.NodeName]]:
     # all the nodes that dominate the given node
     doms: dict[source.NodeName, set[source.NodeName]] = {}
     for n, preds in all_preds.items():
@@ -98,7 +98,7 @@ def compute_dominators(all_succs: Mapping[source.NodeName, list[source.NodeName]
     return {n: list(doms[n]) for n in doms.keys()}
 
 
-def compute_cfg_from_all_succs(all_succs: Mapping[source.NodeName, list[source.NodeName]], entry: source.NodeName) -> CFG:
+def compute_cfg_from_all_succs(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]], entry: source.NodeName) -> CFG:
     assert_valid_all_succs(all_succs)
     assert entry in all_succs, f"entry {entry} not in all_succs"
 
@@ -111,7 +111,7 @@ def compute_cfg_from_all_succs(all_succs: Mapping[source.NodeName, list[source.N
     return CFG(entry=entry, all_succs=all_succs, all_preds=all_preds, all_doms=all_doms, back_edges=cfg_compute_back_edges(all_succs, all_doms))
 
 
-def cfg_compute_back_edges(all_succs: Mapping[source.NodeName, list[source.NodeName]], all_doms: Mapping[source.NodeName, list[source.NodeName]]) -> Collection[tuple[source.NodeName, source.NodeName]]:
+def cfg_compute_back_edges(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]], all_doms: Mapping[source.NodeName, Sequence[source.NodeName]]) -> Collection[tuple[source.NodeName, source.NodeName]]:
     """ a back edge is an edge who's head dominates their tail
     """
 
@@ -136,7 +136,7 @@ def compute_natural_loop(cfg: CFG, back_edge: tuple[source.NodeName, source.Node
     loop_nodes = set([d])
     stack = []
 
-    def insert(m):
+    def insert(m: source.NodeName) -> None:
         if m not in loop_nodes:
             loop_nodes.add(m)
             stack.append(m)
@@ -184,7 +184,7 @@ def compute_loop_targets(
     return loop_targets
 
 
-def assert_single_loop_header_per_loop(cfg: CFG):
+def assert_single_loop_header_per_loop(cfg: CFG) -> None:
     # This assert protects against this:
     #
     #   -> header <--
@@ -220,14 +220,14 @@ def compute_loops(nodes: Mapping[source.NodeName, source.Node[source.ProgVarName
     return loops
 
 
-def compute_all_nodes(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]]):
+def compute_all_nodes(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]]) -> Collection[source.NodeName]:
     all_nodes: set[source.NodeName] = set(all_succs.keys())
     for n, succs in all_succs.items():
         all_nodes.update(succs)
     return all_nodes
 
 
-def is_reducible(cfg: CFG):
+def is_reducible(cfg: CFG) -> bool:
     # use definition of reducibility from Aho, Sethi and Ullman 1986 p.606
     #
     # 1. the forward edges form an acyclic graph in which every node can be
@@ -255,7 +255,7 @@ def is_reducible(cfg: CFG):
     return visited == compute_all_nodes(cfg.all_succs)
 
 
-def assert_valid_all_succs(all_succs: Mapping[source.NodeName, list[source.NodeName]]):
+def assert_valid_all_succs(all_succs: Mapping[source.NodeName, Sequence[source.NodeName]]) -> None:
     # entry node should be a key of all_succs, even if they don't have any
     # successors
     for n, succs in all_succs.items():

@@ -1,11 +1,12 @@
 from __future__ import annotations
+import io
 import os
 import tempfile
 from contextlib import contextmanager
-from typing import Iterator, TypeVar
+from typing import Any, Iterator, TypeVar
 
 
-def clen(it: Iterator) -> int:
+def clen(it: Iterator[Any]) -> int:
     """ returns the number of elemens in the iterator, even if that means it has to consume it
     """
     return sum(1 for _ in it)
@@ -35,7 +36,7 @@ def set_union(it: Iterator[set[K]]) -> set[K]:
 
 
 @contextmanager
-def open_temp_file(suffix: str | None = None, prefix: str | None = None, dir: str | None = None, text: bool = False):
+def open_temp_file(suffix: str | None = None, prefix: str | None = None, dir: str | None = None, text: bool = False) -> Iterator[tuple[io.TextIOWrapper, str]]:
     fd, name = tempfile.mkstemp(
         suffix=suffix, prefix=prefix, dir=dir, text=text)
     try:
