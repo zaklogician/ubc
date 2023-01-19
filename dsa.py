@@ -232,7 +232,7 @@ def pretty_path_condition(func: source.Function[source.ProgVarName], path: Colle
 Path: TypeAlias = tuple[source.NodeName, ...]
 
 
-def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[source.ProgVarName]) -> None:
+def compute_paths_on_which_vars_are_undefined(func: source.Function[source.ProgVarName]) -> Mapping[source.NodeName, Mapping[source.ProgVar, Set[Path]]]:
     all_vars = set_union(source.used_variables_in_node(func.nodes[n]) | source.assigned_variables_in_node(
         func, n) for n in func.traverse_topologically() if n not in (source.NodeNameErr, source.NodeNameRet))
 
@@ -242,8 +242,8 @@ def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[so
     # only depends defined variables (we start with a set a defined variable,
     # for example function arguments)
 
-    # TODO: figure out if it suffices to prove that no unassigned variable is
-    # ever used to show that no undefined variable is ever used.
+    # conjecture: it suffices to prove that no unassigned variable is ever
+    # used to show that no undefined variable is ever used.
 
     # node name => variable => paths along which the variable isn't defined
     # (so if vars_undefined_on_paths[n][v] is empty, that means v is defined
@@ -303,6 +303,12 @@ def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[so
 
             vars_undefined_on_paths[n] = local
 
+    return vars_undefined_on_paths
+
+
+def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[source.ProgVarName]) -> None:
+    vars_undefined_on_paths = compute_paths_on_which_vars_are_undefined(func)
+
     for n in func.traverse_topologically():
         if n in (source.NodeNameErr, source.NodeNameRet):
             continue
@@ -320,7 +326,7 @@ def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[so
             # now, we don't look at the expression, we just ensure that
             # path_condition cannot be true.
 
-            # we have unused but undefined variables
+            # we have some used but undefined variables
             break
     else:
         return  # we don't have any problems :)

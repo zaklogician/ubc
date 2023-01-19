@@ -3,6 +3,7 @@ from typing import Collection, Sequence, Tuple, Any, Dict
 
 import sys
 import os
+from typing_extensions import assert_never
 from dot_graph import viz_function
 
 import syntax
@@ -89,7 +90,7 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
     if filename.lower() == 'dsa':
         filename = 'examples/dsa.txt'
     elif filename.lower() == 'kernel':
-        filename = 'examples/Kernel_CFunctions.txt'
+        filename = 'examples/kernel_CFunctions.txt'
 
     if os.path.isfile(filename):
         with open(filename) as f:
@@ -104,8 +105,8 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
             print(f'  {func.name} ({len(func.nodes)} nodes)')
 
     _, functions, _ = stuff
-    for name in function_names:
 
+    for name in function_names:
         unsafe_func = functions[find_functions_by_name(functions.keys(), name)]
         prog_func = source.convert_function(unsafe_func)
         dsa_func = dsa.dsa(prog_func)
@@ -125,12 +126,15 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
             print(sats)
 
         assert len(sats) == 2
-        if sats == (smt.CheckSatResult.SAT, smt.CheckSatResult.UNSAT):
+        result = smt.parse_sats(sats)
+        if result is smt.VerificationResult.OK:
             print("verification succeeded")
-        elif sats[0] == smt.CheckSatResult.UNSAT:
+        elif result is smt.VerificationResult.INCONSTENT:
             print("INTERNAL ERROR: smt is an inconsistent state")
-        elif sats[1] == smt.CheckSatResult.SAT:
+        elif result is smt.VerificationResult.FAIL:
             print("verification failed (good luck figuring out why)")
+        else:
+            assert_never(result)
 
 
 def usage() -> None:

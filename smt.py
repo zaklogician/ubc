@@ -151,7 +151,7 @@ def emit_expr(expr: source.Expr[assume_prove.VarName]) -> SMTLIB:
         return emit_num_with_correct_type(expr)
     elif isinstance(expr, source.ExprOp):
 
-        # mypy isn't smart enough to understand `in`, we split the iffs
+        # mypy isn't smart enough to understand `in`, so we split the iffs
         if expr.operator == source.Operator.WORD_CAST:
             assert len(expr.operands) == 1
             assert isinstance(expr.typ, source.TypeBitVec)
@@ -241,6 +241,7 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
 
 
 class CheckSatResult(Enum):
+    # TODO: unknown
     UNSAT = 'unsat'
     SAT = 'sat'
 
@@ -278,3 +279,20 @@ def send_smtlib_to_z3(smtlib: SMTLIB) -> Iterator[CheckSatResult]:
     lines = p.stdout.read().splitlines()
     for ln in lines:
         yield CheckSatResult(ln.decode('utf-8'))
+
+
+class VerificationResult(Enum):
+    OK = 'ok'
+    FAIL = 'fail'
+    INCONSTENT = 'inconsistent'
+
+
+def parse_sats(sats: Sequence[CheckSatResult]) -> VerificationResult:
+    assert len(sats) == 2
+
+    if sats[0] != CheckSatResult.SAT:
+        return VerificationResult.INCONSTENT
+    elif sats[1] != CheckSatResult.UNSAT:
+        return VerificationResult.FAIL
+
+    return VerificationResult.OK

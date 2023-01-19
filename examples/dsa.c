@@ -103,13 +103,13 @@ int simple_for_loop(int n)
 
 struct point { int x; int y; };
 
-struct point origin();
+struct point origin = {0};
 
 struct point shift_diag(struct point p, int offset)
 {
     if (offset == 0)
     {
-        return origin();
+        return origin;
     }
     p.x += offset;
     p.y += offset;
@@ -221,4 +221,17 @@ int straight_into_loop(int i)
         i++;
     }
     return i;
+}
+
+int overflow2(int branch, int j)
+{
+    if (branch)
+    {
+        j += 1;
+    }
+    else
+    {
+        j += 2;
+    }
+    return j;
 }
