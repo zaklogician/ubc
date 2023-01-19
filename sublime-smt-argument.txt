@@ -1,0 +1,330 @@
+if cond 
+    a = 2
+else
+    a = 3
+prove a > 0
+
+Sublime SMT
+
+    a1 = 2
+    a2 = 3
+    ; a3 = phi(a1, a2)
+    cond ==> a3 = a1 && !cond ==> a3 = a1
+
+    push
+        assert (not a3 > 0)
+        check sat
+    pop
+
+Leino's SMT
+
+    cond_ok  = cond ==> then_ok &&
+               !cond ==> else_ok
+    then_ok  = a1 = 2 ==> a3 = a1 ==> prove_ok
+    else_ok  = a2 = 3 ==> a3 = a2 ==> prove_ok
+    prove_ok = a3 > 0 ==> Ret_ok &&
+               !(a3 > 0) ==> Err_ok
+
+    not cond_ok
+    check sat
+
+    ; this is a pain to work with
+
+Sketch proof of equivalence:
+
+    Observe: every variable that is ever used is assigned to exactly once
+      proof: - SSA says it's assigned to at most once
+             - we have a proof obligation that every variable that is used is
+               defined beforehand
+
+    So we can move the variable assignments out of the ok graph
+
+        a1 = 2
+        a2 = 3
+        cond_ok = cond ==> then_ok &&
+                  !cond ==> else_ok
+        then_ok  = a3 = a1 ==> prove_ok
+        else_ok  = a3 = a2 ==> prove_ok
+        prove_ok = a3 > 0 ==> Ret_ok &&
+                   !(a3 > 0) ==> Err_ok
+
+        not cond_ok
+        check sat
+
+    Now, we only have assertions and joiner variables left in the ok graph.
+    We split the two apart.
+
+    We construct the graph for joiners variables by building biconditions (for
+    every node, the bicondition is true iff the block is reached during
+    execution)
+
+        a1 = 2
+        a2 = 3
+        cond ==> a3 = a1 && !cond ==> a3 = a2
+        cond_ok = cond ==> then_ok &&
+                  !cond ==> else_ok
+        then_ok  = prove_ok
+        else_ok  = prove_ok
+        prove_ok = a3 > 0 ==> Ret_ok &&
+                   !(a3 > 0) ==> Err_ok
+
+        not cond_ok
+        check sat
+
+    Now there is no reason to keep the ok graph, it doesn't contain any
+    information. We extract the assertions
+
+        a1 = 2
+        a2 = 3
+        cond ==> a3 = a1 && !cond ==> a3 = a2
+        push
+            assert not a3 > 0
+            check sat
+        pop
+
+Question: are ret__int and ret__unsigned_int related?
+
+Loop example
+------------
+
+    int s = 0;
+    for (int i = 0; i < n; i++)
+        invariant(0 <= i && i < n)
+        invariant(s == i * (i + 1) / 2)
+    {
+        s = s + i;
+    }
+    return s;
+
+Graph:
+
+    A: s = 0
+    B: i = 0
+    C: i < n
+        then D: s = s + i
+             E: i = i + 1
+        else F: return s
+
+DSA:  (notice there is no loop invariant)
+
+    A: s1 = 0
+      |
+      v
+    B: i1 = 0
+      |
+      v
+    C: i2 < n ---------
+       |              |
+       v              v
+    D: s3 = s2 + i2   F: return s2
+       |
+       v
+    E: i3 = i2 + 1
+
+SMT: (without the overflow check for succinctness)
+
+    A_ok = s1 = 0 ==> B_ok
+    B_ok = i1 = 0 ==> C_ok
+    C_ok = i2 < n ==> D_ok &&
+           !i2 < n ==> F_ok
+    D_ok = s3 = s2 + i2 ==> E_ok
+    E_ok = i3 = i2 + 1  ; no successor
+    F_ok = true         ; no post condition
+
+SMT to check invariants:
+
+    inv1 i s = 0 <= i && i < n
+    inv2 i s = s == i * (i + 1) / 2
+    inv i s = inv1 i s && inv2 i s
+
+    A_ok = s1 = 0 ==> B_ok
+    B_ok = i1 = 0 ==> C_ok
+    C_ok = inv i1 s1 &&              ; assert loop invariant holds on entry
+           inv i2 s2 ==> (           ; assume loop invariant for current iteration
+               i2 < n ==> D_ok &&
+              !i2 < n ==> F_ok
+           )
+    D_ok = s3 = s2 + i2 ==> E_ok
+    E_ok = i3 = i2 + 1 ==> inv i3 s2 ; prove loop invariant
+    F_ok = true                      ; no post condition
+
+This is a pain to read. Instead, this is what we could have:
+
+Sublime SMT:
+
+    s1 = 0
+    i1 = 0
+    s3 = s2 + i2
+    i3 = i2 + 1
+
+    push    ; prove loop invariants hold on entry
+        not (inv i1 s1)
+        check sat
+    pop
+
+    push    ; prove loop invariants hold after iteration
+        inv i2 s2   ; assume loop invariant
+
+        not (inv i3 s3)
+        check sat
+    pop
+
+
+Loop example with overflow checks
+---------------------------------
+
+    int s = 0;
+    for (int i = 0; i < n; i++)
+        invariant(0 <= i && i < n)
+        invariant(s == i * (i + 1) / 2)
+    {
+        s = s + i;
+    }
+    return s;
+
+Graph:
+
+    A: s = 0
+    B: i = 0
+    C: i < n
+        then D: no_overflow_add(s, i)
+             E: s = s + i
+             F: no_overflow_add(i, 1)
+             G: i = i + 1
+        else H: return s
+
+DSA:  (notice there is no loop invariant)
+
+    A: s1 = 0
+      |
+      v
+    B: i1 = 0
+      |
+      v
+    C: i2 < n -------------------
+       |                        |
+       v                        v
+    D: add_legal(s2, i2)        H: return s2
+    |                  |
+    |                  v
+    v                  Err
+    E: s3 = s2 + i2
+       |
+       v
+    F: add_legal(i2, 1)
+    |                 |
+    |                 v
+    v                 Err
+    G: i3 = i2 + 1
+
+SMT:
+
+    A_ok = s1 = 0 ==> B_ok
+    B_ok = i1 = 0 ==> C_ok
+    C_ok = i2 < n ==> D_ok &&
+           !i2 < n ==> H_ok
+    D_ok = add_legal(s2, i2) ==> E_ok &&
+           !add_legal(s2, i2) ==> False
+    E_ok = s3 = s2 + i2 ==> F_ok
+    F_ok = add_legal(i2, 1) ==> G_ok  &&
+           !add_legal(i2, 1) ==> False
+    G_ok = i3 = i2 + 1                      ; no successor
+    H_ok = true                             ; no post condition
+
+SMT to check invariants:
+
+    inv1 i s = 0 <= i && i < n
+    inv2 i s = s == i * (i + 1) / 2
+    inv i s = inv1 i s && inv2 i s
+
+    A_ok = s1 = 0 ==> B_ok
+    B_ok = i1 = 0 ==> C_ok
+    C_ok = !inv i1 s1 ==> False &&   ; invariant holds on entry
+           inv i2 s2 ==> (           ; assume loop invariant for current iteration
+                i2 < n ==> D_ok &&
+               !i2 < n ==> H_ok
+            )
+    D_ok = add_legal(s2, i2) ==> E_ok &&
+           !add_legal(s2, i2) ==> False
+    E_ok = s3 = s2 + i2 ==> F_ok
+    F_ok = add_legal(i2, 1) ==> G_ok  &&
+           !add_legal(i2, 1) ==> False
+    G_ok = i3 = i2 + 1 &&                      ; no successor
+           !inv i3 s3 ==> False                ; prove loop invariant holds
+    H_ok = true                             ; no post condition
+    not A_ok
+    check sat
+
+
+This is a pain to read. Instead, this is what we could have:
+
+Sublime SMT:
+
+    s1 = 0
+    i1 = 0
+    s3 = s2 + i2
+    i3 = i2 + 1
+
+    inv1 i s = 0 <= i && i < n
+    inv2 i s = s == i * (i + 1) / 2
+    inv i s = inv1 i s && inv2 i s
+
+    push    ; prove loop invariants hold on entry
+        not (inv i1 s1)
+        check sat
+    pop
+
+    push   ; first overflow check
+        inv i2 s2
+        not add_legal(s2, i2)
+        check sat
+    pop
+
+    push   ; second overflow check
+        inv i2 s2
+        not add_legal(i2, 1)
+        check sat
+    pop
+
+    push    ; prove loop invariants hold after iteration
+        inv i2 s2
+        not (inv i3 s3)
+        check sat
+    pop
+
+(Even nicer)
+
+    s1 = 0
+    i1 = 0
+    s3 = s2 + i2
+    i3 = i2 + 1
+
+    inv1 i s = 0 <= i && i < n
+    inv2 i s = s == i * (i + 1) / 2
+    inv i s = inv1 i s && inv2 i s
+
+    push    ; prove loop invariants hold on entry
+        not (inv i1 s1)
+        check sat
+    pop
+
+    push    ; all nodes in the loop body get to assume the loop invariant
+        inv i2 s2
+
+        push   ; first overflow check
+            not add_legal(s2, i2)
+            check sat
+        pop
+
+        push   ; second overflow check
+            not add_legal(i2, 1)
+            check sat
+        pop
+
+        push    ; prove loop invariants hold after iteration
+            not (inv i3 s3)
+            check sat
+        pop
+    pop
+
+
