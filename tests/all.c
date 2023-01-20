@@ -22,3 +22,8 @@ int unsigned_cast(unsigned int c)
         return 1;
     return 0;
 }
+
+int hang()
+{
+    while (1) {}
+}

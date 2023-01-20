@@ -67,33 +67,34 @@ def make_assume(var: dsa.Var, expr: source.Expr[dsa.VarName]) -> Instruction:
     return InstructionAssume(eq)
 
 
-def make_prove(expr: source.Expr[VarName]) -> Instruction:
-    return InstructionProve(expr)
-
-
-def make_assume_prove_script_for_node(node: source.Node[dsa.VarName]) -> Script:
+def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], n: source.NodeName) -> Script:
     # TODO: loop invariants
 
-    if isinstance(node, source.NodeBasic):
-        # BasicNode(upds, succ)
-        #     assume upd[i].lhs = upd[i].rhs    forall i
-        #     prove succ_ok
-        script: list[Instruction] = []
-        for upd in node.upds:
-            script.append(make_assume(upd.var, upd.expr))
-        script.append(InstructionProve(node_ok_ap_var(node.succ)))
-        return script
-    elif isinstance(node, source.NodeCond):
+    node = func.nodes[n]
+
+    if isinstance(node, source.NodeCond):
         # CondNode(expr, succ_then, succ_else)
         #     prove expr --> succ_then_ok
         #     prove not expr --> succ_else_ok
         cond = convert_expr_dsa_vars_to_ap(node.expr)
+
+        assert not func.is_loop_latch(
+            n), "TODO: handle conditional nodes that are loop latches (recall that we remove back edges)"
+
         return [
-            make_prove(source.expr_implies(
+            InstructionProve(source.expr_implies(
                 cond, node_ok_ap_var(node.succ_then))),
-            make_prove(source.expr_implies(source.expr_negate(cond),
-                                           node_ok_ap_var(node.succ_else)))
+            InstructionProve(source.expr_implies(source.expr_negate(cond),
+                                                 node_ok_ap_var(node.succ_else)))
         ]
+
+    script: list[Instruction] = []
+    if isinstance(node, source.NodeBasic):
+        # BasicNode(upds, succ)
+        #     assume upd[i].lhs = upd[i].rhs    forall i
+        #     prove succ_ok
+        for upd in node.upds:
+            script.append(make_assume(upd.var, upd.expr))
     elif isinstance(node, source.NodeCall):
         # CallNode(func, args, rets, succ):
         #     prove func.pre(args)
@@ -101,11 +102,17 @@ def make_assume_prove_script_for_node(node: source.Node[dsa.VarName]) -> Script:
         #     prove succ_ok
 
         # TODO: pre and post condition
-        return [make_prove(node_ok_ap_var(node.succ))]
+        pass
     elif isinstance(node, source.NodeEmpty):
-        return [make_prove(node_ok_ap_var(node.succ))]
+        pass  # nothing to do
+    else:
+        assert_never(node)
 
-    assert_never(node)
+    # we ignore back edges
+    if (n, node.succ) not in func.cfg.back_edges:
+        script.append(InstructionProve(node_ok_ap_var(node.succ)))
+
+    return script
 
 
 def make_prog(func: source.Function[dsa.VarName]) -> AssumeProveProg:
@@ -127,9 +134,7 @@ def make_prog(func: source.Function[dsa.VarName]) -> AssumeProveProg:
             continue
 
         nodes_script[node_ok_name(n)] = make_assume_prove_script_for_node(
-            func.nodes[n])
-        for var in source.assigned_variables_in_node(func, n):
-            ap_var_name = convert_dsa_var_to_ap_var(var.name)
+            func, n)
 
     for script in nodes_script.values():
         assert all(ins.expr.typ == source.type_bool for ins in script)
@@ -169,8 +174,8 @@ def pretty_print_prog(prog: AssumeProveProg) -> None:
             if i > 0:
                 print(prefix, end='')
             print(pretty_instruction_ascii(instruction))
-        print(prefix + '=>',
-              source.pretty_expr_ascii(apply_weakest_precondition(prog.nodes_script[n])))
+        # print(prefix + '=>',
+        #       source.pretty_expr_ascii(apply_weakest_precondition(prog.nodes_script[n])))
 
 
 def apply_weakest_precondition(script: Script) -> source.Expr[VarName]:

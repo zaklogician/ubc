@@ -48,7 +48,7 @@ def verify(unsafe_func: syntax.Function) -> smt.VerificationResult:
     ("fail_arr_undefined_behaviour2", smt.VerificationResult.FAIL),
     ("arr_static", smt.VerificationResult.OK),
     ("unreachable_entry", smt.VerificationResult.OK),
-    ("straight_into_loop", smt.VerificationResult.FAIL),
+    ("straight_into_loop", smt.VerificationResult.OK),
     ("overflow2", smt.VerificationResult.FAIL),
 ))
 def test_dsa_examples(func_name: str, expected: smt.VerificationResult) -> None:

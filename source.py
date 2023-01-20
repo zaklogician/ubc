@@ -520,6 +520,10 @@ class Function(Generic[VarNameKind]):
             return LoopHeaderName(node_name)
         return None
 
+    def is_loop_latch(self, node_name: NodeName) -> bool:
+        """ A loop latch is a node which jumps back to the loop header """
+        return any((node_name, succ) in self.cfg.back_edges for succ in self.cfg.all_succs[node_name])
+
     def acyclic_preds_of(self, node_name: NodeName) -> Iterator[NodeName]:
         """ returns all the direct predecessors, removing the ones that would follow back edges """
         return (p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
