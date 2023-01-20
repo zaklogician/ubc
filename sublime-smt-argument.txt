@@ -328,3 +328,42 @@ Sublime SMT:
     pop
 
 
+
+
+
+thinking
+========
+
+(cond ==> (a1 = 2 ==> a3 = a1 ==> prove_ok)) &&
+(!cond ==> ...)
+
+(cond ==> (a1 = 2 ==> a3 = a1 ==> prove_ok)) &&
+(!cond ==> ...)
+
+(cond && a1 = 2 && a3 = a1) ==> prove_ok &&
+(!cond && a2 = 3 && a3 = a2) ==> prove_ok
+
+a1 = 2 && a2 = 3 && ((cond && a3 = a1) ==> prove_ok) && ((!cond && a3 = a2) ==> prove_ok)
+
+
+
+
+
+
+a1 = 2 && a2 = 3 && cond ==> a3 = a1 && !cond ==> a3 = a2 &&
+
+(cond && a1 = 2 && a3 = a1) ==> prove_ok &&
+(!cond && a2 = 3 && a3 = a2) ==> prove_ok
+
+
+
+
+
+a && b ==> c &&
+
+
+if a
+    if b
+        a && b
+    else
+        a && not b
