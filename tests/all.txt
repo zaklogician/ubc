@@ -1,0 +1,32 @@
+
+Function tmp.signed_cast 5 c___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Num 0 Word 32
+4 Basic 1 1 ret__int#v Word 32 Num 1 Word 32
+5 Cond 4 3 Op SignedLess Bool 2 Num 150 Word 32 Op Plus Word 32 2 Var c___int#v Word 32 Num 32 Word 32
+6 Cond 5 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var c___int#v Word 32 Op Plus Word 32 2 Var c___int#v Word 32 Num 32 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 32 Word 32
+7 Basic 1 1 ret__int#v Word 32 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32
+8 Cond 7 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Num 0 Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 1 Word 32 Num 0 Word 32
+9 Cond 8 6 Op SignedLess Bool 2 Op Minus Word 32 2 Var offset___int#v Word 32 Num 32 Word 32 Var c___int#v Word 32
+10 Cond 9 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Var offset___int#v Word 32 Num 32 Word 32 Op SignedLessEquals Bool 2 Num 32 Word 32 Var offset___int#v Word 32
+11 Basic 10 1 offset___int#v Word 32 Num 2147483647 Word 32
+EntryPoint 11
+
+Function tmp.unsigned_cast 5 c___unsigned#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Num 0 Word 32
+4 Basic 1 1 ret__int#v Word 32 Num 1 Word 32
+5 Cond 4 3 Op Less Bool 2 Var offset___unsigned#v Word 32 Op Plus Word 32 2 Var c___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 32 Word 32
+6 Basic 5 1 offset___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 65 Word 32
+EntryPoint 6
+
+Function tmp.signed_cast__fail_overflow 5 c___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Num 0 Word 32
+4 Basic 1 1 ret__int#v Word 32 Num 1 Word 32
+5 Cond 4 3 Op SignedLess Bool 2 Num 150 Word 32 Op Plus Word 32 2 Var c___int#v Word 32 Num 32 Word 32
+6 Cond 5 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var c___int#v Word 32 Op Plus Word 32 2 Var c___int#v Word 32 Num 32 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 32 Word 32
+EntryPoint 6

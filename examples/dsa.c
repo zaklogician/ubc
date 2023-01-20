@@ -1,6 +1,3 @@
-// all functions that start with fail_ should fail
-// to be transformed to DSA
-
 int simple(int a)
 {
     a += 2;

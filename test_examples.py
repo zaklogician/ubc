@@ -10,8 +10,10 @@ syntax.set_arch('rv64')
 
 
 with open('examples/kernel_CFunctions.txt') as f:
-    kernel_CFunctions = syntax.parse_and_install_all(
-        f, None)
+    kernel_CFunctions = syntax.parse_and_install_all(f, None)
+
+with open('tests/all.txt') as f:
+    test_CFunctions = syntax.parse_and_install_all(f, None)
 
 with open('examples/dsa.txt') as f:
     example_dsa_CFunctions = syntax.parse_and_install_all(f, None)
@@ -61,3 +63,17 @@ def test_dsa_examples(func_name: str, expected: smt.VerificationResult) -> None:
 
 assert len(test_dsa_examples.pytestmark[0].args[1]) == len(   # type: ignore
     example_dsa_CFunctions[1]), "not all/too many functions are tested"
+
+
+@pytest.mark.parametrize('func_name', test_CFunctions[1].keys())
+def test_main(func_name: str) -> None:
+    should_fail = '_fail_' in func_name or func_name.endswith(
+        '_fail') or func_name.startswith('fail_')
+    _, functions, _ = test_CFunctions
+    result = verify(functions[func_name])
+    if result is smt.VerificationResult.FAIL:
+        assert should_fail
+    elif result is smt.VerificationResult.OK:
+        assert not should_fail
+    else:
+        assert False, f"unexpected verification result {result}"

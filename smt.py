@@ -106,14 +106,21 @@ def smt_extract(msb_idx: int, lsb_idx: int, expected_num_bits: int, lhs: source.
     return SMTLIB(f"((_ extract {msb_idx} {lsb_idx}) {emit_expr(lhs)})")
 
 
-def smt_zero_extend(num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
-    assert num_bits > 0
-    return SMTLIB(f"((_ zero_extend {num_bits}) {emit_expr(lhs)})")
+def smt_zero_extend(num_extra_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
+    # ((_ zero_extend 0) t) stands for t
+    # ((_ zero_extend i) t) abbreviates (concat ((_ repeat i) #b0) t)
+
+    assert num_extra_bits >= 0
+    return SMTLIB(f"((_ zero_extend {num_extra_bits}) {emit_expr(lhs)})")
 
 
-def smt_sign_extend(num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
-    assert num_bits > 0
-    return SMTLIB(f"((_ sign_extend {num_bits}) {emit_expr(lhs)})")
+def smt_sign_extend(num_extra_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
+    # ((_ sign_extend 0) t) stands for t
+    # ((_ sign_extend i) t) abbreviates
+    #   (concat ((_ repeat i) ((_ extract |m-1| |m-1|) t)) t)
+
+    assert num_extra_bits >= 0
+    return SMTLIB(f"((_ sign_extend {num_extra_bits}) {emit_expr(lhs)})")
 
 
 def emit_num_with_correct_type(expr: source.ExprNum) -> SMTLIB:
@@ -139,9 +146,9 @@ def emit_bitvec_cast(target_typ: source.TypeBitVec, operator: Literal[source.Ope
 
     assert lhs.typ.size < target_typ.size
     if operator == source.Operator.WORD_CAST:
-        return smt_zero_extend(num_bits=target_typ.size, lhs=lhs)
+        return smt_zero_extend(num_extra_bits=target_typ.size - lhs.typ.size, lhs=lhs)
     elif operator == source.Operator.WORD_CAST_SIGNED:
-        return smt_sign_extend(num_bits=target_typ.size, lhs=lhs)
+        return smt_sign_extend(num_extra_bits=target_typ.size - lhs.typ.size, lhs=lhs)
 
     assert_never(operator)
 
