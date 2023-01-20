@@ -275,7 +275,8 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.ProgV
                 # notice that we don't read from local! That's because updates
                 # are simultaneous, node.upds[0] shouldn't impact node.upds[1]
                 for upd in node.upds:
-                    assert source.all_vars_in_expr(upd.expr) < all_vars
+                    assert source.all_vars_in_expr(
+                        upd.expr) <= all_vars, "there are some variables used in an expression that we don't know about"
                     assert upd.var in all_vars, "this means (1) we missed a variable (2) we are assigning to an unused variable"
                     local[upd.var] = set_union(base[var]
                                                for var in source.all_vars_in_expr(upd.expr))
@@ -348,7 +349,7 @@ def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[so
         node = func.nodes[n]
         vars_undefined = set(
             v for v, paths in vars_undefined_on_paths[n].items() if len(paths) > 0)
-        for var, expr in sorted(source.expr_where_vars_are_used_in_node(node, vars_undefined)):
+        for var, expr in source.expr_where_vars_are_used_in_node(node, vars_undefined):
             print()
             print(
                 f"Variable `{var.name}` is used in expr `{source.pretty_expr_ascii(expr)}`")
