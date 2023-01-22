@@ -153,6 +153,9 @@ def viz(t: Callable[[IOBase, P], R]) -> Callable[[P], R]:
     return func
 
 
+ErrNodeName = 'Err'
+
+
 @viz
 def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
     puts: Callable[...,
@@ -174,7 +177,7 @@ def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
         elif isinstance(node, source.NodeCond):
             puts(
                 f"  {idx} -> {node.succ_then} [label=T] {dom if (idx, node.succ_then) in fun.cfg.back_edges else non_dom}")
-            if node.succ_else != "Err":
+            if node.succ_else != ErrNodeName:
                 puts(
                     f"  {idx} -> {node.succ_else} [label=F] {dom if (idx, node.succ_else) in fun.cfg.back_edges else non_dom}")
         else:
@@ -198,7 +201,7 @@ def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
             )
         elif isinstance(node, source.NodeCond):
 
-            if node.succ_else == "Err":
+            if node.succ_else == ErrNodeName:
                 operands = list(split_conjuncts(node.expr))
                 content = "<b>assert</b> " + pretty_safe_expr(operands[0])
                 for operand in operands[1:]:
