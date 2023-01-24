@@ -115,7 +115,7 @@ def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], n: sou
     return script
 
 
-def make_prog(func: source.Function[dsa.VarName]) -> AssumeProveProg:
+def make_prog(func: source.Function[dsa.VarName], dsa_contexts: dsa.Contexts) -> AssumeProveProg:
     # don't need to keep DSA artifcats because we don't have pre conditions,
     # post conditions or loop invariants
 

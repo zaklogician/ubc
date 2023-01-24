@@ -306,7 +306,14 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
     return vars_undefined_on_paths
 
 
-def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
+Contexts = Mapping[source.NodeName, Mapping[source.ProgVar, IncarnationNum]]
+
+
+def dsa(func: source.Function[source.ProgVarName]) -> tuple[source.Function[VarName], Contexts]:
+    """
+    Returns the dsa function, and an artifact to make it easy to emit
+    expressions into the DSA later on (used to emit the loop invariants)
+    """
 
     # for each node, for each prog variable, keep a set of possible dsa incarnations
     # (this is going to use a lot of memory but oh well)
@@ -463,4 +470,4 @@ def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
         arguments=tuple(dsa_args),
         loops=loops,
         name=func.name,
-        nodes=s.dsa_nodes)
+        nodes=s.dsa_nodes), s.incarnations

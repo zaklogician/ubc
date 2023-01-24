@@ -22,8 +22,8 @@ del f
 
 def verify(unsafe_func: syntax.Function) -> smt.VerificationResult:
     prog_func = source.convert_function(unsafe_func)
-    dsa_func = dsa.dsa(prog_func)
-    prog = assume_prove.make_prog(dsa_func)
+    dsa_func, dsa_contexts = dsa.dsa(prog_func)
+    prog = assume_prove.make_prog(dsa_func, dsa_contexts)
     smtlib = smt.make_smtlib(prog)
     sats = tuple(smt.send_smtlib_to_z3(smtlib))
     return smt.parse_sats(sats)
