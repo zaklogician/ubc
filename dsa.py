@@ -44,7 +44,7 @@ class DSABuilder:
     """
 
     incarnations: dict[source.NodeName,
-                       Mapping[source.ProgVar, set[IncarnationNum]]]
+                       Mapping[source.ProgVar, IncarnationNum]]
     """
     node_name => prog_var_name => set of incarnation numbers
 
@@ -80,7 +80,7 @@ def compute_node_variable_dependencies(func: source.Function[source.ProgVarName]
 
 
 def apply_incarnations(
-        context: Mapping[source.ProgVar, Set[IncarnationNum]],
+        context: Mapping[source.ProgVar, IncarnationNum],
         root: source.Expr[source.ProgVarName]) -> source.Expr[VarName]:
     """ applies incarnation, but if a variable isn't defined in the context, it silently uses base as the incarnation count.
     """
@@ -97,7 +97,7 @@ def apply_incarnations(
             # int a; if (0) return a + 1;
             incarnation_number = IncarnationBase
         else:
-            incarnation_number = max(context[var])
+            incarnation_number = context[var]
 
         dsa_name = make_dsa_var_name(root.name, incarnation_number)
 
@@ -119,9 +119,8 @@ def get_next_dsa_var_incarnation_number(s: DSABuilder, current_node: source.Node
     for pred_name in s.original_func.acyclic_preds_of(current_node):
         if var not in s.incarnations[pred_name]:
             continue
-        for inc in s.incarnations[pred_name][var]:
-            if max_inc_num is None or inc > max_inc_num:
-                max_inc_num = inc
+        if max_inc_num is None or s.incarnations[pred_name][var] > max_inc_num:
+            max_inc_num = s.incarnations[pred_name][var]
 
     if not max_inc_num:
         return IncarnationBase
@@ -129,9 +128,9 @@ def get_next_dsa_var_incarnation_number(s: DSABuilder, current_node: source.Node
     return IncarnationNum(max_inc_num + IncarnationNum(1))
 
 
-def get_next_dsa_var_incarnation_number_from_context(s: DSABuilder, context: Mapping[source.ProgVar, set[IncarnationNum]], var: source.ProgVar) -> IncarnationNum:
+def get_next_dsa_var_incarnation_number_from_context(s: DSABuilder, context: Mapping[source.ProgVar, IncarnationNum], var: source.ProgVar) -> IncarnationNum:
     if var in context:
-        return IncarnationNum(max(context[var]) + IncarnationNum(1))
+        return IncarnationNum(context[var] + IncarnationNum(1))
     return IncarnationBase
 
 
@@ -156,8 +155,7 @@ def apply_insertions(s: DSABuilder) -> None:
                 if prog_var not in prog_var_deps[node_name]:
                     continue
 
-                old_incarnation_number = max(
-                    s.incarnations[pred_name][prog_var])
+                old_incarnation_number = s.incarnations[pred_name][prog_var]
 
                 updates.append(source.Update(make_dsa_var(prog_var, new_incarnation_number),
                                              source.ExprVar(prog_var.typ, name=make_dsa_var_name(prog_var.name, old_incarnation_number))))
@@ -327,11 +325,11 @@ def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
     s = DSABuilder(original_func=func, insertions={},
                    dsa_nodes={}, incarnations={})
 
-    entry_incarnations: dict[source.ProgVar, set[IncarnationNum]] = {}
+    entry_incarnations: dict[source.ProgVar, IncarnationNum] = {}
     dsa_args: list[Var] = []
     for arg in func.arguments:
         dsa_args.append(make_dsa_var(arg, IncarnationBase))
-        entry_incarnations[arg] = {IncarnationBase}
+        entry_incarnations[arg] = IncarnationBase
 
     assert len(set(unpack_dsa_var_name(arg.name)[0] for arg in dsa_args)) == len(
         dsa_args), "unexpected duplicate argument name"
@@ -344,7 +342,7 @@ def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
 
         # build up a context (map from prog var to incarnation numbers)
         # TODO: clean this up
-        context: dict[source.ProgVar, set[IncarnationNum]]
+        context: dict[source.ProgVar, IncarnationNum]
         curr_node_insertions: dict[source.ProgVar,
                                    IncarnationNum] | None = None
         if current_node == func.cfg.entry:
@@ -357,16 +355,19 @@ def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
             )) for p in s.original_func.acyclic_preds_of(current_node))
 
             for var in all_variables:
-                context[var] = set_intersection(s.incarnations[p][var] for p in s.original_func.acyclic_preds_of(
+                possibilities = set(s.incarnations[p][var] for p in s.original_func.acyclic_preds_of(
                     current_node) if var in s.incarnations[p])
 
-                if len(context[var]) == 0:
-                    # predecessors have no incarnation numbers in common, we need to insert a join node
-                    # optimisation: get rid of the + 1 and do smarter joins
+                if len(possibilities) > 1:
+                    # predecessors disagree about predecessors, we need to insert a join node
                     fresh_incarnation_number = get_next_dsa_var_incarnation_number(
                         s, current_node, var)
                     curr_node_insertions[var] = fresh_incarnation_number
-                    context[var] = {fresh_incarnation_number}
+                    context[var] = fresh_incarnation_number
+                elif len(possibilities) == 1:
+                    context[var] = next(iter(possibilities))
+                else:
+                    assert False, "I didn't think this case was possible"
 
             if curr_node_insertions:
                 # we need to insert some join nodes
@@ -379,7 +380,7 @@ def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
                 # havoc the loop targets
                 fresh_incarnation_number = get_next_dsa_var_incarnation_number(
                     s, current_node, target)
-                context[target] = {fresh_incarnation_number}
+                context[target] = fresh_incarnation_number
                 targets.append(make_dsa_var(
                     target, fresh_incarnation_number))
 
@@ -445,7 +446,7 @@ def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
         curr_node_incarnations = dict(context)
         for prog_var, dsa_var in added_incarnations.items():
             _, incarnation_number = unpack_dsa_var_name(dsa_var.name)
-            curr_node_incarnations[prog_var] = {incarnation_number}
+            curr_node_incarnations[prog_var] = incarnation_number
         s.incarnations[current_node] = curr_node_incarnations
 
     apply_insertions(s)
