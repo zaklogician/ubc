@@ -219,16 +219,6 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.Loo
     return loops
 
 
-def pretty_path_condition(func: source.Function[source.ProgVarName], path: Collection[source.NodeName]) -> str:
-    conds: list[str] = []
-    for n in path:
-        node = func.nodes[n]
-        if isinstance(node, source.NodeCond) and node.succ_else != source.NodeNameErr:
-            # TODO: do better than str
-            conds.append(source.pretty_expr_ascii(node.expr))
-    return ' and '.join(conds)
-
-
 Path: TypeAlias = tuple[source.NodeName, ...]
 
 
@@ -316,59 +306,6 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
             vars_undefined_on_paths[n] = local
 
     return vars_undefined_on_paths
-
-
-def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[source.ProgVarName]) -> None:
-    return
-    vars_undefined_on_paths = compute_paths_on_which_vars_are_undefined(func)
-
-    for n in func.traverse_topologically():
-        if n in (source.NodeNameErr, source.NodeNameRet):
-            continue
-
-        node = func.nodes[n]
-        vars_undefined = set(
-            v for v, paths in vars_undefined_on_paths[n].items() if len(paths) > 0)
-        used_but_undefined = source.used_variables_in_node(
-            node) & set(vars_undefined)
-
-        if len(used_but_undefined) > 0:
-            # this is an over approximation. For example, we could have an
-            # expression like `if x then a else b` where b is undefined. It would
-            # suffice to prove that path_condition & !x cannot be true. Right
-            # now, we don't look at the expression, we just ensure that
-            # path_condition cannot be true.
-
-            # we have some used but undefined variables
-            break
-    else:
-        return  # we don't have any problems :)
-
-    print("DYNAMIC SINGLE ASSIGNMENT WARNING")
-    print("=================================")
-    print()
-    print(f"In function {func.name}")
-    print(f"Some variables used in some expression aren't always initialized")
-    print(f"It might reveal that these paths are impossible to take")
-    print(f"It might reveal the expressions won't ever evaluate those variables")
-    print(f"This should be determined by the SMT solvers.")
-    print()
-    print(f"NOTE: the s suffix on operators means signed (>>s means _signed_ shift right)")
-    for n in func.traverse_topologically():
-        if n in (source.NodeNameErr, source.NodeNameRet):
-            continue
-
-        node = func.nodes[n]
-        vars_undefined = set(
-            v for v, paths in vars_undefined_on_paths[n].items() if len(paths) > 0)
-        for var, expr in source.expr_where_vars_are_used_in_node(node, vars_undefined):
-            print()
-            print(
-                f"Variable `{var.name}` is used in expr `{source.pretty_expr_ascii(expr)}`")
-            print(f"But if one of the following condition is true, it isn't defined")
-            for path in vars_undefined_on_paths[n][var]:
-                print(
-                    f"  - {pretty_path_condition(func, path) or 'true'} (path: {' '.join(path)})")
 
 
 def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
@@ -512,8 +449,6 @@ def dsa(func: source.Function[source.ProgVarName]) -> source.Function[VarName]:
         s.incarnations[current_node] = curr_node_incarnations
 
     apply_insertions(s)
-
-    display_warning_used_but_sometimes_assigned_to_vars(s.original_func)
 
     # need to recompute the cfg from dsa_nodes
     all_succs = abc_cfg.compute_all_successors_from_nodes(s.dsa_nodes)
