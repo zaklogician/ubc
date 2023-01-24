@@ -65,7 +65,7 @@ def find_functions_by_name(function_names: Collection[str], target: str) -> str:
         return target
 
     for option in function_names:
-        if option.endswith(target) and len(option) > len(target) and option[-len(target)-1] == '.':
+        if option.endswith(target) and len(option) > len(target) and option[-len(target) - 1] == '.':
             return option
 
     selected: str | None = None

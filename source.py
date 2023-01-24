@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Any, Callable, Collection, Generic, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, TypeVar
 from typing_extensions import assert_never
 
 import syntax
-import abc_cfg
 
 ProgVarName = NewType('ProgVarName', str)
 VarNameKind = TypeVar("VarNameKind")
@@ -302,7 +302,7 @@ pretty_binary_operators_ascii = {
 @dataclass(frozen=True)
 class ExprOp(ABCExpr[VarNameKind]):
     operator: Operator
-    operands: Sequence[Expr[VarNameKind]]
+    operands: tuple[Expr[VarNameKind], ...]
 
 
 Expr: TypeAlias = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprSymbol
@@ -395,18 +395,44 @@ def all_vars_in_expr(expr: Expr[VarNameKind]) -> set[ExprVar[VarNameKind]]:
 
 def expr_negate(expr: Expr[VarNameKind]) -> Expr[VarNameKind]:
     assert expr.typ == type_bool
+
+    if isinstance(expr, ExprOp) and expr.operator == Operator.NOT:
+        assert len(expr.operands) == 1
+        return expr.operands[0]
+
+    if expr == expr_true:
+        return expr_false
+    if expr == expr_false:
+        return expr_true
+
     return ExprOp(type_bool, Operator.NOT, (expr, ))
 
 
 def expr_or(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]:
     assert lhs.typ == type_bool
     assert rhs.typ == type_bool
+
+    if lhs == expr_true or rhs == expr_true:
+        return expr_true
+    if lhs == expr_false:
+        return rhs
+    if rhs == expr_false:
+        return lhs
+
     return ExprOp(type_bool, Operator.OR, (lhs, rhs))
 
 
 def expr_and(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]:
     assert lhs.typ == type_bool
     assert rhs.typ == type_bool
+
+    if lhs == expr_true:
+        return rhs
+    if rhs == expr_true:
+        return lhs
+    if lhs == expr_false or rhs == expr_false:
+        return expr_false
+
     return ExprOp(type_bool, Operator.AND, (lhs, rhs))
 
 
@@ -415,6 +441,62 @@ def expr_implies(antecedent: Expr[VarNameKind], consequent: Expr[VarNameKind]) -
     assert consequent.typ == type_bool
     return ExprOp(type_bool, Operator.IMPLIES, (antecedent, consequent))
 
+
+def condition_to_evaluate_subexpr_in_expr(expr: Expr[VarNameKind], sub: Expr[VarNameKind]) -> Expr[VarNameKind]:
+    # traverse down the if, building up the condition to reach a particular variable
+    if isinstance(expr, ExprNum):
+        if expr == sub:
+            return expr_true
+        return expr_false
+    elif isinstance(expr, ExprVar):
+        if expr == sub:
+            return expr_true
+        return expr_false
+    elif isinstance(expr, ExprOp):
+        reachability_condition = [condition_to_evaluate_subexpr_in_expr(
+            operand, sub) for operand in expr.operands]
+
+        disjunctions = [d for d in reachability_condition if d != expr_false]
+
+        # none of the operands use the sub expression
+        if len(disjunctions) == 0:
+            return expr_false
+
+        if expr.operator is Operator.IF_THEN_ELSE and reachability_condition != [expr_true, expr_true]:
+            assert len(expr.operands) == 3
+            cond, then, otherwise = expr.operands
+
+            # a bunch of shortcuts to emit smaller expressions
+            # sub expression is used in the condition, so there is no escaping anything
+            if reachability_condition[0] == expr_true:
+                return expr_true
+            if reachability_condition[0] == expr_false and reachability_condition[1] == expr_false:
+                return expr_and(expr_negate(cond), reachability_condition[2])
+            if reachability_condition[0] == expr_false and reachability_condition[2] == expr_false:
+                return expr_and(cond, reachability_condition[1])
+
+            # subexpr used in condition
+            #   OR (condition AND subexpr used in then branch)
+            #   OR (NOT condition AND subexpr used in else branch)
+
+            branches = expr_or(
+                expr_and(cond, reachability_condition[1]),
+                expr_and(expr_negate(cond), reachability_condition[2])
+            )
+            return expr_or(reachability_condition[0], branches)
+
+        # one operand always uses the sub expression
+        if expr_true in disjunctions:
+            return expr_true
+
+        # either sub expression is used in first operand, or second operand, etc...
+        cond = disjunctions[0]
+        for op in disjunctions[1:]:
+            cond = expr_or(cond, op)
+        return cond
+    elif isinstance(expr, ExprType | ExprSymbol):
+        assert False, "I'm not sure what this is suppose to mean"
+    assert_never(expr)
 
 # for the following commented out expr classes
 # not present in the kernel functions, I don't want to make an abstraction for
@@ -493,6 +575,10 @@ class Loop(Generic[VarNameKind]):
     @property
     def header(self) -> NodeName:
         return self.back_edge[1]
+
+
+# FIXME: circular import
+import abc_cfg  # nopep8
 
 
 @dataclass(frozen=True)

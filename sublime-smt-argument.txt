@@ -367,3 +367,39 @@ if a
         a && b
     else
         a && not b
+
+
+-----
+
+    Intuitive explanation: an SSA variable is only ever assigned one value. Thus
+    the only thing that could go wrong with moving it out of the ok graph is
+    assigning
+
+    The xxx_ok variables form an acyclic directed graph, where the nodes are the
+    xxx_ok variables, and the edges are the implication operators
+
+    TODO: define this better
+
+    Consider an arbitrary SSA xI variable and an arbitrary path p through the
+    CFG. Somewhere in the CFG, xI is equated with an expression e at most once
+    (by definition of SSA).
+
+    For this first proof, we suppose e is a constant (it doesn't depend on any 
+    variable).
+
+    case 1/2: xI isn't used in that path (that is, none of the nodes mention
+              xI). Thus, adding the assumption xI = e as an initial assumption of
+              this path preserves the satisfiability of all the possible proof
+              obligations.
+    case 2/2: xI is used in path at some node in the path. We pick the node N as
+              the first node which uses xI in the path.
+
+              It must be the case that xI was assigned to e in a predecessor of
+              N (we generate proof obligations for this condition specifically).
+
+              Since no other node before N uses xI (by definition of N), we can
+              make the assignment xI = e an initial assumption of this path.
+
+
+    Thus, for every paths, xI = e can be added as an initial assumption.
+    Thus, xI = e is always true.

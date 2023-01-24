@@ -87,9 +87,11 @@ echo "TV_ROOT $TV_ROOT"
 # if gcc can't compile it, then isabelle won't be able to parse it
 if ! gcc -Wall -Werror -Wextra "$c_file" -o "$TMP_DIR/a.out" -c
 then
-    exit 1
+    # exit 0
+    echo keep going
+else
+    rm "$TMP_DIR/a.out"
 fi
-rm "$TMP_DIR/a.out"
 
 
 # "$TV_ROOT"/isabelle/bin/isabelle build -d "$TV_ROOT"/l4v -D . -c

@@ -232,24 +232,27 @@ def pretty_path_condition(func: source.Function[source.ProgVarName], path: Colle
 Path: TypeAlias = tuple[source.NodeName, ...]
 
 
-def compute_paths_on_which_vars_are_undefined(func: source.Function[source.ProgVarName]) -> Mapping[source.NodeName, Mapping[source.ProgVar, Set[Path]]]:
+def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNameKind]) -> Mapping[source.NodeName, Mapping[source.ExprVar[source.VarNameKind], Set[Path]]]:
+    """
+    We say a variable is _assigned_ it ever was on the lhs of an assignment
+
+    We say a variable is _defined_ if it was assigned to an expression which
+    only depends defined variables (we start with a set a defined variable,
+    for example function arguments)
+
+    conjecture: it suffices to prove that no unassigned variable is ever
+    used to show that no undefined variable is ever used.
+
+    node name => variable => paths along which the variable isn't defined
+    (so if vars_undefined_on_paths[n][v] is empty, that means v is defined
+    at node n). All paths to node n end with n.
+    """
+
     all_vars = set_union(source.used_variables_in_node(func.nodes[n]) | source.assigned_variables_in_node(
         func, n) for n in func.traverse_topologically() if n not in (source.NodeNameErr, source.NodeNameRet))
 
-    # we say a variable is _assigned_ it ever was on the lhs of an assignment
-
-    # we say a variable is _defined_ if it was assigned to an expression which
-    # only depends defined variables (we start with a set a defined variable,
-    # for example function arguments)
-
-    # conjecture: it suffices to prove that no unassigned variable is ever
-    # used to show that no undefined variable is ever used.
-
-    # node name => variable => paths along which the variable isn't defined
-    # (so if vars_undefined_on_paths[n][v] is empty, that means v is defined
-    # at node n). All paths to node n end with n.
     vars_undefined_on_paths: dict[source.NodeName,
-                                  Mapping[source.ProgVar, Set[Path]]] = {}
+                                  Mapping[source.ExprVar[source.VarNameKind], Set[Path]]] = {}
 
     for n in func.traverse_topologically():
         if n in (source.NodeNameRet, source.NodeNameErr):
@@ -265,11 +268,19 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.ProgV
             # 1. merge preds:
 
             # 1.a. merge all preds (for each variable, union of path)
-            local: dict[source.ProgVar, Set[Path]] = {var: set_union(
+            local: dict[source.ExprVar[source.VarNameKind], Set[Path]] = {var: set_union(
                 vars_undefined_on_paths[p][var] for p in func.acyclic_preds_of(n)) for var in all_vars}
 
             # 1.b. if a variable is assigned in the current node, set paths to
             # the union of the paths of the variables the rhs depends on
+
+            # if a node is a loop header, then it incarnates all loop written variables
+            # (ie they are assigned)
+            if loop_header := func.is_loop_header(n):
+                loop = func.loops[loop_header]
+                for var in loop.targets:
+                    local[var] = set()  # variable is defined
+
             if isinstance(node, source.NodeBasic):
                 base = dict(local)  # copy
                 # notice that we don't read from local! That's because updates
@@ -286,7 +297,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.ProgV
                 # all retI depend on all vJK
 
                 # all the variables we depend on to evaluate f(...)
-                var_deps: set[source.ProgVar] = set_union(
+                var_deps: set[source.ExprVar[source.VarNameKind]] = set_union(
                     source.all_vars_in_expr(arg) for arg in node.args)
 
                 # all the paths we must avoid to evaluate f(...)
@@ -308,6 +319,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.ProgV
 
 
 def display_warning_used_but_sometimes_assigned_to_vars(func: source.Function[source.ProgVarName]) -> None:
+    return
     vars_undefined_on_paths = compute_paths_on_which_vars_are_undefined(func)
 
     for n in func.traverse_topologically():

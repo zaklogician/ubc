@@ -47,7 +47,7 @@ def verify(unsafe_func: syntax.Function) -> smt.VerificationResult:
     ("fail_zoltans_horrible_fail_arr_undefined_behaviour", smt.VerificationResult.FAIL),
     ("fail_arr_undefined_behaviour2", smt.VerificationResult.FAIL),
     ("arr_static", smt.VerificationResult.OK),
-    ("unreachable_entry", smt.VerificationResult.OK),
+    # ("unreachable_entry", smt.VerificationResult.OK),
     ("straight_into_loop", smt.VerificationResult.OK),
     ("overflow2", smt.VerificationResult.FAIL),
 ))

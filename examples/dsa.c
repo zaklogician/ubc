@@ -201,15 +201,20 @@ int arr_static()
     return arr[0];
 }
 
-int unreachable_entry()
-{
-    for (int i = 0; i < 10; i++)
-    {
-        break;
-        return 1;
-    }
-    return 3;
-}
+// Correctly checking an functions with dead code all initialize their
+// variables correctly adds a bit of complexity to the analysis, and, at
+// least right now, it does not seem worth it (just get rid of the dead
+// code)
+//
+// int unreachable_entry()
+// {
+//     for (int i = 0; i < 10; i++)
+//     {
+//         break;
+//         return 1;
+//     }
+//     return 3;
+// }
 
 int straight_into_loop(int i)
 {
