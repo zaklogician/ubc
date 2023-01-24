@@ -8,6 +8,11 @@ find -name '*.py' | xargs autopep8 -d > /tmp/autopep8diff
 
 [ "$(cat /tmp/autopep8diff)" != "" ] && cat /tmp/autopep8diff && exit 1
 
-time -p pytest
+
+if test "$1" = "quick"; then
+    pytest -k 'not dsa and not reducible'
+else
+    time -p pytest
+fi
 
 exit 0
