@@ -59,6 +59,9 @@ class CmdlineOption(Enum):
     SHOW_SATS = '--show-sats'
     """ Show the raw results from the smt solvers (sat/unsat) """
 
+    SHOW_LINE_NUMBERS = '--ln'
+    """ Shows line numbers for the smt """
+
 
 def find_functions_by_name(function_names: Collection[str], target: str) -> str:
     if target in function_names:
@@ -123,7 +126,13 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
 
         smtlib = smt.make_smtlib(prog)
         if CmdlineOption.SHOW_SMT in options:
-            print(smtlib)
+            if CmdlineOption.SHOW_LINE_NUMBERS in options:
+                lines = smtlib.splitlines()
+                w = len(str(len(lines)))
+                for i, line in enumerate(lines):
+                    print(f'{str(i).rjust(w)}  {line}')
+            else:
+                print(smtlib)
 
         sats = tuple(smt.send_smtlib_to_z3(smtlib))
         if CmdlineOption.SHOW_SATS in options:
@@ -132,11 +141,14 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         assert len(sats) == 2
         result = smt.parse_sats(sats)
         if result is smt.VerificationResult.OK:
-            print("verification succeeded")
+            print("verification succeeded", file=sys.stderr)
+            exit(0)
         elif result is smt.VerificationResult.INCONSTENT:
-            print("INTERNAL ERROR: smt is an inconsistent state")
+            print("INTERNAL ERROR: smt is an inconsistent state", file=sys.stderr)
+            exit(2)
         elif result is smt.VerificationResult.FAIL:
-            print("verification failed (good luck figuring out why)")
+            print("verification failed (good luck figuring out why)", file=sys.stderr)
+            exit(1)
         else:
             assert_never(result)
 
