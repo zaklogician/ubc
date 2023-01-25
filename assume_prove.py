@@ -21,15 +21,26 @@ class InstructionProve(NamedTuple):
 Instruction = InstructionAssume | InstructionProve
 Script = Sequence[InstructionAssume | InstructionProve]
 
+LoopInvariantFunctionName = NewType(
+    'LoopInvariantFunctionName', source.FunctionName)
+
+
+class FunctionDefinition(NamedTuple):
+    """ This is an *smt* function, not a C function """
+    name: source.FunctionName
+    arguments: Sequence[source.ExprVar[VarName]]
+    return_typ: source.Type
+    body: source.Expr[VarName]
+
 
 class AssumeProveProg(NamedTuple):
     nodes_script: Mapping[NodeOkName, Script]
 
     entry: NodeOkName
 
-    # TODO: include path that lead to use of non initialized variables
+    function_definitions: Sequence[FunctionDefinition]
+
     # TODO: specify each assert with a specific error message
-    # assertions: Assertions
 
 
 def node_ok_name(n: source.NodeName) -> NodeOkName:
@@ -44,17 +55,23 @@ def convert_dsa_var_to_ap_var(var: dsa.VarName) -> VarName:
     return VarName(f'{var.prog}~{var.inc}')
 
 
+def convert_expr_var(expr: source.ExprVar[dsa.VarName]) -> source.ExprVar[VarName]:
+    return source.ExprVar(expr.typ, name=convert_dsa_var_to_ap_var(expr.name))
+
+
 def convert_expr_dsa_vars_to_ap(expr: source.Expr[dsa.VarName]) -> source.Expr[VarName]:
     if isinstance(expr, source.ExprNum):
         return expr
     elif isinstance(expr, source.ExprVar):
-        return source.ExprVar(expr.typ, name=convert_dsa_var_to_ap_var(expr.name))
+        return convert_expr_var(expr)
     elif isinstance(expr, source.ExprOp):
         return source.ExprOp(expr.typ, source.Operator(expr.operator), operands=tuple(
             convert_expr_dsa_vars_to_ap(operand) for operand in expr.operands
         ))
     elif isinstance(expr, source.ExprType | source.ExprSymbol):
         return expr
+    elif isinstance(expr, source.ExprFunction):
+        return source.ExprFunction(expr.typ, expr.function_name, [convert_expr_dsa_vars_to_ap(arg) for arg in expr.arguments], )
     assert_never(expr)
 
 
@@ -67,10 +84,44 @@ def make_assume(var: dsa.Var, expr: source.Expr[dsa.VarName]) -> Instruction:
     return InstructionAssume(eq)
 
 
-def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], n: source.NodeName) -> Script:
-    # TODO: loop invariants
+def make_loop_invariant_function_name(loop_header: source.LoopHeaderName) -> LoopInvariantFunctionName:
+    return LoopInvariantFunctionName(source.FunctionName(f'loop_invariant@{loop_header}'))
 
+
+def prog_var_to_ap_var(v: source.ProgVar) -> APVar:
+    return source.ExprVar(v.typ, VarName(v.name))
+
+
+def get_loop_invariant_function(func: source.Function[dsa.VarName], loop_header: source.LoopHeaderName) -> FunctionDefinition:
+    # TODO: there is no point rebuilding the same object multiple times
+    #       hint to use an AP builder
+    name = make_loop_invariant_function_name(loop_header)
+    args = [prog_var_to_ap_var(dsa.get_prog_var(target))
+            for target in func.loops[loop_header].targets]
+    # emit loop invariant as true (ie. doesn't do anything)
+    return FunctionDefinition(name=name, arguments=args, return_typ=source.type_bool, body=source.expr_true)
+
+
+def apply_incarnation_for_node(dsa_contexts: dsa.Contexts, n: source.NodeName, prog_var: source.ProgVar) -> source.ExprVar[VarName]:
+    return convert_expr_var(dsa.make_dsa_var(prog_var, dsa_contexts[n][prog_var]))
+
+
+def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], dsa_contexts: dsa.Contexts, n: source.NodeName) -> Script:
     node = func.nodes[n]
+
+    # 1. assume invariant if we are a loop header
+    # 2. emit node specific assume/prove instruction
+    # 3. if we jump to a loop header, prove that it's loop invariant is maintained
+
+    script: list[Instruction] = []
+    if loop_header := func.is_loop_header(n):
+        # we get to assume the loop invariant
+        invariant = get_loop_invariant_function(func, loop_header)
+
+        args = [convert_expr_var(target)
+                for target in func.loops[loop_header].targets]
+        script.append(InstructionAssume(source.ExprFunction(
+            invariant.return_typ, invariant.name, args)))
 
     if isinstance(node, source.NodeCond):
         # CondNode(expr, succ_then, succ_else)
@@ -78,23 +129,26 @@ def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], n: sou
         #     prove not expr --> succ_else_ok
         cond = convert_expr_dsa_vars_to_ap(node.expr)
 
+        assert not any(func.is_loop_header(succ)
+                       for succ in func.cfg.all_succs[n])
         assert not func.is_loop_latch(
             n), "TODO: handle conditional nodes that are loop latches (recall that we remove back edges)"
 
-        return [
-            InstructionProve(source.expr_implies(
-                cond, node_ok_ap_var(node.succ_then))),
-            InstructionProve(source.expr_implies(source.expr_negate(cond),
-                                                 node_ok_ap_var(node.succ_else)))
-        ]
+        script.append(InstructionProve(source.expr_implies(
+            cond, node_ok_ap_var(node.succ_then))))
+        script.append(InstructionProve(source.expr_implies(
+            source.expr_negate(cond), node_ok_ap_var(node.succ_else))))
 
-    script: list[Instruction] = []
-    if isinstance(node, source.NodeBasic):
+    elif isinstance(node, source.NodeBasic):
         # BasicNode(upds, succ)
         #     assume upd[i].lhs = upd[i].rhs    forall i
         #     prove succ_ok
         for upd in node.upds:
             script.append(make_assume(upd.var, upd.expr))
+
+        # proves successors are correct, ignoring back edges
+        if (n, node.succ) not in func.cfg.back_edges:
+            script.append(InstructionProve(node_ok_ap_var(node.succ)))
     elif isinstance(node, source.NodeCall):
         # CallNode(func, args, rets, succ):
         #     prove func.pre(args)
@@ -102,15 +156,27 @@ def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], n: sou
         #     prove succ_ok
 
         # TODO: pre and post condition
-        pass
+        # proves successors are correct, ignoring back edges
+        if (n, node.succ) not in func.cfg.back_edges:
+            script.append(InstructionProve(node_ok_ap_var(node.succ)))
     elif isinstance(node, source.NodeEmpty):
-        pass  # nothing to do
+        # proves successors are correct, ignoring back edges
+        if (n, node.succ) not in func.cfg.back_edges:
+            script.append(InstructionProve(node_ok_ap_var(node.succ)))
     else:
         assert_never(node)
 
-    # we ignore back edges
-    if (n, node.succ) not in func.cfg.back_edges:
-        script.append(InstructionProve(node_ok_ap_var(node.succ)))
+    for succ in func.cfg.all_succs[n]:
+        if loop_header := func.is_loop_header(succ):
+            # we need to prove that the loop invariant holds
+            invariant = get_loop_invariant_function(func, loop_header)
+
+            # use the incarnation at node n
+            args = [
+                apply_incarnation_for_node(dsa_contexts, n, dsa.get_prog_var(arg)) for arg in func.loops[loop_header].targets]
+
+            script.append(InstructionProve(source.ExprFunction(
+                invariant.return_typ, invariant.name, args)))
 
     return script
 
@@ -149,13 +215,16 @@ def make_prog(func: source.Function[dsa.VarName], dsa_contexts: dsa.Contexts) ->
                     convert_expr_dsa_vars_to_ap(extra_cond))
                 node_script.append(InstructionProve(neg))
 
-        node_script.extend(make_assume_prove_script_for_node(func, n))
+        node_script.extend(
+            make_assume_prove_script_for_node(func, dsa_contexts, n))
         nodes_script[node_ok_name(n)] = node_script
 
     for script in nodes_script.values():
         assert all(ins.expr.typ == source.type_bool for ins in script)
 
-    return AssumeProveProg(nodes_script=nodes_script, entry=node_ok_name(func.cfg.entry))
+    function_definitions = [get_loop_invariant_function(
+        func, loop_header) for loop_header in func.loops]
+    return AssumeProveProg(nodes_script=nodes_script, entry=node_ok_name(func.cfg.entry), function_definitions=function_definitions)
 
 
 def pretty_instruction_ascii(ins: Instruction) -> str:

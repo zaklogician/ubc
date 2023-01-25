@@ -30,6 +30,10 @@ def unpack_dsa_var(var: Var) -> tuple[source.ProgVar, IncarnationNum]:
     return source.ExprVar(var.typ, var.name.prog), var.name.inc
 
 
+def get_prog_var(var: Var) -> source.ProgVar:
+    return source.ExprVar(var.typ, var.name.prog)
+
+
 def make_dsa_var(v: source.ProgVar, inc: IncarnationNum) -> Var:
     return source.ExprVar(v.typ, make_dsa_var_name(v.name, inc))
 
@@ -108,6 +112,8 @@ def apply_incarnations(
         ))
     elif isinstance(root, source.ExprType | source.ExprSymbol):
         return root
+    elif isinstance(root, source.ExprFunction):
+        assert False, "there shouldn't be any function in the graph lang"
     assert_never(root)
 
 

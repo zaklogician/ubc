@@ -90,3 +90,36 @@ int used_undefined_array_element__fail_lots_indices(int i)
     a[2] = 4;
     return a[i];
 }
+
+// ; loop invariant (i <= n)
+// (define-fun loop_invariant@5 ((i___int@v (_ BitVec 32)) (s___int@v (_ BitVec 32)) (loop@4@count (_ BitVec 64))) Bool (bvsle i___int@v n___int@v~1))
+
+// ; pre condition (0 <= n)
+// (assert (bvsge n___int@v~1 (_ bv0 32)))
+int arith_sum___fail_because_missing_invariants(int n)
+{
+    int s = 0;
+    for (int i = 0; i < n; i++)
+    {
+        s += i;
+    }
+    return s;
+}
+
+int arith_sum_cond___fail_because_missing_invariants(unsigned int n, int fast)
+{
+    if (fast)
+    {
+        return n * (n + 1) / 2; // c parser doesn't allow signed division apparently
+    }
+    else
+    {
+        int s = 0;
+        for (int i = 0; i < n; i++)
+        {
+            s += i;
+        }
+        return s;
+    }
+    return 0;
+}

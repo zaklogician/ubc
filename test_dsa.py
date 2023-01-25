@@ -109,6 +109,12 @@ def assert_expr_equals_mod_dsa(lhs: source.Expr[source.ProgVarName], rhs: source
         assert len(lhs.operands) == len(rhs.operands)
         for i in range(len(lhs.operands)):
             assert_expr_equals_mod_dsa(lhs.operands[i], rhs.operands[i])
+    elif isinstance(lhs, source.ExprFunction):
+        assert isinstance(rhs, source.ExprFunction)
+        assert lhs.function_name == rhs.function_name
+        assert len(lhs.arguments) == len(rhs.arguments)
+        for i in range(len(lhs.arguments)):
+            assert_expr_equals_mod_dsa(lhs.arguments[i], rhs.arguments[i])
     else:
         assert_never(lhs)
 

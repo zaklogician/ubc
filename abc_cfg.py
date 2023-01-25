@@ -216,7 +216,7 @@ def compute_loops(nodes: Mapping[source.NodeName, source.Node[source.ProgVarName
         loop_targets = compute_loop_targets(
             nodes, cfg, loop_header, loop_nodes)
         loops[source.LoopHeaderName(loop_header)] = source.Loop(
-            back_edge, loop_nodes, loop_targets)
+            back_edge, loop_nodes, tuple(loop_targets))
     return loops
 
 

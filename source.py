@@ -15,25 +15,25 @@ NodeNameErr = NodeName('Err')
 NodeNameRet = NodeName('Ret')
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TypeStruct:
     name: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TypeBitVec:
     """ Synonym for TypeWord
     """
     size: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TypeArray:
     element_typ: Type
     size: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TypePtr:
     pointee_type: Type
 
@@ -66,12 +66,12 @@ class Builtin(Enum):
     ROUNDING_MODE = 'RoundingMode'
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TypeBuiltin:
     builtin: Builtin
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TypeWordArray:
 
     index_bits: int
@@ -133,6 +133,7 @@ def convert_type(typ: syntax.Type) -> Type:
         assert typ.el_typ_symb is not None
         return TypeArray(typ.el_typ_symb, typ.num)
     elif typ.kind == 'FloatingPoint':
+        assert False, "floating points not supported yet"
         return TypeFloatingPoint(typ.nums[0], typ.nums[1])
     elif typ.kind == 'Struct':
         return TypeStruct(typ.name)
@@ -168,6 +169,17 @@ class ExprType(ABCExpr[Any]):
 @dataclass(frozen=True)
 class ExprSymbol(ABCExpr[Any]):
     name: str
+
+
+FunctionName = NewType('FunctionName', str)
+""" This is an *smt* function, not a C function """
+
+
+@dataclass(frozen=True)
+class ExprFunction(ABCExpr[VarNameKind]):
+    """ This is an *smt* function, not a C function """
+    function_name: FunctionName
+    arguments: Sequence[Expr[VarNameKind]]
 
 
 @unique
@@ -305,7 +317,7 @@ class ExprOp(ABCExpr[VarNameKind]):
     operands: tuple[Expr[VarNameKind], ...]
 
 
-Expr: TypeAlias = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprSymbol
+Expr: TypeAlias = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprFunction[VarNameKind] | ExprSymbol
 ProgVar: TypeAlias = ExprVar[ProgVarName]
 
 expr_true: Expr[Any] = ExprOp(type_bool, Operator.TRUE, ())
@@ -317,7 +329,9 @@ def visit_expr(expr: Expr[VarNameKind], visitor: Callable[[Expr[VarNameKind]], N
     if isinstance(expr, ExprOp):
         for operand in expr.operands:
             visit_expr(operand, visitor)
-    # elif not isinstance(expr, ExprVar | ExprNum | ExprType | ExprSymbol):
+    elif isinstance(expr, ExprFunction):
+        for arg in expr.arguments:
+            visit_expr(arg, visitor)
     elif not isinstance(expr, ExprVar | ExprNum | ExprType | ExprSymbol):
         assert_never(expr)
 
@@ -365,6 +379,8 @@ def pretty_expr_ascii(expr: Expr[VarNameKind]) -> str:
             return f'({cond} ? {then} : {otherwise})'
         else:
             return f'{expr.operator.value}({", ".join(pretty_expr_ascii(operand) for operand in expr.operands)})'
+    elif isinstance(expr, ExprFunction):
+        return f'{expr.function_name} {" ".join(pretty_expr_ascii(arg) for arg in expr.arguments)}'
     assert_never(expr)
 
 
@@ -494,6 +510,14 @@ def condition_to_evaluate_subexpr_in_expr(expr: Expr[VarNameKind], sub: Expr[Var
         for op in disjunctions[1:]:
             cond = expr_or(cond, op)
         return cond
+    elif isinstance(expr, ExprFunction):
+        conditions = [condition_to_evaluate_subexpr_in_expr(
+            arg, sub) for arg in expr.arguments]
+        cond = expr_false
+        for op in conditions:
+            cond = expr_or(cond, op)
+        return cond
+
     elif isinstance(expr, ExprType | ExprSymbol):
         assert False, "I'm not sure what this is suppose to mean"
     assert_never(expr)
@@ -568,7 +592,7 @@ class Loop(Generic[VarNameKind]):
     nodes: tuple[NodeName, ...]
     """ nodes forming a natural loop """
 
-    targets: Collection[ExprVar[VarNameKind]]
+    targets: Sequence[ExprVar[VarNameKind]]
     """ All the variables that are written to during the loop
     """
 

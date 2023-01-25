@@ -57,6 +57,7 @@ Identifier = NewType('Identifier', str)
 
 def identifier(illegal_name: assume_prove.VarName) -> Identifier:
     # '#' are disallowed in SMT
+    assert '@' not in illegal_name, "# are replaced with @, but some name already contains a @, which might result on conflicts"
     renamed = illegal_name.replace('#', '@')
     assert RE_VALID_SMTLIB_SIMPLE_SYMBOL.match(
         renamed), f"identifier {illegal_name!r} isn't valid"
@@ -77,7 +78,20 @@ class CmdCheckSat(NamedTuple):
     pass
 
 
-Cmd = CmdDeclareFun | CmdAssert | CmdCheckSat
+class CmdDefineFun(NamedTuple):
+    symbol: Identifier
+    args: Sequence[source.ExprVar[assume_prove.VarName]]
+    ret_sort: source.Type
+    term: source.Expr[assume_prove.VarName]
+
+
+class CmdComment(NamedTuple):
+    comment: str
+
+
+EmptyLine = CmdComment('')
+
+Cmd = CmdDeclareFun | CmdDefineFun | CmdAssert | CmdCheckSat | CmdComment
 
 
 def smt_bitvec_of_size(val: int, size: int) -> SMTLIB:
@@ -180,7 +194,8 @@ def emit_expr(expr: source.Expr[assume_prove.VarName]) -> SMTLIB:
         return SMTLIB(f'{identifier(expr.name)}')
     elif isinstance(expr, source.ExprSymbol | source.ExprType):
         assert False, "what do i do with this?"
-
+    elif isinstance(expr, source.ExprFunction):
+        return SMTLIB(f'({expr.function_name} {" ".join(emit_expr(arg) for arg in expr.arguments)})')
     assert_never(expr)
 
 
@@ -198,6 +213,7 @@ def emit_sort(typ: source.Type) -> SMTLIB:
 
 def emit_cmd(cmd: Cmd) -> SMTLIB:
     if isinstance(cmd, CmdDeclareFun):
+        # (declare-fun func_name (T1 T2 ...) T)
         arg_sorts = " ".join(emit_sort(s) for s in cmd.arg_sorts)
         ret_sort = emit_sort(cmd.ret_sort)
         return SMTLIB(f'(declare-fun {cmd.symbol} ({arg_sorts}) {ret_sort})')
@@ -205,6 +221,15 @@ def emit_cmd(cmd: Cmd) -> SMTLIB:
         return SMTLIB(f"(assert {emit_expr(cmd.expr)})")
     elif isinstance(cmd, CmdCheckSat):
         return SMTLIB(f"(check-sat)")
+    elif isinstance(cmd, CmdDefineFun):
+        # (define-fun func_name ((a T1) (b T2) ...) T (body))
+        args = ' '.join(
+            f'({identifier(arg.name)} {emit_sort(arg.typ)})' for arg in cmd.args)
+        return SMTLIB(f"(define-fun {cmd.symbol} ({args}) {emit_sort(cmd.ret_sort)} {emit_expr(cmd.term)})")
+    elif isinstance(cmd, CmdComment):
+        if cmd.comment == '':
+            return SMTLIB('')
+        return SMTLIB('; ' + cmd.comment)
     assert_never(cmd)
 
 
@@ -220,16 +245,16 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     emited_identifiers: set[Identifier] = set()
     emited_variables: set[assume_prove.VarName] = set()
 
-    # emit all auxilary variable declaration (declare-fun node_x_ok () Bool)
     cmds: list[Cmd] = []
+
+    # emit all auxilary variable declaration (declare-fun node_x_ok () Bool)
     for node_ok_name in p.nodes_script:
         cmds.append(CmdDeclareFun(identifier(
             node_ok_name), (), source.type_bool))
         emited_identifiers.add(identifier(node_ok_name))
         emited_variables.add(node_ok_name)
 
-    assert len(emited_identifiers) == len(
-        emited_variables), "renaming variables to valid SMT LIB identifiers results in a name clash"
+    cmds.append(EmptyLine)
 
     # emit all variable declaration (declare-fun y () <sort>)
     for script in p.nodes_script.values():
@@ -239,6 +264,21 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
                 if iden not in emited_identifiers:
                     cmds.append(CmdDeclareFun(iden, (), var.typ))
                     emited_identifiers.add(iden)
+                    emited_variables.add(var.name)
+
+    cmds.append(EmptyLine)
+
+    # emit all function definition (define-fun func_name ((a T1) (b T2) ...) T (body))
+    for func_def in p.function_definitions:
+        iden = Identifier(func_def.name)
+        cmds.append(CmdDefineFun(
+            iden, func_def.arguments, func_def.return_typ, func_def.body))
+        emited_identifiers.add(iden)
+
+    cmds.append(EmptyLine)
+
+    assert len(emited_identifiers) == len(
+        emited_variables) + len(p.function_definitions), "renaming variables to valid SMT LIB identifiers results in a name clash"
 
     # emit all assertions from nodes (node_x_ok = wp(x))
     for node_ok_name, script in p.nodes_script.items():
