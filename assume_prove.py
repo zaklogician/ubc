@@ -175,8 +175,8 @@ def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], dsa_co
             args = [
                 apply_incarnation_for_node(dsa_contexts, n, dsa.get_prog_var(arg)) for arg in func.loops[loop_header].targets]
 
-            script.append(InstructionProve(source.ExprFunction(
-                invariant.return_typ, invariant.name, args)))
+            script.append(InstructionProve(source.expr_implies(source.expr_negate(source.ExprFunction(
+                invariant.return_typ, invariant.name, args)), node_ok_ap_var(source.NodeNameErr))))
 
     return script
 

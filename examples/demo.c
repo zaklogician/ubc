@@ -21,3 +21,19 @@ int arith_sum(int n)
     return s;
 }
 
+int foo(int n, int m) {
+
+    while (n != 0 && n != 1) {
+        n += 1;
+        n >>= 1;
+    }
+    m = m + (0x7fffffff * n);
+}
+
+int foo3(int n, int m) {
+    if (n & 1 == 0) {
+      m = m + 1; // you didn't prove there were no overflows here
+    }
+    n = n + 1; // you didn't prove there were no overflows here
+    return 0;
+}
