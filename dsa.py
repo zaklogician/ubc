@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Collection, Mapping, NamedTuple, NewType, Set, TypeAlias
+from typing import Collection, Mapping, NamedTuple, NewType, Set, TypeAlias, cast
 from typing_extensions import assert_never
 import abc_cfg
 import source
@@ -15,7 +15,7 @@ class VarName(NamedTuple):
     inc: IncarnationNum
 
 
-Var: TypeAlias = source.ExprVar[VarName]
+Var: TypeAlias = source.ExprVarT[VarName]
 
 
 def make_dsa_var_name(v: source.ProgVarName, k: IncarnationNum) -> VarName:
@@ -85,12 +85,13 @@ def compute_node_variable_dependencies(func: source.Function[source.ProgVarName]
 
 def apply_incarnations(
         context: Mapping[source.ProgVar, IncarnationNum],
-        root: source.Expr[source.ProgVarName]) -> source.Expr[VarName]:
+        root: source.ExprT[source.ProgVarName]) -> source.ExprT[VarName]:
     """ applies incarnation, but if a variable isn't defined in the context, it silently uses base as the incarnation count.
     """
 
-    if isinstance(root, source.ExprNum):
+    if isinstance(root, source.ExprNum | source.ExprType | source.ExprSymbol):
         return root
+        # return cast(source.ExprT[VarName], root)
     elif isinstance(root, source.ExprVar):
         var: source.ProgVar = source.ExprVar(root.typ, root.name)
 
@@ -110,8 +111,6 @@ def apply_incarnations(
         return source.ExprOp(root.typ, source.Operator(root.operator), operands=tuple(
             apply_incarnations(context, operand) for operand in root.operands
         ))
-    elif isinstance(root, source.ExprType | source.ExprSymbol):
-        return root
     elif isinstance(root, source.ExprFunction):
         assert False, "there shouldn't be any function in the graph lang"
     assert_never(root)
@@ -226,7 +225,7 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.Loo
 Path: TypeAlias = tuple[source.NodeName, ...]
 
 
-def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNameKind]) -> Mapping[source.NodeName, Mapping[source.ExprVar[source.VarNameKind], Set[Path]]]:
+def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNameKind]) -> Mapping[source.NodeName, Mapping[source.ExprVarT[source.VarNameKind], Set[Path]]]:
     """
     We say a variable is _assigned_ it ever was on the lhs of an assignment
 
@@ -246,7 +245,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
         func, n) for n in func.traverse_topologically() if n not in (source.NodeNameErr, source.NodeNameRet))
 
     vars_undefined_on_paths: dict[source.NodeName,
-                                  Mapping[source.ExprVar[source.VarNameKind], Set[Path]]] = {}
+                                  Mapping[source.ExprVarT[source.VarNameKind], Set[Path]]] = {}
 
     for n in func.traverse_topologically():
         if n in (source.NodeNameRet, source.NodeNameErr):
@@ -262,7 +261,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
             # 1. merge preds:
 
             # 1.a. merge all preds (for each variable, union of path)
-            local: dict[source.ExprVar[source.VarNameKind], Set[Path]] = {var: set_union(
+            local: dict[source.ExprVarT[source.VarNameKind], Set[Path]] = {var: set_union(
                 vars_undefined_on_paths[p][var] for p in func.acyclic_preds_of(n)) for var in all_vars}
 
             # 1.b. if a variable is assigned in the current node, set paths to
@@ -291,7 +290,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
                 # all retI depend on all vJK
 
                 # all the variables we depend on to evaluate f(...)
-                var_deps: set[source.ExprVar[source.VarNameKind]] = set_union(
+                var_deps: set[source.ExprVarT[source.VarNameKind]] = set_union(
                     source.all_vars_in_expr(arg) for arg in node.args)
 
                 # all the paths we must avoid to evaluate f(...)

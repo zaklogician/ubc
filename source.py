@@ -9,6 +9,7 @@ import syntax
 
 ProgVarName = NewType('ProgVarName', str)
 VarNameKind = TypeVar("VarNameKind")
+TypeKind = TypeVar("TypeKind")
 
 NodeName = NewType('NodeName', str)
 NodeNameErr = NodeName('Err')
@@ -111,7 +112,7 @@ def pretty_type_ascii(typ: Type) -> str:
     assert_never(typ)
 
 
-type_bool = TypeBuiltin(Builtin.BOOL)
+type_bool: Type = TypeBuiltin(Builtin.BOOL)
 type_word8 = TypeBitVec(8)
 type_word32 = TypeBitVec(32)
 type_word64 = TypeBitVec(64)
@@ -145,41 +146,55 @@ def convert_type(typ: syntax.Type) -> Type:
 
 
 @dataclass(frozen=True)
-class ABCExpr(Generic[VarNameKind]):
-    typ: Type
+class ABCExpr(Generic[TypeKind, VarNameKind]):
+    typ: TypeKind
 
 
 @dataclass(frozen=True, order=True)
-class ExprVar(ABCExpr[VarNameKind]):
+class ExprVar(ABCExpr[TypeKind, VarNameKind]):
     name: VarNameKind
 
 
+ExprVarT: TypeAlias = ExprVar[Type, VarNameKind]
+
+
 @dataclass(frozen=True)
-class ExprNum(ABCExpr[Any]):
+class ExprNum(ABCExpr[TypeKind, Any]):
     num: int
 
 
+ExprNumT: TypeAlias = ExprNum[Type]
+
+
 @dataclass(frozen=True)
-class ExprType(ABCExpr[Any]):
+class ExprType(ABCExpr[TypeKind, Any]):
     """ should have typ builtin.Type
     """
     val: Type
 
 
+ExprTypeT: TypeAlias = ExprType[Type]
+
+
 @dataclass(frozen=True)
-class ExprSymbol(ABCExpr[Any]):
+class ExprSymbol(ABCExpr[TypeKind, Any]):
     name: str
 
+
+ExprSymbolT: TypeAlias = ExprSymbol[Type]
 
 FunctionName = NewType('FunctionName', str)
 """ This is an *smt* function, not a C function """
 
 
 @dataclass(frozen=True)
-class ExprFunction(ABCExpr[VarNameKind]):
+class ExprFunction(ABCExpr[VarNameKind, TypeKind]):
     """ This is an *smt* function, not a C function """
     function_name: FunctionName
-    arguments: Sequence[Expr[VarNameKind]]
+    arguments: Sequence[Expr[VarNameKind, TypeKind]]
+
+
+ExprFunctionT: TypeAlias = ExprFunction[Type, VarNameKind]
 
 
 @unique
@@ -312,19 +327,33 @@ pretty_binary_operators_ascii = {
 
 
 @dataclass(frozen=True)
-class ExprOp(ABCExpr[VarNameKind]):
+class ExprOp(ABCExpr[VarNameKind, TypeKind]):
     operator: Operator
-    operands: tuple[Expr[VarNameKind], ...]
+    operands: tuple[Expr[VarNameKind, TypeKind], ...]
 
 
-Expr: TypeAlias = ExprVar[VarNameKind] | ExprNum | ExprType | ExprOp[VarNameKind] | ExprFunction[VarNameKind] | ExprSymbol
-ProgVar: TypeAlias = ExprVar[ProgVarName]
+ExprOpT: TypeAlias = ExprOp[VarNameKind, Type]
 
-expr_true: Expr[Any] = ExprOp(type_bool, Operator.TRUE, ())
-expr_false: Expr[Any] = ExprOp(type_bool, Operator.FALSE, ())
+Expr: TypeAlias = ExprVar[TypeKind, VarNameKind] | ExprNum[TypeKind] | ExprType[TypeKind] | ExprOp[TypeKind,
+                                                                                                   VarNameKind] | ExprFunction[TypeKind, VarNameKind] | ExprSymbol[TypeKind]
+ExprT: TypeAlias = Expr[Type, VarNameKind]
+
+ProgVar: TypeAlias = ExprVarT[ProgVarName]
+
+expr_true: Expr[Type, Any] = ExprOp(type_bool, Operator.TRUE, ())
+expr_false: Expr[Type, Any] = ExprOp(type_bool, Operator.FALSE, ())
+
+# testing the type checker
+expr0: Expr[int, str] = ExprVar(2, 'variable')  # pass
+expr1: Expr[Type, str] = ExprVar(type_bool, 'variable')  # pass
+expr2: ExprT[str] = ExprVar(type_bool, 'variable')  # pass
+expr3: ExprT[str] = ExprVar(type_bool, 'variable')  # pass
+expr4: ExprVar[Type, str] = ExprVar(type_bool, 'foo')  # pass
+expr5: ExprVarT[str] = ExprVar(type_bool, 'bar')  # pass
+# expr5: Expr[int, bool] = ExprOp(type_bool, Operator.AND, ())  # fail
 
 
-def visit_expr(expr: Expr[VarNameKind], visitor: Callable[[Expr[VarNameKind]], None]) -> None:
+def visit_expr(expr: ExprT[VarNameKind], visitor: Callable[[ExprT[VarNameKind]], None]) -> None:
     visitor(expr)
     if isinstance(expr, ExprOp):
         for operand in expr.operands:
@@ -336,7 +365,7 @@ def visit_expr(expr: Expr[VarNameKind], visitor: Callable[[Expr[VarNameKind]], N
         assert_never(expr)
 
 
-def expr_where_vars_are_used_in_node(node: Node[VarNameKind], selection: Set[ExprVar[VarNameKind]]) -> Iterator[tuple[ExprVar[VarNameKind], Expr[VarNameKind]]]:
+def expr_where_vars_are_used_in_node(node: Node[VarNameKind], selection: Set[ExprVarT[VarNameKind]]) -> Iterator[tuple[ExprVarT[VarNameKind], ExprT[VarNameKind]]]:
     if isinstance(node, NodeBasic):
         for upd in node.upds:
             for var in selection & all_vars_in_expr(upd.expr):
@@ -352,7 +381,7 @@ def expr_where_vars_are_used_in_node(node: Node[VarNameKind], selection: Set[Exp
         assert_never(node)
 
 
-def pretty_expr_ascii(expr: Expr[VarNameKind]) -> str:
+def pretty_expr_ascii(expr: ExprT[VarNameKind]) -> str:
     if isinstance(expr, ExprNum):
         return str(expr.num)
     elif isinstance(expr, ExprSymbol):
@@ -384,7 +413,7 @@ def pretty_expr_ascii(expr: Expr[VarNameKind]) -> str:
     assert_never(expr)
 
 
-def convert_expr(expr: syntax.Expr) -> Expr[ProgVarName]:
+def convert_expr(expr: syntax.Expr) -> ExprT[ProgVarName]:
     typ = convert_type(expr.typ)
     if expr.kind == 'Op':
         return ExprOp(typ, Operator(expr.name), tuple(convert_expr(operand) for operand in expr.vals))
@@ -399,17 +428,17 @@ def convert_expr(expr: syntax.Expr) -> Expr[ProgVarName]:
     raise NotImplementedError
 
 
-def all_vars_in_expr(expr: Expr[VarNameKind]) -> set[ExprVar[VarNameKind]]:
-    s: set[ExprVar[VarNameKind]] = set()
+def all_vars_in_expr(expr: ExprT[VarNameKind]) -> set[ExprVarT[VarNameKind]]:
+    s: set[ExprVarT[VarNameKind]] = set()
 
-    def visitor(expr: Expr[VarNameKind]) -> None:
+    def visitor(expr: ExprT[VarNameKind]) -> None:
         if isinstance(expr, ExprVar):
             s.add(ExprVar(expr.typ, expr.name))
     visit_expr(expr, visitor)
     return s
 
 
-def expr_negate(expr: Expr[VarNameKind]) -> Expr[VarNameKind]:
+def expr_negate(expr: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
     assert expr.typ == type_bool
 
     if isinstance(expr, ExprOp) and expr.operator == Operator.NOT:
@@ -424,7 +453,7 @@ def expr_negate(expr: Expr[VarNameKind]) -> Expr[VarNameKind]:
     return ExprOp(type_bool, Operator.NOT, (expr, ))
 
 
-def expr_or(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]:
+def expr_or(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
     assert lhs.typ == type_bool
     assert rhs.typ == type_bool
 
@@ -438,7 +467,7 @@ def expr_or(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]
     return ExprOp(type_bool, Operator.OR, (lhs, rhs))
 
 
-def expr_and(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind]:
+def expr_and(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
     assert lhs.typ == type_bool
     assert rhs.typ == type_bool
 
@@ -452,13 +481,13 @@ def expr_and(lhs: Expr[VarNameKind], rhs: Expr[VarNameKind]) -> Expr[VarNameKind
     return ExprOp(type_bool, Operator.AND, (lhs, rhs))
 
 
-def expr_implies(antecedent: Expr[VarNameKind], consequent: Expr[VarNameKind]) -> Expr[VarNameKind]:
+def expr_implies(antecedent: ExprT[VarNameKind], consequent: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
     assert antecedent.typ == type_bool
     assert consequent.typ == type_bool
     return ExprOp(type_bool, Operator.IMPLIES, (antecedent, consequent))
 
 
-def condition_to_evaluate_subexpr_in_expr(expr: Expr[VarNameKind], sub: Expr[VarNameKind]) -> Expr[VarNameKind]:
+def condition_to_evaluate_subexpr_in_expr(expr: ExprT[VarNameKind], sub: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
     # traverse down the if, building up the condition to reach a particular variable
     if isinstance(expr, ExprNum):
         if expr == sub:
@@ -527,28 +556,28 @@ def condition_to_evaluate_subexpr_in_expr(expr: Expr[VarNameKind], sub: Expr[Var
 # something i can't even test once
 
 # @dataclass(frozen=True)
-# class ExprField(Expr[VarNameKind]):
-#     struct: Expr[VarNameKind]
+# class ExprField(ExprT[VarNameKind]):
+#     struct: ExprT[VarNameKind]
 #     field_name: str
 #     field_type: Type
 
 # @dataclass(frozen=True)
-# class ExprFieldUpd(Expr[VarNameKind]):
-#     struct: Expr[VarNameKind]
+# class ExprFieldUpd(ExprT[VarNameKind]):
+#     struct: ExprT[VarNameKind]
 #     field_name: str
 #     field_type: Type
-#     val: Expr[VarNameKind]
+#     val: ExprT[VarNameKind]
 
 #
 # @dataclass(frozen=True)
-# class ExprStructCons(Expr[VarNameKind]):
+# class ExprStructCons(ExprT[VarNameKind]):
 #     inits: Mapping[]
 
 
 @dataclass(frozen=True)
 class Update(Generic[VarNameKind]):
-    var: ExprVar[VarNameKind]
-    expr: Expr[VarNameKind]
+    var: ExprVar[Type, VarNameKind]
+    expr: ExprT[VarNameKind]
 
 
 @dataclass(frozen=True)
@@ -566,13 +595,13 @@ class NodeBasic(Generic[VarNameKind]):
 class NodeCall(Generic[VarNameKind]):
     succ: NodeName
     fname: str
-    args: tuple[Expr[VarNameKind], ...]
-    rets: tuple[ExprVar[VarNameKind], ...]
+    args: tuple[ExprT[VarNameKind], ...]
+    rets: tuple[ExprVar[Type, VarNameKind], ...]
 
 
 @dataclass(frozen=True)
 class NodeCond(Generic[VarNameKind]):
-    expr: Expr[VarNameKind]  # TODO: Expr will take a VarNameKind
+    expr: ExprT[VarNameKind]  # TODO: Expr will take a VarNameKind
     succ_then: NodeName
     succ_else: NodeName
 
@@ -592,7 +621,7 @@ class Loop(Generic[VarNameKind]):
     nodes: tuple[NodeName, ...]
     """ nodes forming a natural loop """
 
-    targets: Sequence[ExprVar[VarNameKind]]
+    targets: Sequence[ExprVarT[VarNameKind]]
     """ All the variables that are written to during the loop
     """
 
@@ -623,7 +652,7 @@ class Function(Generic[VarNameKind]):
     loop header => loop information
     """
 
-    arguments: tuple[ExprVar[VarNameKind], ...]
+    arguments: tuple[ExprVarT[VarNameKind], ...]
 
     def is_loop_header(self, node_name: NodeName) -> LoopHeaderName | None:
         if node_name in self.loops:
@@ -683,8 +712,8 @@ class Function(Generic[VarNameKind]):
         assert len(visited - {NodeNameErr, NodeNameRet}) == len(self.nodes)
 
 
-def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVar[VarNameKind]]:
-    used_variables: set[ExprVar[VarNameKind]] = set()
+def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]]:
+    used_variables: set[ExprVarT[VarNameKind]] = set()
     if isinstance(node, NodeBasic):
         for upd in node.upds:
             used_variables |= all_vars_in_expr(upd.expr)
@@ -698,11 +727,11 @@ def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVar[VarNameKind]]
     return used_variables
 
 
-def assigned_variables_in_node(func: Function[VarNameKind], n: NodeName) -> Set[ExprVar[VarNameKind]]:
+def assigned_variables_in_node(func: Function[VarNameKind], n: NodeName) -> Set[ExprVarT[VarNameKind]]:
     if n in (NodeNameRet, NodeNameErr):
         return set()
 
-    assigned_variables: set[ExprVar[VarNameKind]] = set()
+    assigned_variables: set[ExprVarT[VarNameKind]] = set()
     node = func.nodes[n]
     if isinstance(node, NodeBasic):
         assigned_variables.update(upd.var for upd in node.upds)
@@ -728,7 +757,7 @@ def convert_function_nodes(nodes: Mapping[str | int, syntax.Node]) -> Mapping[No
                 upds: list[Update[ProgVarName]] = []
                 for var, expr in node.upds:
                     upds.append(Update(
-                        var=ExprVar[ProgVarName](
+                        var=ExprVarT[ProgVarName](
                             convert_type(var[1]), ProgVarName(var[0])),
                         expr=convert_expr(expr)))
                 safe_nodes[name] = NodeBasic(upds=tuple(

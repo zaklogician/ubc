@@ -95,7 +95,7 @@ def ensure_valid_dsa(dsa_func: source.Function[dsa.VarName]) -> None:
         ensure_using_latest_incarnation(dsa_func, path)
 
 
-def assert_expr_equals_mod_dsa(lhs: source.Expr[source.ProgVarName], rhs: source.Expr[dsa.VarName]) -> None:
+def assert_expr_equals_mod_dsa(lhs: source.ExprT[source.ProgVarName], rhs: source.ExprT[dsa.VarName]) -> None:
     assert lhs.typ == rhs.typ
 
     if isinstance(lhs, source.ExprNum | source.ExprSymbol | source.ExprType):

@@ -7,15 +7,15 @@ import source
 VarName = NewType('VarName', str)
 NodeOkName = NewType('NodeOkName', VarName)
 
-APVar: TypeAlias = source.ExprVar[VarName]
+APVar: TypeAlias = source.ExprVarT[VarName]
 
 
 class InstructionAssume(NamedTuple):
-    expr: source.Expr[VarName]
+    expr: source.ExprT[VarName]
 
 
 class InstructionProve(NamedTuple):
-    expr: source.Expr[VarName]
+    expr: source.ExprT[VarName]
 
 
 Instruction = InstructionAssume | InstructionProve
@@ -28,9 +28,9 @@ LoopInvariantFunctionName = NewType(
 class FunctionDefinition(NamedTuple):
     """ This is an *smt* function, not a C function """
     name: source.FunctionName
-    arguments: Sequence[source.ExprVar[VarName]]
+    arguments: Sequence[APVar]
     return_typ: source.Type
-    body: source.Expr[VarName]
+    body: source.ExprT[VarName]
 
 
 class AssumeProveProg(NamedTuple):
@@ -47,7 +47,7 @@ def node_ok_name(n: source.NodeName) -> NodeOkName:
     return NodeOkName(VarName(f'node_{n}_ok'))
 
 
-def node_ok_ap_var(n: source.NodeName) -> source.ExprVar[VarName]:
+def node_ok_ap_var(n: source.NodeName) -> APVar:
     return source.ExprVar(source.type_bool, VarName(node_ok_name(n)))
 
 
@@ -55,11 +55,11 @@ def convert_dsa_var_to_ap_var(var: dsa.VarName) -> VarName:
     return VarName(f'{var.prog}~{var.inc}')
 
 
-def convert_expr_var(expr: source.ExprVar[dsa.VarName]) -> source.ExprVar[VarName]:
+def convert_expr_var(expr: source.ExprVarT[dsa.VarName]) -> APVar:
     return source.ExprVar(expr.typ, name=convert_dsa_var_to_ap_var(expr.name))
 
 
-def convert_expr_dsa_vars_to_ap(expr: source.Expr[dsa.VarName]) -> source.Expr[VarName]:
+def convert_expr_dsa_vars_to_ap(expr: source.ExprT[dsa.VarName]) -> source.ExprT[VarName]:
     if isinstance(expr, source.ExprNum):
         return expr
     elif isinstance(expr, source.ExprVar):
@@ -75,7 +75,7 @@ def convert_expr_dsa_vars_to_ap(expr: source.Expr[dsa.VarName]) -> source.Expr[V
     assert_never(expr)
 
 
-def make_assume(var: dsa.Var, expr: source.Expr[dsa.VarName]) -> Instruction:
+def make_assume(var: dsa.Var, expr: source.ExprT[dsa.VarName]) -> Instruction:
     """ Helper function to make things as readable as possible, we really don't want to get this wrong
     """
     lhs = source.ExprVar(var.typ, convert_dsa_var_to_ap_var(var.name))
@@ -102,7 +102,7 @@ def get_loop_invariant_function(func: source.Function[dsa.VarName], loop_header:
     return FunctionDefinition(name=name, arguments=args, return_typ=source.type_bool, body=source.expr_true)
 
 
-def apply_incarnation_for_node(dsa_contexts: dsa.Contexts, n: source.NodeName, prog_var: source.ProgVar) -> source.ExprVar[VarName]:
+def apply_incarnation_for_node(dsa_contexts: dsa.Contexts, n: source.NodeName, prog_var: source.ProgVar) -> APVar:
     return convert_expr_var(dsa.make_dsa_var(prog_var, dsa_contexts[n][prog_var]))
 
 
@@ -263,7 +263,7 @@ def pretty_print_prog(prog: AssumeProveProg) -> None:
         #       source.pretty_expr_ascii(apply_weakest_precondition(prog.nodes_script[n])))
 
 
-def apply_weakest_precondition(script: Script) -> source.Expr[VarName]:
+def apply_weakest_precondition(script: Script) -> source.ExprT[VarName]:
     # A: wp(prove P, Q) = P && Q
     # B: wp(assume P, Q) = P --> Q
     # C: wp(S;T, Q) = wp(S, wp(T, Q))
@@ -272,7 +272,7 @@ def apply_weakest_precondition(script: Script) -> source.Expr[VarName]:
     # so, we use recursion + copy because the performance won't matter
     # but the correctness is much clearer that way
 
-    def wp_single(ins: Instruction, post: source.Expr[VarName]) -> source.Expr[VarName]:
+    def wp_single(ins: Instruction, post: source.ExprT[VarName]) -> source.ExprT[VarName]:
         if isinstance(ins, InstructionProve):
             if post == source.expr_true:
                 return ins.expr
@@ -284,7 +284,7 @@ def apply_weakest_precondition(script: Script) -> source.Expr[VarName]:
             return source.expr_implies(ins.expr, post)
         assert_never(ins)
 
-    def wp(script: Script, post: source.Expr[VarName]) -> source.Expr[VarName]:
+    def wp(script: Script, post: source.ExprT[VarName]) -> source.ExprT[VarName]:
         if len(script) == 0:
             return post
 

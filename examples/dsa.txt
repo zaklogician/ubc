@@ -107,6 +107,12 @@ Function tmp.fail_uninit 5 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssert
 6 Cond 5 4 Op Not Bool 1 Op Equals Bool 2 Var b___int#v Word 32 Num 0 Word 32
 EntryPoint 6
 
+Function tmp.greater_than_op 6 a___int#v Word 32 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Op IfThenElse Word 32 3 Op SignedLess Bool 2 Var b___int#v Word 32 Var a___int#v Word 32 Num 1 Word 32 Num 0 Word 32
+EntryPoint 3
+
 Function tmp.simple_for_loop 5 n___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0

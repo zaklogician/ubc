@@ -50,7 +50,7 @@ def _pretty_name(name: str) -> str:
     return name + some_num + (f'<sub>{dsa_num}</sub>' if dsa_num else '')
 
 
-def split_conjuncts(expr: source.Expr[source.VarNameKind]) -> Iterator[source.Expr[source.VarNameKind]]:
+def split_conjuncts(expr: source.ExprT[source.VarNameKind]) -> Iterator[source.ExprT[source.VarNameKind]]:
     if isinstance(expr, source.ExprOp) and expr.operator == source.Operator.AND:
         yield from split_conjuncts(expr.operands[0])
         yield from split_conjuncts(expr.operands[1])
@@ -103,7 +103,7 @@ def pretty_expr(expr: syntax.Expr, print_type: bool = False) -> str:
         return str(expr)
 
 
-def pretty_safe_expr(expr: source.Expr[Any], print_type: bool = False) -> str:
+def pretty_safe_expr(expr: source.ExprT[Any], print_type: bool = False) -> str:
     if print_type:
         return f"{pretty_safe_expr(expr)}:{syntax.pretty_type(expr.typ)}"
     elif isinstance(expr, source.ExprVar):

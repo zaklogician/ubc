@@ -237,3 +237,8 @@ int overflow2(int branch, int j)
     }
     return j;
 }
+
+int greater_than_op(int a, int b)
+{
+    return a > b;
+}

@@ -153,13 +153,13 @@ def compute_loop_targets(
         nodes: Mapping[source.NodeName, source.Node[source.VarNameKind]],
         cfg: CFG,
         loop_header: source.NodeName,
-        loop_nodes: tuple[source.NodeName, ...]) -> Collection[source.ExprVar[source.VarNameKind]]:
+        loop_nodes: tuple[source.NodeName, ...]) -> Collection[source.ExprVarT[source.VarNameKind]]:
     # traverse the loop nodes in topological order
     # (if there is a loop in the body, we ignore its back edge)
     q: list[source.NodeName] = [loop_header]
     visited = set()
 
-    loop_targets: set[source.ExprVar[source.VarNameKind]] = set()
+    loop_targets: set[source.ExprVarT[source.VarNameKind]] = set()
     while q:
         n = q.pop(0)
         if not all(p in visited for p in cfg.all_preds[n] if (p, n) not in cfg.back_edges and p in loop_nodes):

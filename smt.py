@@ -71,7 +71,7 @@ class CmdDeclareFun(NamedTuple):
 
 
 class CmdAssert(NamedTuple):
-    expr: source.Expr[assume_prove.VarName]
+    expr: source.ExprT[assume_prove.VarName]
 
 
 class CmdCheckSat(NamedTuple):
@@ -80,9 +80,9 @@ class CmdCheckSat(NamedTuple):
 
 class CmdDefineFun(NamedTuple):
     symbol: Identifier
-    args: Sequence[source.ExprVar[assume_prove.VarName]]
+    args: Sequence[source.ExprVarT[assume_prove.VarName]]
     ret_sort: source.Type
-    term: source.Expr[assume_prove.VarName]
+    term: source.ExprT[assume_prove.VarName]
 
 
 class CmdComment(NamedTuple):
@@ -100,7 +100,7 @@ def smt_bitvec_of_size(val: int, size: int) -> SMTLIB:
     return SMTLIB(f"(_ bv{val} {size})")
 
 
-def smt_extract(msb_idx: int, lsb_idx: int, expected_num_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
+def smt_extract(msb_idx: int, lsb_idx: int, expected_num_bits: int, lhs: source.ExprT[assume_prove.VarName]) -> SMTLIB:
     """
     msb_idx: most significant bit index
     lsb_idx: least significant bit index
@@ -123,7 +123,7 @@ def smt_extract(msb_idx: int, lsb_idx: int, expected_num_bits: int, lhs: source.
     return SMTLIB(f"((_ extract {msb_idx} {lsb_idx}) {emit_expr(lhs)})")
 
 
-def smt_zero_extend(num_extra_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
+def smt_zero_extend(num_extra_bits: int, lhs: source.ExprT[assume_prove.VarName]) -> SMTLIB:
     # ((_ zero_extend 0) t) stands for t
     # ((_ zero_extend i) t) abbreviates (concat ((_ repeat i) #b0) t)
 
@@ -131,7 +131,7 @@ def smt_zero_extend(num_extra_bits: int, lhs: source.Expr[assume_prove.VarName])
     return SMTLIB(f"((_ zero_extend {num_extra_bits}) {emit_expr(lhs)})")
 
 
-def smt_sign_extend(num_extra_bits: int, lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
+def smt_sign_extend(num_extra_bits: int, lhs: source.ExprT[assume_prove.VarName]) -> SMTLIB:
     # ((_ sign_extend 0) t) stands for t
     # ((_ sign_extend i) t) abbreviates
     #   (concat ((_ repeat i) ((_ extract |m-1| |m-1|) t)) t)
@@ -140,7 +140,7 @@ def smt_sign_extend(num_extra_bits: int, lhs: source.Expr[assume_prove.VarName])
     return SMTLIB(f"((_ sign_extend {num_extra_bits}) {emit_expr(lhs)})")
 
 
-def emit_num_with_correct_type(expr: source.ExprNum) -> SMTLIB:
+def emit_num_with_correct_type(expr: source.ExprNumT) -> SMTLIB:
     if isinstance(expr.typ, source.TypeBitVec):
         assert - \
             2 ** expr.typ.size <= expr.num < 2 ** expr.typ.size, f"{expr.num=} doesn't fit in the type {expr.typ=}"
@@ -152,7 +152,7 @@ def emit_num_with_correct_type(expr: source.ExprNum) -> SMTLIB:
     assert False, f"{expr} not supported"
 
 
-def emit_bitvec_cast(target_typ: source.TypeBitVec, operator: Literal[source.Operator.WORD_CAST, source.Operator.WORD_CAST_SIGNED], lhs: source.Expr[assume_prove.VarName]) -> SMTLIB:
+def emit_bitvec_cast(target_typ: source.TypeBitVec, operator: Literal[source.Operator.WORD_CAST, source.Operator.WORD_CAST_SIGNED], lhs: source.ExprT[assume_prove.VarName]) -> SMTLIB:
     assert isinstance(lhs.typ, source.TypeBitVec)
     if lhs.typ.size == target_typ.size:
         return emit_expr(lhs)
@@ -170,7 +170,7 @@ def emit_bitvec_cast(target_typ: source.TypeBitVec, operator: Literal[source.Ope
     assert_never(operator)
 
 
-def emit_expr(expr: source.Expr[assume_prove.VarName]) -> SMTLIB:
+def emit_expr(expr: source.ExprT[assume_prove.VarName]) -> SMTLIB:
     if isinstance(expr, source.ExprNum):
         return emit_num_with_correct_type(expr)
     elif isinstance(expr, source.ExprOp):
@@ -233,7 +233,7 @@ def emit_cmd(cmd: Cmd) -> SMTLIB:
     assert_never(cmd)
 
 
-def cmd_assert_eq(name: assume_prove.VarName, rhs: source.Expr[assume_prove.VarName]) -> Cmd:
+def cmd_assert_eq(name: assume_prove.VarName, rhs: source.ExprT[assume_prove.VarName]) -> Cmd:
     return CmdAssert(source.ExprOp(rhs.typ, source.Operator.EQUALS, (source.ExprVar(rhs.typ, name), rhs)))
 
 

@@ -17,7 +17,7 @@ ops = source.Operator
 # Be careful, there is no type checking, only type inference for convenience
 
 
-def try_parse_number(s: str) -> tuple[source.Expr[str] | None, str]:
+def try_parse_number(s: str) -> tuple[source.ExprT[str] | None, str]:
     # print('parse_number in', repr(s))
     if not (len(s) >= 1 and s[0].isdigit() or (len(s) >= 2 and s[0] == '-' and s[1].isdigit())):
         return None, s
@@ -67,7 +67,7 @@ def parse_typ(s: str) -> tuple[source.Type, str]:
     raise ValueError(f"type {typ} not supported")
 
 
-def try_parse_var(s: str) -> tuple[source.ExprVar[str] | None, str]:
+def try_parse_var(s: str) -> tuple[source.ExprVarT[str] | None, str]:
     # print('try parse var in', repr(s))
     # var is of the form `name:type`
     if len(s) == 0 or s[0].isdigit() or s[0] == '(':
@@ -94,7 +94,7 @@ def consume_char(s: str, char: str) -> str:
     return s[1:]
 
 
-def type_inference(operator: source.Operator, operands: Sequence[source.Expr[str]]) -> source.Type:
+def type_inference(operator: source.Operator, operands: Sequence[source.ExprT[str]]) -> source.Type:
     if operator in (ops.AND, ops.OR, ops.IMPLIES):
         if len(operands) != 2:
             raise ValueError(f"operator {operator} is a _binary_ operator")
@@ -137,7 +137,7 @@ def type_inference(operator: source.Operator, operands: Sequence[source.Expr[str
         raise ValueError(f"unsupported operator {operator}")
 
 
-def parse_sexpr(s: str) -> tuple[source.Expr[str], str]:
+def parse_sexpr(s: str) -> tuple[source.ExprT[str], str]:
     # print('parse_expr in', repr(s))
     s = consume_space(s)
     maybe_num, s = try_parse_number(s)
@@ -156,7 +156,7 @@ def parse_sexpr(s: str) -> tuple[source.Expr[str], str]:
         operator_typ, s = parse_typ(s[1:])
 
     s = consume_space(s)
-    operands: list[source.Expr[str]] = []
+    operands: list[source.ExprT[str]] = []
     while len(s) > 0 and s[0] != ')':
         operand, s = parse_sexpr(s)
         operands.append(operand)
@@ -170,12 +170,13 @@ def parse_sexpr(s: str) -> tuple[source.Expr[str], str]:
     return source.ExprOp(operator_typ, operator, tuple(operands)), s
 
 
-def parse_full_sexpr(s: str) -> source.Expr[str]:
+def parse_full_sexpr(s: str) -> source.ExprT[str]:
     expr, rest = parse_sexpr(s)
     assert len(rest) == 0, f"got left overs in sexpr {rest!r}"
     return expr
 
 
+# not sure why mypy sometimes need an explicit type hint...
 @pytest.mark.parametrize('s, expected', (
     ('(Plus 1 2)', source.ExprOp(w32, ops.PLUS,
                                  (source.ExprNum(w32, 1), source.ExprNum(w32, 2)))),
@@ -185,18 +186,18 @@ def parse_full_sexpr(s: str) -> source.Expr[str]:
                                          (source.ExprNum(w64, 1), source.ExprNum(w64, 2)))),
     ('(Minus 3 4)', source.ExprOp(w32, ops.MINUS,
                                   (source.ExprNum(w32, 3), source.ExprNum(w32, 4)))),
-    ('(Plus (Minus 3 4) 5)', source.ExprOp(w32, ops.PLUS,
-                                           (parse_full_sexpr('(Minus 3 4)'), source.ExprNum(w32, 5)))),
-    ('(Equals 2 3)', source.ExprOp(bol, ops.EQUALS,
-                                   (source.ExprNum(w32, 2), source.ExprNum(w32, 3)))),
-    ('(IfThenElse (Equals 2 3) a:w64 b:w64)', source.ExprOp(w64, ops.IF_THEN_ELSE,
-                                                            (parse_full_sexpr("(Equals 2 3)"), source.ExprVar(w64, 'a'), source.ExprVar(w64, 'b')))),
+    ('(Plus (Minus 3 4) 5)', source.ExprOp[source.Type, str](w32, ops.PLUS,
+                                                             (parse_full_sexpr('(Minus 3 4)'), source.ExprNum(w32, 5)))),
+    ('(Equals 2 3)', source.ExprOp[source.Type, str](bol, ops.EQUALS,
+                                                     (source.ExprNum(w32, 2), source.ExprNum(w32, 3)))),
+    ('(IfThenElse (Equals 2 3) a:w64 b:w64)', source.ExprOp[source.Type, str](w64, ops.IF_THEN_ELSE,
+                                                                              (parse_full_sexpr("(Equals 2 3)"), source.ExprVar(w64, 'a'), source.ExprVar(w64, 'b')))),
     ('(IfThenElse (Equals 2 3) a:w64 b:w64)', parse_full_sexpr(
         '(IfThenElse:w64 (Equals:bool 2:w32 3:w32) a:w64 b:w64)')),
     ('(IfThenElse (Equals 2 3) a:w64 (IfThenElse (Equals 3 4) b:w64 c:w64))',
-        source.ExprOp(w64, ops.IF_THEN_ELSE, (parse_full_sexpr("(Equals 2 3)"), source.ExprVar(w64, 'a'), parse_full_sexpr('(IfThenElse (Equals 3 4) b:w64 c:w64)')))),
+        source.ExprOp[source.Type, str](w64, ops.IF_THEN_ELSE, (parse_full_sexpr("(Equals 2 3)"), source.ExprVar(w64, 'a'), parse_full_sexpr('(IfThenElse (Equals 3 4) b:w64 c:w64)')))),
 ))
-def test_sexpr_parser(s: str, expected: source.Expr[str]) -> None:
+def test_sexpr_parser(s: str, expected: source.ExprT[str]) -> None:
     assert parse_full_sexpr(s) == expected
 
 
