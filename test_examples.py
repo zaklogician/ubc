@@ -50,7 +50,7 @@ def verify(unsafe_func: syntax.Function) -> smt.VerificationResult:
     # ("unreachable_entry", smt.VerificationResult.OK),
     ("straight_into_loop", smt.VerificationResult.OK),
     ("overflow2", smt.VerificationResult.FAIL),
-    ("greater_than_op", smt.VerificationResult.OK),
+    ("greater_than_op___fail_overflow", smt.VerificationResult.FAIL),
 ))
 def test_dsa_examples(func_name: str, expected: smt.VerificationResult) -> None:
     _, functions, _ = example_dsa_CFunctions

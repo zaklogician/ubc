@@ -238,7 +238,7 @@ int overflow2(int branch, int j)
     return j;
 }
 
-int greater_than_op(int a, int b)
+int greater_than_op___fail_overflow(int a, int b)
 {
-    return a > b;
+    return a > -b;
 }

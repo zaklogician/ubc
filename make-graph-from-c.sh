@@ -31,7 +31,7 @@ if [ $# -lt 1 -o $# -gt 2 ]; then
 fi
 
 c_file="$(realpath "$1")"
-output_file="$(realpath "${2:-"CFunctions.txt"}")"
+output_file="$(realpath "${2:-"${1%.*}.txt"}")"
 
 L4V_ARCH="${L4V_ARCH:?Must set L4V_ARCH}"
 TV_ROOT="${TV_ROOT:?Must set TV_ROOT.
