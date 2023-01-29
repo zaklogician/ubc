@@ -1,10 +1,9 @@
 from __future__ import annotations
 from enum import Enum
 import subprocess
-from typing import TYPE_CHECKING, Any, Iterator, Literal, Mapping, Sequence
+from typing import Any, Iterator, Literal, Mapping, Sequence
 from typing_extensions import NamedTuple, NewType, assert_never
 
-import math
 import textwrap
 import assume_prove
 import source

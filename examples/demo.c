@@ -28,12 +28,19 @@ int foo(int n, int m) {
         n >>= 1;
     }
     m = m + (0x7fffffff * n);
+    return m;
 }
 
 int foo3(int n, int m) {
-    if (n & 1 == 0) {
+    if ((n & 1) == 0) {
       m = m + 1; // you didn't prove there were no overflows here
     }
     n = n + 1; // you didn't prove there were no overflows here
     return 0;
+}
+
+int bar()
+{
+    char ret = 1;
+    return ret;
 }

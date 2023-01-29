@@ -1,9 +1,10 @@
 import dataclasses
-from typing import Collection, Mapping, NamedTuple, NewType, Set, TypeAlias, cast
+from typing import Mapping, NamedTuple, NewType, Set, TypeAlias, cast
 from typing_extensions import assert_never
 import abc_cfg
 import source
-from utils import clen, set_intersection, set_union
+from utils import clen, set_union
+from dataclasses import dataclass
 
 
 IncarnationNum = NewType('IncarnationNum', int)
@@ -311,10 +312,16 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
     return vars_undefined_on_paths
 
 
-Contexts = Mapping[source.NodeName, Mapping[source.ProgVar, IncarnationNum]]
+@dataclass(frozen=True)
+class Function(source.Function[VarName]):
+    """ DSA Function """
+
+    contexts: Mapping[source.NodeName, Mapping[source.ProgVar, IncarnationNum]]
+    """ Mapping for each node from prog variable to the incarnation number at that node
+    """
 
 
-def dsa(func: source.Function[source.ProgVarName]) -> tuple[source.Function[VarName], Contexts]:
+def dsa(func: source.Function[source.ProgVarName]) -> Function:
     """
     Returns the dsa function, and an artifact to make it easy to emit
     expressions into the DSA later on (used to emit the loop invariants)
@@ -470,9 +477,10 @@ def dsa(func: source.Function[source.ProgVarName]) -> tuple[source.Function[VarN
     # FIXME: this function is useless
     loops = recompute_loops_post_dsa(s, dsa_loop_targets, cfg)
 
-    return source.Function[VarName](
+    return Function(
         cfg=cfg,
         arguments=tuple(dsa_args),
         loops=loops,
         name=func.name,
-        nodes=s.dsa_nodes), s.incarnations
+        nodes=s.dsa_nodes,
+        contexts=s.incarnations)

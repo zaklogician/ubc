@@ -354,7 +354,7 @@ if __name__ == "__main__":
     # viz_raw_function(functions[function_name])
     # viz_function(source.convert_function(functions[function_name]))
     func = source.convert_function(functions[function_name])
-    dsa_func, dsa_contexts = dsa(func)
+    dsa_func = dsa(func)
     viz_function(dsa_func)
     assume_prove.pretty_print_prog(
-        assume_prove.make_prog(dsa_func, dsa_contexts))
+        assume_prove.make_prog(dsa_func))

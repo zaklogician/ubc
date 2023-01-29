@@ -214,7 +214,7 @@ def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_fu
 @pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
 def test_dsa_custom_tests(func: syntax.Function) -> None:
     prog_func = source.convert_function(func)
-    dsa_func, _ = dsa.dsa(prog_func)
+    dsa_func = dsa.dsa(prog_func)
     ensure_valid_dsa(dsa_func)
     ensure_correspondence(prog_func, dsa_func)
 
@@ -230,6 +230,6 @@ def test_dsa_kernel_functions(function: syntax.Function) -> None:
         pytest.skip("too many paths, checking them all is too slow")
 
     prog_func = source.convert_function(function)
-    dsa_func, _ = dsa.dsa(prog_func)
+    dsa_func = dsa.dsa(prog_func)
     ensure_valid_dsa(dsa_func)
     ensure_correspondence(prog_func, dsa_func)

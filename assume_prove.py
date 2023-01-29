@@ -102,11 +102,11 @@ def get_loop_invariant_function(func: source.Function[dsa.VarName], loop_header:
     return FunctionDefinition(name=name, arguments=args, return_typ=source.type_bool, body=source.expr_true)
 
 
-def apply_incarnation_for_node(dsa_contexts: dsa.Contexts, n: source.NodeName, prog_var: source.ProgVar) -> APVar:
-    return convert_expr_var(dsa.make_dsa_var(prog_var, dsa_contexts[n][prog_var]))
+def apply_incarnation_for_node(func: dsa.Function, n: source.NodeName, prog_var: source.ProgVar) -> APVar:
+    return convert_expr_var(dsa.make_dsa_var(prog_var, func.contexts[n][prog_var]))
 
 
-def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], dsa_contexts: dsa.Contexts, n: source.NodeName) -> Script:
+def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) -> Script:
     node = func.nodes[n]
 
     # 1. assume invariant if we are a loop header
@@ -173,7 +173,7 @@ def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], dsa_co
 
             # use the incarnation at node n
             args = [
-                apply_incarnation_for_node(dsa_contexts, n, dsa.get_prog_var(arg)) for arg in func.loops[loop_header].targets]
+                apply_incarnation_for_node(func, n, dsa.get_prog_var(arg)) for arg in func.loops[loop_header].targets]
 
             script.append(InstructionProve(source.expr_implies(source.expr_negate(source.ExprFunction(
                 invariant.return_typ, invariant.name, args)), node_ok_ap_var(source.NodeNameErr))))
@@ -181,7 +181,7 @@ def make_assume_prove_script_for_node(func: source.Function[dsa.VarName], dsa_co
     return script
 
 
-def make_prog(func: source.Function[dsa.VarName], dsa_contexts: dsa.Contexts) -> AssumeProveProg:
+def make_prog(func: dsa.Function) -> AssumeProveProg:
     # don't need to keep DSA artifcats because we don't have pre conditions,
     # post conditions or loop invariants
 
@@ -216,7 +216,7 @@ def make_prog(func: source.Function[dsa.VarName], dsa_contexts: dsa.Contexts) ->
                 node_script.append(InstructionProve(neg))
 
         node_script.extend(
-            make_assume_prove_script_for_node(func, dsa_contexts, n))
+            make_assume_prove_script_for_node(func, n))
         nodes_script[node_ok_name(n)] = node_script
 
     for script in nodes_script.values():

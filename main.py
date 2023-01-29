@@ -116,11 +116,11 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_GRAPH in options:
             viz_function(prog_func)
 
-        dsa_func, node_contexts = dsa.dsa(prog_func)
+        dsa_func = dsa.dsa(prog_func)
         if CmdlineOption.SHOW_DSA in options:
             viz_function(dsa_func)
 
-        prog = assume_prove.make_prog(dsa_func, node_contexts)
+        prog = assume_prove.make_prog(dsa_func)
         if CmdlineOption.SHOW_AP in options:
             assume_prove.pretty_print_prog(prog)
 
