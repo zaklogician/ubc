@@ -103,6 +103,37 @@ def get_loop_invariant_function(func: source.Function[dsa.VarName], loop_header:
 
 
 def apply_incarnation_for_node(func: dsa.Function, n: source.NodeName, prog_var: source.ProgVar) -> APVar:
+    # if a variable isn't defined at that node, we use an arbitrary value
+    #
+    # THIS IS A POTENTIAL SOURCE OF UNSOUDNESS
+    #
+    # use case
+    #     int a;
+    #     for (int i = 0; i < 10; i++)
+    #         // loop invariant: i >= 3 ==> a = 1
+    #         //                 0 <= i <= 5
+    #     {
+    #         if (i == 2)
+    #         {
+    #             a = 1;
+    #         }
+    #         if (i == 5)
+    #         {
+    #             return a + 1;
+    #         }
+    #     }
+    #     return 0;
+    #
+    # We have to prove the loop invariant holds on entry. However, there is no
+    # available incarnation for 'a' on the node which jumps to the loop
+    # header, yet the invariant depends on it. So we make a fresh variable
+    # for it.
+    #
+    # Argument for correctness: if the loop invariant holds for an arbitrary value
+    # of a, then it will hold for all concrete values during execution.
+
+    if prog_var not in func.contexts[n]:
+        return source.ExprVar(prog_var.typ, VarName(f'{prog_var.name}_arbitrary#node{n}'))
     return convert_expr_var(dsa.make_dsa_var(prog_var, func.contexts[n][prog_var]))
 
 
@@ -181,6 +212,27 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
     return script
 
 
+def condition_to_take_path(func: dsa.Function, path: source.Path) -> source.ExprT[dsa.VarName]:
+    cond: source.ExprT[dsa.VarName] = source.expr_true
+    for i in range(len(path)):
+        node = func.nodes[path[i]]
+        if isinstance(node, source.NodeCond):
+            # if the last node of the path is a conditional node, then the
+            # node's condition doesn't add any condition to the path
+            if not i + 1 < len(path):
+                continue
+            next_on_path = path[i+1]
+            if node.succ_then == next_on_path:
+                cond = source.expr_and(cond, node.expr)
+            elif node.succ_else == next_on_path:
+                cond = source.expr_and(cond, source.expr_negate(node.expr))
+            else:
+                assert False, "conditional node not jumping to following node"
+        elif not isinstance(node, source.NodeBasic | source.NodeEmpty | source.NodeCall):
+            assert_never(node)
+    return cond
+
+
 def make_prog(func: dsa.Function) -> AssumeProveProg:
     # don't need to keep DSA artifcats because we don't have pre conditions,
     # post conditions or loop invariants
@@ -207,13 +259,23 @@ def make_prog(func: dsa.Function) -> AssumeProveProg:
         # has been defined beforehand
         vars_undefined_at_curr_node = set(
             var for var, paths in undefined_on_paths[n].items() if len(paths) > 0)
+
         for prog_var, expr in source.expr_where_vars_are_used_in_node(func.nodes[n], vars_undefined_at_curr_node):
+
+            # make sure none of the paths along which a variable isn't defined are possible
+            base_cond = source.expr_false
+            for path in undefined_on_paths[n][prog_var]:
+                base_cond = source.expr_or(
+                    base_cond, condition_to_take_path(func, path))
+
+            # some expression might not depend
             extra_cond = source.condition_to_evaluate_subexpr_in_expr(
                 expr, prog_var)
-            if extra_cond != source.expr_false:
-                neg = source.expr_negate(
-                    convert_expr_dsa_vars_to_ap(extra_cond))
-                node_script.append(InstructionProve(neg))
+
+            cond = source.expr_and(base_cond, extra_cond)
+            neg = source.expr_negate(
+                convert_expr_dsa_vars_to_ap(cond))
+            node_script.append(InstructionProve(neg))
 
         node_script.extend(
             make_assume_prove_script_for_node(func, n))
