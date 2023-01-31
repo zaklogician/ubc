@@ -63,6 +63,15 @@ def identifier(illegal_name: assume_prove.VarName) -> Identifier:
     return Identifier(renamed)
 
 
+class Logic(Enum):
+    QF_ABV = 'QF_ABV'
+    """ Quantifier free arrays and bit vectors """
+
+
+class CmdSetLogic(NamedTuple):
+    logic: Logic
+
+
 class CmdDeclareFun(NamedTuple):
     symbol: Identifier
     arg_sorts: Sequence[source.Type]
@@ -90,7 +99,7 @@ class CmdComment(NamedTuple):
 
 EmptyLine = CmdComment('')
 
-Cmd = CmdDeclareFun | CmdDefineFun | CmdAssert | CmdCheckSat | CmdComment
+Cmd = CmdDeclareFun | CmdDefineFun | CmdAssert | CmdCheckSat | CmdComment | CmdSetLogic
 
 
 def smt_bitvec_of_size(val: int, size: int) -> SMTLIB:
@@ -222,6 +231,13 @@ def emit_cmd(cmd: Cmd) -> SMTLIB:
         return SMTLIB(f"(check-sat)")
     elif isinstance(cmd, CmdDefineFun):
         # (define-fun func_name ((a T1) (b T2) ...) T (body))
+
+        assert RE_VALID_SMTLIB_SIMPLE_SYMBOL.match(
+            cmd.symbol), f"function name {cmd.symbol!r} isn't valid"
+        for arg in cmd.args:
+            assert RE_VALID_SMTLIB_SIMPLE_SYMBOL.match(
+                cmd.symbol), f"argument {cmd.symbol!r} isn't valid"
+
         args = ' '.join(
             f'({identifier(arg.name)} {emit_sort(arg.typ)})' for arg in cmd.args)
         return SMTLIB(f"(define-fun {cmd.symbol} ({args}) {emit_sort(cmd.ret_sort)} {emit_expr(cmd.term)})")
@@ -229,6 +245,8 @@ def emit_cmd(cmd: Cmd) -> SMTLIB:
         if cmd.comment == '':
             return SMTLIB('')
         return SMTLIB('; ' + cmd.comment)
+    elif isinstance(cmd, CmdSetLogic):
+        return SMTLIB(f'(set-logic {cmd.logic.value})')
     assert_never(cmd)
 
 
@@ -244,7 +262,7 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     emited_identifiers: set[Identifier] = set()
     emited_variables: set[assume_prove.VarName] = set()
 
-    cmds: list[Cmd] = []
+    cmds: list[Cmd] = [CmdSetLogic(Logic.QF_ABV)]
 
     # emit all auxilary variable declaration (declare-fun node_x_ok () Bool)
     for node_ok_name in p.nodes_script:
