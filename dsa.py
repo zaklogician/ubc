@@ -223,10 +223,7 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.Loo
     return loops
 
 
-Path: TypeAlias = tuple[source.NodeName, ...]
-
-
-def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNameKind]) -> Mapping[source.NodeName, Mapping[source.ExprVarT[source.VarNameKind], Set[Path]]]:
+def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNameKind]) -> Mapping[source.NodeName, Mapping[source.ExprVarT[source.VarNameKind], Set[source.Path]]]:
     """
     We say a variable is _assigned_ it ever was on the lhs of an assignment
 
@@ -246,7 +243,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
         func, n) for n in func.traverse_topologically() if n not in (source.NodeNameErr, source.NodeNameRet))
 
     vars_undefined_on_paths: dict[source.NodeName,
-                                  Mapping[source.ExprVarT[source.VarNameKind], Set[Path]]] = {}
+                                  Mapping[source.ExprVarT[source.VarNameKind], Set[source.Path]]] = {}
 
     for n in func.traverse_topologically():
         if n in (source.NodeNameRet, source.NodeNameErr):
@@ -262,7 +259,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
             # 1. merge preds:
 
             # 1.a. merge all preds (for each variable, union of path)
-            local: dict[source.ExprVarT[source.VarNameKind], Set[Path]] = {var: set_union(
+            local: dict[source.ExprVarT[source.VarNameKind], Set[source.Path]] = {var: set_union(
                 vars_undefined_on_paths[p][var] for p in func.acyclic_preds_of(n)) for var in all_vars}
 
             # 1.b. if a variable is assigned in the current node, set paths to
@@ -270,6 +267,11 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
 
             # if a node is a loop header, then it incarnates all loop written variables
             # (ie they are assigned)
+            #
+            # THIS IS WRONG: a variable is a loop target if there exists a
+            # basic node which assigns to it. (1) nothing guarrantees we will
+            # reach that node (2) nothing guarantees that the expression it
+            # is assigned to is well defined.
             if loop_header := func.is_loop_header(n):
                 loop = func.loops[loop_header]
                 for var in loop.targets:
@@ -295,7 +297,7 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
                     source.all_vars_in_expr(arg) for arg in node.args)
 
                 # all the paths we must avoid to evaluate f(...)
-                path_deps: set[Path] = set_union(
+                path_deps: set[source.Path] = set_union(
                     local[var] for var in var_deps)
 
                 for ret in node.rets:
@@ -310,6 +312,18 @@ def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNa
             vars_undefined_on_paths[n] = local
 
     return vars_undefined_on_paths
+
+
+def pretty_print_vars_undefined_on_paths(func: source.Function[source.VarNameKind], undefined_on_paths: Mapping[source.NodeName, Mapping[source.ExprVarT[source.VarNameKind], Set[source.Path]]]) -> None:
+    for node in undefined_on_paths:
+        print('node', node)
+        used = source.used_variables_in_node(func.nodes[node])
+        for var in undefined_on_paths[node]:
+            if var not in used:
+                continue
+            print('  var', var.name)
+            for path in undefined_on_paths[node][var]:
+                print('    path', path)
 
 
 @dataclass(frozen=True)

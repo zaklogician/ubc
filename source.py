@@ -15,6 +15,8 @@ NodeName = NewType('NodeName', str)
 NodeNameErr = NodeName('Err')
 NodeNameRet = NodeName('Ret')
 
+Path: TypeAlias = tuple[NodeName, ...]
+
 
 @dataclass(frozen=True, order=True)
 class TypeStruct:
