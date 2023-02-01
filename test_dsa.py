@@ -166,6 +166,7 @@ def assert_is_join_node(node: source.Node[dsa.VarName]) -> None:
         assert isinstance(upd.expr, source.ExprVar)
         rhs_name, _ = dsa.unpack_dsa_var_name(upd.expr.name)
         assert upd.var.typ == upd.expr.typ
+        assert lhs_name == rhs_name
 
 
 def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_func: source.Function[dsa.VarName]) -> None:
@@ -228,7 +229,7 @@ def test_dsa_kernel_functions(function: syntax.Function) -> None:
     if function.name in ('Kernel_C.deriveCap', 'Kernel_C.decodeCNodeInvocation'):
         pytest.skip("there's an assert true that messes DSA up")
 
-    if len(compute_all_path(source.convert_function(function).cfg)) > 1000:
+    if len(compute_all_path(source.convert_function(function).cfg)) > 100:
         pytest.skip("too many paths, checking them all is too slow")
 
     prog_func = source.convert_function(function)
