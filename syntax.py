@@ -1472,7 +1472,7 @@ def mk_less_eq(x, y, signed=False):
 
 def mk_less(x, y, signed=False):
     assert x.typ == y.typ, (x.typ, y.typ)
-    #assert x.typ == y.typ
+    # assert x.typ == y.typ
     name = {False: 'Less', True: 'SignedLess'}[signed]
     return Expr('Op', boolT, name=name, vals=[x, y])
 
