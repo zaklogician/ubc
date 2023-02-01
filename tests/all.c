@@ -92,7 +92,7 @@ int used_undefined_array_element__fail_lots_indices(int i)
 }
 
 // ; loop invariant (0 <= i <= n && s == (i-1)*i/2)
-// (define-fun loop_invariant@5 ((loop@4@count (_ BitVec 64)) (i___int@v (_ BitVec 32)) (s___int@v (_ BitVec 32))) Bool (
+// (define-fun loop_invariant@5 ((i___int@v (_ BitVec 32)) (s___int@v (_ BitVec 32)) (loop@4@count (_ BitVec 64))) Bool (
 //     and (bvsle (_ bv0 32) i___int@v)
 //         (bvsle i___int@v n___int@v~1)
 //         (= s___int@v (

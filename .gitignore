@@ -1,2 +1,3 @@
 *.pyc
+demo/*.zip
 /pyrightconfig.json

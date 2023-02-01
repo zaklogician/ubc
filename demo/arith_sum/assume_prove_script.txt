@@ -1,0 +1,57 @@
+Entry node: node_17_ok
+X_ok          : Bool
+node_1_ok     : Bool
+node_Err_ok   : Bool
+node_13_ok    : Bool
+s___int#v~1   : BitVec32
+node_12_ok    : Bool
+i___int#v~1   : BitVec32
+node_7_ok     : Bool
+loop#4#count~1: BitVec64
+node_5_ok     : Bool
+loop#4#count~2: BitVec64
+s___int#v~2   : BitVec32
+i___int#v~2   : BitVec32
+node_6_ok     : Bool
+n___int#v~1   : BitVec32
+node_11_ok    : Bool
+node_3_ok     : Bool
+ret__int#v~1  : BitVec32
+node_Ret_ok   : Bool
+node_10_ok    : Bool
+s___int#v~3   : BitVec32
+node_9_ok     : Bool
+node_8_ok     : Bool
+i___int#v~3   : BitVec32
+node_4_ok     : Bool
+loop#4#count~3: BitVec64
+node_Err_ok: prove False()
+node_Ret_ok: prove True()
+node_2_ok:   prove (False() -> node_1_ok)
+             prove (True() -> node_Err_ok)
+node_17_ok:  prove node_13_ok
+node_13_ok:  assume (s___int#v~1 = 0)
+             prove node_12_ok
+node_12_ok:  assume (i___int#v~1 = 0)
+             prove node_7_ok
+node_7_ok:   assume (loop#4#count~1 = 0)
+             prove node_5_ok
+             prove (Not(loop_invariant@5 i___int#v~1 s___int#v~1 loop#4#count~1) -> node_Err_ok)
+node_5_ok:   assume loop_invariant@5 i___int#v~2 s___int#v~2 loop#4#count~2
+             prove (True() -> node_6_ok)
+             prove (False() -> node_Err_ok)
+node_6_ok:   prove ((i___int#v~2 <s n___int#v~1) -> node_11_ok)
+             prove (Not((i___int#v~2 <s n___int#v~1)) -> node_3_ok)
+node_3_ok:   assume (ret__int#v~1 = s___int#v~2)
+             prove node_1_ok
+node_1_ok:   prove node_Ret_ok
+node_11_ok:  prove (((s___int#v~2 <=s (s___int#v~2 + i___int#v~2)) = (0 <=s i___int#v~2)) -> node_10_ok)
+             prove (Not(((s___int#v~2 <=s (s___int#v~2 + i___int#v~2)) = (0 <=s i___int#v~2))) -> node_Err_ok)
+node_10_ok:  assume (s___int#v~3 = (s___int#v~2 + i___int#v~2))
+             prove node_9_ok
+node_9_ok:   prove (((i___int#v~2 <=s (i___int#v~2 + 1)) = (0 <=s 1)) -> node_8_ok)
+             prove (Not(((i___int#v~2 <=s (i___int#v~2 + 1)) = (0 <=s 1))) -> node_Err_ok)
+node_8_ok:   assume (i___int#v~3 = (i___int#v~2 + 1))
+             prove node_4_ok
+node_4_ok:   assume (loop#4#count~3 = (loop#4#count~2 + 1))
+             prove (Not(loop_invariant@5 i___int#v~3 s___int#v~3 loop#4#count~3) -> node_Err_ok)
