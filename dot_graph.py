@@ -51,14 +51,6 @@ def _pretty_name(name: str) -> str:
     return name + some_num + (f'<sub>{dsa_num}</sub>' if dsa_num else '')
 
 
-def split_conjuncts(expr: source.ExprT[source.VarNameKind]) -> Iterator[source.ExprT[source.VarNameKind]]:
-    if isinstance(expr, source.ExprOp) and expr.operator == source.Operator.AND:
-        yield from split_conjuncts(expr.operands[0])
-        yield from split_conjuncts(expr.operands[1])
-    else:
-        yield expr
-
-
 # not complete
 pretty_opers = {
     "Plus": "+",
@@ -203,7 +195,7 @@ def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
         elif isinstance(node, source.NodeCond):
 
             if node.succ_else == ErrNodeName:
-                operands = list(split_conjuncts(node.expr))
+                operands = list(source.expr_split_conjuncts(node.expr))
                 content = "<b>assert</b> " + pretty_safe_expr(operands[0])
                 for operand in operands[1:]:
                     content += "<BR/><b>and</b> " + pretty_safe_expr(operand)

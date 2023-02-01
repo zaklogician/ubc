@@ -14,13 +14,13 @@ from dataclasses import dataclass
 import dataclasses
 from functools import reduce
 import abc_cfg
-from typing import Iterator, NewType, Sequence, cast
+from typing import Iterator, NewType, Sequence, TypeAlias, cast
 from typing_extensions import assert_never
 import source
 
 
 @dataclass(frozen=True)
-class NIPFunction(source.Function[source.ProgVarName]):
+class Function(source.Function[source.ProgVarName]):
     """
     Non-initialized protected function
     """
@@ -28,6 +28,19 @@ class NIPFunction(source.Function[source.ProgVarName]):
 
 GuardVarName = NewType('GuardVarName', str)
 GuardVar = source.ExprVarT[GuardVarName]
+
+
+@dataclass(frozen=True)
+class NodeGuard(source.NodeCond[GuardVarName]):
+    pass
+
+
+@dataclass(frozen=True)
+class NodeStateUpdate(source.NodeBasic[GuardVarName]):
+    pass
+
+
+Node: TypeAlias = NodeGuard | NodeStateUpdate
 
 
 def guard_name(name: source.ProgVarName) -> GuardVarName:
@@ -85,15 +98,15 @@ def cast_guard_node_to_prog_node(expr: source.Node[GuardVarName]) -> source.Node
     Guard var names are used during to constructions to ensure we're indeed
     talking about <x>#init variables and not <x>
 
-    But it breaks Liskov substitution principle
+    But it breaks Liskov substitution principle because GuardVarName is a
+    subtype of ProgVarName.
 
-    TODO: how could we structure the code so that this cast wouldn't be
-    required
+    TODO: how should the code be structured?
     """
     return cast(source.Node[source.ProgVarName], expr)
 
 
-def nip(func: source.Function[source.ProgVarName]) -> NIPFunction:
+def nip(func: source.Function[source.ProgVarName]) -> Function:
     """
     - after the entry node, forall all arguments a, set <a>_initialized = true in a
       basic block.
@@ -155,19 +168,22 @@ def nip(func: source.Function[source.ProgVarName]) -> NIPFunction:
         for i, succ in enumerate(func.cfg.all_succs[n]):
             if succ in protections:
                 # protection node for node succ, branch i
-                protection_name = source.NodeName(f'guard_n{succ}_b{i+1}')
+                protection_name = source.NodeName(f'guard_n{succ}')
+                jump_to[i] = protection_name
 
                 if protection_name in new_nodes:
                     # if a node has multiple predecessors, then they are all
                     # going to try to insert its predecessor. But only one
                     # should do it.
+                    #
+                    # but they should all jump to it regardless
                     assert len(func.cfg.all_preds[succ]) > 1
+                    # assert False, f"{succ}"
                     continue
 
                 assert protection_name not in new_nodes, protection_name
-                new_nodes[protection_name] = cast_guard_node_to_prog_node(source.NodeCond(
+                new_nodes[protection_name] = cast_guard_node_to_prog_node(NodeGuard(
                     protections[succ], succ_then=succ, succ_else=source.NodeNameErr))
-                jump_to[i] = protection_name
 
         # insert successors
         if n in state_updates:
@@ -179,7 +195,7 @@ def nip(func: source.Function[source.ProgVarName]) -> NIPFunction:
             assert len(jump_to) == 1
             update_name = source.NodeName(f'upd_n{n}')
             new_nodes[update_name] = cast_guard_node_to_prog_node(
-                source.NodeBasic(state_updates[n], jump_to[0]))
+                NodeStateUpdate(state_updates[n], jump_to[0]))
             jump_to[0] = update_name
 
         new_nodes[n] = update_node_successors(node, jump_to)
@@ -187,4 +203,4 @@ def nip(func: source.Function[source.ProgVarName]) -> NIPFunction:
     all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
     cfg = abc_cfg.compute_cfg_from_all_succs(all_succs, func.cfg.entry)
     loops = abc_cfg.compute_loops(new_nodes, cfg)
-    return NIPFunction(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, name=func.name)
+    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, name=func.name)

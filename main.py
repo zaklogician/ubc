@@ -32,7 +32,7 @@ def assert_all_kernel_functions_are_reducible() -> None:
 def same_var_diff_type(func: source.Function[source.ProgVarName]) -> None:
     vars: dict[str, set[source.ProgVarName]] = {}
     for n in func.nodes:
-        for var in source.used_variables_in_node(func.nodes[n]).union(source.assigned_variables_in_node(func, n)):
+        for var in source.used_variables_in_node(func.nodes[n]).union(source.assigned_variables_in_node(func, n, with_loop_targets=True)):
             if '__' in var.name:
                 real_name, type_info = var.name.split('__', maxsplit=1)
 

@@ -54,7 +54,7 @@ def ensure_assigned_at_most_once(func: source.Function[dsa.VarName], path: Colle
     assigned_variables: list[dsa.Var] = []
     for node in path:
         assigned_variables.extend(
-            source.assigned_variables_in_node(func, node))
+            source.assigned_variables_in_node(func, node, with_loop_targets=True))
     assert len(assigned_variables) == len(set(assigned_variables))
 
 
@@ -84,7 +84,7 @@ def ensure_using_latest_incarnation(func: source.Function[dsa.VarName], path: Co
             # might be used on some other path that joins with our own(and so
             # inc would be 2 for example)
 
-        for dsa_var in source.assigned_variables_in_node(func, n):
+        for dsa_var in source.assigned_variables_in_node(func, n, with_loop_targets=True):
             prog_var, inc = dsa.unpack_dsa_var(dsa_var)
             latest_assignment[prog_var] = inc
 

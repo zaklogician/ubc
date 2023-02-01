@@ -1,3 +1,17 @@
+int join(int c)
+{
+    int a;
+    if (c)
+    {
+        a = 1;
+    }
+    else
+    {
+        a = 2;
+    }
+    return a;
+}
+
 int signed_cast__fail_overflow(int c)
 {
     if (c + 32 > 150)

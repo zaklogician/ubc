@@ -10,7 +10,7 @@ find -name '*.py' | xargs autopep8 -d > /tmp/autopep8diff
 
 
 if test "$1" = "quick"; then
-    pytest -k 'not dsa and not reducible'
+    pytest -k 'not dsa and not reducible and not nip'
 else
     time -p pytest
 fi

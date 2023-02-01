@@ -489,6 +489,14 @@ def expr_implies(antecedent: ExprT[VarNameKind], consequent: ExprT[VarNameKind])
     return ExprOp(type_bool, Operator.IMPLIES, (antecedent, consequent))
 
 
+def expr_split_conjuncts(expr: ExprT[VarNameKind]) -> Iterator[ExprT[VarNameKind]]:
+    if isinstance(expr, ExprOp) and expr.operator == Operator.AND:
+        yield from expr_split_conjuncts(expr.operands[0])
+        yield from expr_split_conjuncts(expr.operands[1])
+    else:
+        yield expr
+
+
 def condition_to_evaluate_subexpr_in_expr(expr: ExprT[VarNameKind], sub: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
     # traverse down the if, building up the condition to reach a particular variable
     if isinstance(expr, ExprNum):
@@ -729,7 +737,7 @@ def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]
     return used_variables
 
 
-def assigned_variables_in_node(func: Function[VarNameKind], n: NodeName) -> Set[ExprVarT[VarNameKind]]:
+def assigned_variables_in_node(func: Function[VarNameKind], n: NodeName, *, with_loop_targets: bool) -> Set[ExprVarT[VarNameKind]]:
     if n in (NodeNameRet, NodeNameErr):
         return set()
 
@@ -742,7 +750,7 @@ def assigned_variables_in_node(func: Function[VarNameKind], n: NodeName) -> Set[
     elif not isinstance(node, NodeEmpty | NodeCond):
         assert_never(node)
 
-    if loop_header := func.is_loop_header(n):
+    if (loop_header := func.is_loop_header(n)) and with_loop_targets:
         assigned_variables.update(func.loops[loop_header].targets)
 
     return assigned_variables

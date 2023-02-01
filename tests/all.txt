@@ -1,4 +1,13 @@
 
+Function tmp.join 5 c___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Var a___int#v Word 32
+4 Basic 3 1 a___int#v Word 32 Num 1 Word 32
+5 Basic 3 1 a___int#v Word 32 Num 2 Word 32
+6 Cond 4 5 Op Not Bool 1 Op Equals Bool 2 Var c___int#v Word 32 Num 0 Word 32
+EntryPoint 6
+
 Function tmp.branches 5 i___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0

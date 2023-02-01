@@ -1,8 +1,7 @@
 import dataclasses
-from typing import Mapping, NamedTuple, NewType, Set, TypeAlias, cast
+from typing import Mapping, NamedTuple, NewType, Set, TypeAlias
 from typing_extensions import assert_never
 import abc_cfg
-from nip import NIPFunction
 import source
 from utils import clen, set_union
 from dataclasses import dataclass
@@ -233,7 +232,7 @@ class Function(source.Function[VarName]):
     """
 
 
-def dsa(func: NIPFunction) -> Function:
+def dsa(func: source.Function[source.ProgVarName]) -> Function:
     """
     Returns the dsa function, and an artifact to make it easy to emit
     expressions into the DSA later on (used to emit the loop invariants)
