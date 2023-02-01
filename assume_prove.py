@@ -246,40 +246,13 @@ def make_prog(func: dsa.Function) -> AssumeProveProg:
         node_ok_name(source.NodeNameRet): [InstructionProve(source.ExprOp(source.type_bool, source.Operator.TRUE, ()))],
     }
 
-    undefined_on_paths = dsa.compute_paths_on_which_vars_are_undefined(func)
-
     # traverse topologically to make the pretty printer nicer to read
     for n in func.traverse_topologically():
         if n in (source.NodeNameErr, source.NodeNameRet):
             continue
 
-        node_script: list[InstructionAssume | InstructionProve] = []
-
-        # add proof obligations to proove that every variable that is used
-        # has been defined beforehand
-        vars_undefined_at_curr_node = set(
-            var for var, paths in undefined_on_paths[n].items() if len(paths) > 0)
-
-        for prog_var, expr in source.expr_where_vars_are_used_in_node(func.nodes[n], vars_undefined_at_curr_node):
-
-            # make sure none of the paths along which a variable isn't defined are possible
-            base_cond = source.expr_false
-            for path in undefined_on_paths[n][prog_var]:
-                base_cond = source.expr_or(
-                    base_cond, condition_to_take_path(func, path))
-
-            # some expression might not depend
-            extra_cond = source.condition_to_evaluate_subexpr_in_expr(
-                expr, prog_var)
-
-            cond = source.expr_and(base_cond, extra_cond)
-            neg = source.expr_negate(
-                convert_expr_dsa_vars_to_ap(cond))
-            node_script.append(InstructionProve(neg))
-
-        node_script.extend(
-            make_assume_prove_script_for_node(func, n))
-        nodes_script[node_ok_name(n)] = node_script
+        nodes_script[node_ok_name(
+            n)] = make_assume_prove_script_for_node(func, n)
 
     for script in nodes_script.values():
         assert all(ins.expr.typ == source.type_bool for ins in script)

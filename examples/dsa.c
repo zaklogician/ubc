@@ -216,8 +216,9 @@ int arr_static()
 //     return 3;
 // }
 
-int straight_into_loop(int i)
+int straight_into_loop___fail_because_missing_invariant(int i)
 {
+    // need invariant to prove that i is initialized
     while (i < 10)
     {
         i++;

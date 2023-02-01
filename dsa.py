@@ -2,6 +2,7 @@ import dataclasses
 from typing import Mapping, NamedTuple, NewType, Set, TypeAlias, cast
 from typing_extensions import assert_never
 import abc_cfg
+from nip import NIPFunction
 import source
 from utils import clen, set_union
 from dataclasses import dataclass
@@ -223,109 +224,6 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.Loo
     return loops
 
 
-def compute_paths_on_which_vars_are_undefined(func: source.Function[source.VarNameKind]) -> Mapping[source.NodeName, Mapping[source.ExprVarT[source.VarNameKind], Set[source.Path]]]:
-    """
-    We say a variable is _assigned_ it ever was on the lhs of an assignment
-
-    We say a variable is _defined_ if it was assigned to an expression which
-    only depends defined variables (we start with a set a defined variable,
-    for example function arguments)
-
-    conjecture: it suffices to prove that no unassigned variable is ever
-    used to show that no undefined variable is ever used.
-
-    node name => variable => paths along which the variable isn't defined
-    (so if vars_undefined_on_paths[n][v] is empty, that means v is defined
-    at node n). All paths to node n end with n.
-    """
-
-    all_vars = set_union(source.used_variables_in_node(func.nodes[n]) | source.assigned_variables_in_node(
-        func, n) for n in func.traverse_topologically() if n not in (source.NodeNameErr, source.NodeNameRet))
-
-    vars_undefined_on_paths: dict[source.NodeName,
-                                  Mapping[source.ExprVarT[source.VarNameKind], Set[source.Path]]] = {}
-
-    for n in func.traverse_topologically():
-        if n in (source.NodeNameRet, source.NodeNameErr):
-            continue
-
-        node = func.nodes[n]
-        preds = func.acyclic_preds_of(n)
-        if clen(preds) == 0:
-            # TODO: include globals
-            vars_undefined_on_paths[n] = {var: set() if var in func.arguments else {
-                (n, )} for var in all_vars}
-        else:
-            # 1. merge preds:
-
-            # 1.a. merge all preds (for each variable, union of path)
-            local: dict[source.ExprVarT[source.VarNameKind], Set[source.Path]] = {var: set_union(
-                vars_undefined_on_paths[p][var] for p in func.acyclic_preds_of(n)) for var in all_vars}
-
-            # 1.b. if a variable is assigned in the current node, set paths to
-            # the union of the paths of the variables the rhs depends on
-
-            # if a node is a loop header, then it incarnates all loop written variables
-            # (ie they are assigned)
-            #
-            # THIS IS WRONG: a variable is a loop target if there exists a
-            # basic node which assigns to it. (1) nothing guarrantees we will
-            # reach that node (2) nothing guarantees that the expression it
-            # is assigned to is well defined.
-            if loop_header := func.is_loop_header(n):
-                loop = func.loops[loop_header]
-                for var in loop.targets:
-                    local[var] = set()  # variable is defined
-
-            if isinstance(node, source.NodeBasic):
-                base = dict(local)  # copy
-                # notice that we don't read from local! That's because updates
-                # are simultaneous, node.upds[0] shouldn't impact node.upds[1]
-                for upd in node.upds:
-                    assert source.all_vars_in_expr(
-                        upd.expr) <= all_vars, "there are some variables used in an expression that we don't know about"
-                    assert upd.var in all_vars, "this means (1) we missed a variable (2) we are assigning to an unused variable"
-                    local[upd.var] = set_union(base[var]
-                                               for var in source.all_vars_in_expr(upd.expr))
-            elif isinstance(node, source.NodeCall):
-                # ret0, ret1, ..., retN = f(arg0(v00,v01,...), arg1(v10,v11,...), ..., argM(vM0,vM1,...))
-                # all argI are expressions that depend on multiple variables
-                # all retI depend on all vJK
-
-                # all the variables we depend on to evaluate f(...)
-                var_deps: set[source.ExprVarT[source.VarNameKind]] = set_union(
-                    source.all_vars_in_expr(arg) for arg in node.args)
-
-                # all the paths we must avoid to evaluate f(...)
-                path_deps: set[source.Path] = set_union(
-                    local[var] for var in var_deps)
-
-                for ret in node.rets:
-                    local[ret] = path_deps
-            elif not isinstance(node, source.NodeEmpty | source.NodeCond):
-                assert_never(node)
-
-            # 2. add current node to all the paths
-            for var, paths in local.items():
-                local[var] = set(path + (n, ) for path in paths)
-
-            vars_undefined_on_paths[n] = local
-
-    return vars_undefined_on_paths
-
-
-def pretty_print_vars_undefined_on_paths(func: source.Function[source.VarNameKind], undefined_on_paths: Mapping[source.NodeName, Mapping[source.ExprVarT[source.VarNameKind], Set[source.Path]]]) -> None:
-    for node in undefined_on_paths:
-        print('node', node)
-        used = source.used_variables_in_node(func.nodes[node])
-        for var in undefined_on_paths[node]:
-            if var not in used:
-                continue
-            print('  var', var.name)
-            for path in undefined_on_paths[node][var]:
-                print('    path', path)
-
-
 @dataclass(frozen=True)
 class Function(source.Function[VarName]):
     """ DSA Function """
@@ -335,7 +233,7 @@ class Function(source.Function[VarName]):
     """
 
 
-def dsa(func: source.Function[source.ProgVarName]) -> Function:
+def dsa(func: NIPFunction) -> Function:
     """
     Returns the dsa function, and an artifact to make it easy to emit
     expressions into the DSA later on (used to emit the loop invariants)

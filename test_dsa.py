@@ -1,3 +1,4 @@
+import nip
 import pytest
 from typing import Collection, Iterable, Iterator, Mapping, Sequence, Set, cast
 from typing_extensions import assert_never
@@ -214,9 +215,10 @@ def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_fu
 @pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
 def test_dsa_custom_tests(func: syntax.Function) -> None:
     prog_func = source.convert_function(func)
-    dsa_func = dsa.dsa(prog_func)
+    nip_func = nip.nip(prog_func)
+    dsa_func = dsa.dsa(nip_func)
     ensure_valid_dsa(dsa_func)
-    ensure_correspondence(prog_func, dsa_func)
+    ensure_correspondence(nip_func, dsa_func)
 
 
 # sort so that the smallest functions fail first
@@ -230,6 +232,7 @@ def test_dsa_kernel_functions(function: syntax.Function) -> None:
         pytest.skip("too many paths, checking them all is too slow")
 
     prog_func = source.convert_function(function)
-    dsa_func = dsa.dsa(prog_func)
+    nip_func = nip.nip(prog_func)
+    dsa_func = dsa.dsa(nip_func)
     ensure_valid_dsa(dsa_func)
-    ensure_correspondence(prog_func, dsa_func)
+    ensure_correspondence(nip_func, dsa_func)

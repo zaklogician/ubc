@@ -11,6 +11,7 @@ import source
 import abc_cfg
 import smt
 import dsa
+import nip
 import assume_prove
 
 syntax.set_arch('rv64')
@@ -52,6 +53,8 @@ class CmdlineOption(Enum):
     """ Show the graph lang """
     SHOW_DSA = '--show-dsa'
     """ Show the graph after having applied dynamic single assignment """
+    SHOW_NIP = '--show-nip'
+    """ Show the non-initialized protected graph """
     SHOW_AP = '--show-ap'
     """ Show the assume prove prog """
     SHOW_SMT = '--show-smt'
@@ -116,7 +119,11 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_GRAPH in options:
             viz_function(prog_func)
 
-        dsa_func = dsa.dsa(prog_func)
+        nip_func = nip.nip(prog_func)
+        if CmdlineOption.SHOW_NIP in options:
+            viz_function(nip_func)
+
+        dsa_func = dsa.dsa(nip_func)
         if CmdlineOption.SHOW_DSA in options:
             viz_function(dsa_func)
 

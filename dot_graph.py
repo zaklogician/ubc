@@ -1,6 +1,7 @@
 """ standalone file to visualize graph lang
 """
 
+import nip
 from dsa import dsa
 import logic
 from collections.abc import Callable
@@ -354,7 +355,8 @@ if __name__ == "__main__":
     # viz_raw_function(functions[function_name])
     # viz_function(source.convert_function(functions[function_name]))
     func = source.convert_function(functions[function_name])
-    dsa_func = dsa(func)
+    nip_func = nip.nip(func)
+    dsa_func = dsa(nip_func)
     viz_function(dsa_func)
     assume_prove.pretty_print_prog(
         assume_prove.make_prog(dsa_func))

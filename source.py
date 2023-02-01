@@ -603,7 +603,7 @@ class NodeCall(Generic[VarNameKind]):
 
 @dataclass(frozen=True)
 class NodeCond(Generic[VarNameKind]):
-    expr: ExprT[VarNameKind]  # TODO: Expr will take a VarNameKind
+    expr: ExprT[VarNameKind]
     succ_then: NodeName
     succ_else: NodeName
 
