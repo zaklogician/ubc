@@ -317,7 +317,8 @@ def make_and_open_image(filepath: str) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    p.wait()
+    # p.wait()
+    # don't wait for p, it only returns once you close the window
 
 
 if __name__ == "__main__":
