@@ -1,6 +1,7 @@
 from typing import Mapping, NamedTuple, NewType, Sequence, TypeAlias
 from typing_extensions import assert_never
 import dsa
+import nip
 import source
 
 
@@ -30,7 +31,7 @@ class FunctionDefinition(NamedTuple):
     name: source.FunctionName
     arguments: Sequence[APVar]
     return_typ: source.Type
-    body: source.ExprT[VarName]
+    body: APVar
 
 
 class AssumeProveProg(NamedTuple):
@@ -51,15 +52,15 @@ def node_ok_ap_var(n: source.NodeName) -> APVar:
     return source.ExprVar(source.type_bool, VarName(node_ok_name(n)))
 
 
-def convert_dsa_var_to_ap_var(var: dsa.VarName) -> VarName:
-    return VarName(f'{var.prog}~{var.inc}')
+def convert_dsa_var_to_ap_var(var: dsa.Incarnation[source.ProgVarName | nip.GuardVarName]) -> VarName:
+    return VarName(f'{var.base}~{var.inc}')
 
 
-def convert_expr_var(expr: source.ExprVarT[dsa.VarName]) -> APVar:
+def convert_expr_var(expr: source.ExprVarT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> APVar:
     return source.ExprVar(expr.typ, name=convert_dsa_var_to_ap_var(expr.name))
 
 
-def convert_expr_dsa_vars_to_ap(expr: source.ExprT[dsa.VarName]) -> source.ExprT[VarName]:
+def convert_expr_dsa_vars_to_ap(expr: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> source.ExprT[VarName]:
     if isinstance(expr, source.ExprNum):
         return expr
     elif isinstance(expr, source.ExprVar):
@@ -75,7 +76,7 @@ def convert_expr_dsa_vars_to_ap(expr: source.ExprT[dsa.VarName]) -> source.ExprT
     assert_never(expr)
 
 
-def make_assume(var: dsa.Var, expr: source.ExprT[dsa.VarName]) -> Instruction:
+def make_assume(var: dsa.Var[source.ProgVarName | nip.GuardVarName], expr: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> Instruction:
     """ Helper function to make things as readable as possible, we really don't want to get this wrong
     """
     lhs = source.ExprVar(var.typ, convert_dsa_var_to_ap_var(var.name))
@@ -92,14 +93,27 @@ def prog_var_to_ap_var(v: source.ProgVar) -> APVar:
     return source.ExprVar(v.typ, VarName(v.name))
 
 
-def get_loop_invariant_function(func: source.Function[dsa.VarName], loop_header: source.LoopHeaderName) -> FunctionDefinition:
+def get_loop_count_target_var(loop: source.Loop[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> source.ExprVarT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]:
+    for target in loop.targets:
+        if target.name.base.startswith('loop#') and target.name.base.endswith('#count'):
+            return target
+    assert False, "loop doesn't have a loop a counter automatically inserted by the c parser"
+
+
+def get_loop_invariant_function(func: dsa.Function, loop_header: source.LoopHeaderName) -> FunctionDefinition:
     # TODO: there is no point rebuilding the same object multiple times
     #       hint to use an AP builder
     name = make_loop_invariant_function_name(loop_header)
-    args = [prog_var_to_ap_var(dsa.get_prog_var(target))
+    args = [prog_var_to_ap_var(dsa.get_base_var(target))
             for target in func.loops[loop_header].targets]
-    # emit loop invariant as true (ie. doesn't do anything)
-    return FunctionDefinition(name=name, arguments=args, return_typ=source.type_bool, body=source.expr_true)
+
+    # c parser inserts a loop count automatically, so we automatically prove that it is initialized
+    loop_count_init_var = prog_var_to_ap_var(nip.guard_var(
+        dsa.get_base_var(get_loop_count_target_var(func.loops[loop_header]))))
+    assert loop_count_init_var in args
+
+    body: APVar = loop_count_init_var
+    return FunctionDefinition(name=name, arguments=args, return_typ=source.type_bool, body=body)
 
 
 def apply_incarnation_for_node(func: dsa.Function, n: source.NodeName, prog_var: source.ProgVar) -> APVar:
@@ -204,7 +218,7 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
 
             # use the incarnation at node n
             args = [
-                apply_incarnation_for_node(func, n, dsa.get_prog_var(arg)) for arg in func.loops[loop_header].targets]
+                apply_incarnation_for_node(func, n, dsa.get_base_var(arg)) for arg in func.loops[loop_header].targets]
 
             script.append(InstructionProve(source.expr_implies(source.expr_negate(source.ExprFunction(
                 invariant.return_typ, invariant.name, args)), node_ok_ap_var(source.NodeNameErr))))
@@ -212,8 +226,9 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
     return script
 
 
-def condition_to_take_path(func: dsa.Function, path: source.Path) -> source.ExprT[dsa.VarName]:
-    cond: source.ExprT[dsa.VarName] = source.expr_true
+def condition_to_take_path(func: dsa.Function, path: source.Path) -> source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]:
+    cond: source.ExprT[dsa.Incarnation[source.ProgVarName |
+                                       nip.GuardVarName]] = source.expr_true
     for i in range(len(path)):
         node = func.nodes[path[i]]
         if isinstance(node, source.NodeCond):

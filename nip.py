@@ -19,15 +19,15 @@ from typing_extensions import assert_never
 import source
 
 
+GuardVarName = NewType('GuardVarName', source.ProgVarName)
+GuardVar = source.ExprVarT[GuardVarName]
+
+
 @dataclass(frozen=True)
-class Function(source.Function[source.ProgVarName]):
+class Function(source.Function[source.ProgVarName | GuardVarName]):
     """
     Non-initialized protected function
     """
-
-
-GuardVarName = NewType('GuardVarName', str)
-GuardVar = source.ExprVarT[GuardVarName]
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ Node: TypeAlias = NodeGuard | NodeStateUpdate
 
 
 def guard_name(name: source.ProgVarName) -> GuardVarName:
-    return GuardVarName(source.ProgVarName(f'{name}#init'))
+    return GuardVarName(source.ProgVarName(name + '#init'))
 
 
 def guard_var(var: source.ProgVar) -> GuardVar:
@@ -91,19 +91,6 @@ def update_node_successors(node: source.Node[source.VarNameKind], successors: Se
         return dataclasses.replace(node, succ_then=successors[0], succ_else=successors[1])
 
     assert_never(node)
-
-
-def cast_guard_node_to_prog_node(expr: source.Node[GuardVarName]) -> source.Node[source.ProgVarName]:
-    """
-    Guard var names are used during to constructions to ensure we're indeed
-    talking about <x>#init variables and not <x>
-
-    But it breaks Liskov substitution principle because GuardVarName is a
-    subtype of ProgVarName.
-
-    TODO: how should the code be structured?
-    """
-    return cast(source.Node[source.ProgVarName], expr)
 
 
 def nip(func: source.Function[source.ProgVarName]) -> Function:
@@ -156,7 +143,8 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
     #     or: Node1 --> Node1 state update --> Node2 protection --> Node2
 
     # apply insertions
-    new_nodes: dict[source.NodeName, source.Node[source.ProgVarName]] = {}
+    new_nodes: dict[source.NodeName,
+                    source.Node[source.ProgVarName | GuardVarName]] = {}
     for n in func.traverse_topologically():
         if n in (source.NodeNameRet, source.NodeNameErr):
             continue
@@ -182,8 +170,8 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
                     continue
 
                 assert protection_name not in new_nodes, protection_name
-                new_nodes[protection_name] = cast_guard_node_to_prog_node(NodeGuard(
-                    protections[succ], succ_then=succ, succ_else=source.NodeNameErr))
+                new_nodes[protection_name] = NodeGuard(
+                    protections[succ], succ_then=succ, succ_else=source.NodeNameErr)
 
         # insert successors
         if n in state_updates:
@@ -194,8 +182,8 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
                               source.NodeCall | source.NodeEmpty), f"{type(node)}"
             assert len(jump_to) == 1
             update_name = source.NodeName(f'upd_n{n}')
-            new_nodes[update_name] = cast_guard_node_to_prog_node(
-                NodeStateUpdate(state_updates[n], jump_to[0]))
+            new_nodes[update_name] = NodeStateUpdate(
+                state_updates[n], jump_to[0])
             jump_to[0] = update_name
 
         new_nodes[n] = update_node_successors(node, jump_to)

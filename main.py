@@ -97,6 +97,14 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         filename = 'examples/dsa.txt'
     elif filename.lower() == 'kernel':
         filename = 'examples/kernel_CFunctions.txt'
+    elif filename.lower() == 'all':
+        filename = 'tests/all.txt'
+
+    if filename.endswith('.c'):
+        print(
+            "You probably meant to pass in the .txt file, not the .c file", file=sys.stderr)
+        print("If not, don't be silly and rename it to .txt", file=sys.stderr)
+        exit(1)
 
     if os.path.isfile(filename):
         with open(filename) as f:

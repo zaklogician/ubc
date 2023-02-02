@@ -1,11 +1,11 @@
-import nip
 import pytest
 from typing import Collection, Iterable, Iterator, Mapping, Sequence, Set, cast
 from typing_extensions import assert_never
 import abc_cfg
-import dsa
 import source
+import dsa
 import syntax
+import nip
 
 # global variables are bad :(
 syntax.set_arch('rv64')
@@ -50,15 +50,16 @@ def compute_all_path(cfg: abc_cfg.CFG) -> Sequence[Sequence[source.NodeName]]:
     return all_paths
 
 
-def ensure_assigned_at_most_once(func: source.Function[dsa.VarName], path: Collection[source.NodeName]) -> None:
-    assigned_variables: list[dsa.Var] = []
+def ensure_assigned_at_most_once(func: dsa.Function, path: Collection[source.NodeName]) -> None:
+    assigned_variables: list[dsa.Var[source.ProgVarName |
+                                     nip.GuardVarName]] = []
     for node in path:
         assigned_variables.extend(
             source.assigned_variables_in_node(func, node, with_loop_targets=True))
     assert len(assigned_variables) == len(set(assigned_variables))
 
 
-def ensure_using_latest_incarnation(func: source.Function[dsa.VarName], path: Collection[source.NodeName]) -> None:
+def ensure_using_latest_incarnation(func: dsa.Function, path: Collection[source.NodeName]) -> None:
     latest_assignment: dict[source.ProgVar, dsa.IncarnationNum] = {}
     for arg in func.arguments:
         prog_var, inc = dsa.unpack_dsa_var(arg)
@@ -89,14 +90,14 @@ def ensure_using_latest_incarnation(func: source.Function[dsa.VarName], path: Co
             latest_assignment[prog_var] = inc
 
 
-def ensure_valid_dsa(dsa_func: source.Function[dsa.VarName]) -> None:
+def ensure_valid_dsa(dsa_func: dsa.Function) -> None:
     all_paths = compute_all_path(dsa_func.cfg)
     for i, path in enumerate(all_paths):
         ensure_assigned_at_most_once(dsa_func, path)
         ensure_using_latest_incarnation(dsa_func, path)
 
 
-def assert_expr_equals_mod_dsa(lhs: source.ExprT[source.ProgVarName], rhs: source.ExprT[dsa.VarName]) -> None:
+def assert_expr_equals_mod_dsa(lhs: source.ExprT[source.ProgVarName], rhs: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
     assert lhs.typ == rhs.typ
 
     if isinstance(lhs, source.ExprNum | source.ExprSymbol | source.ExprType):
@@ -120,11 +121,11 @@ def assert_expr_equals_mod_dsa(lhs: source.ExprT[source.ProgVarName], rhs: sourc
         assert_never(lhs)
 
 
-def assert_var_equals_mod_dsa(prog: source.ProgVar, var: dsa.Var) -> None:
+def assert_var_equals_mod_dsa(prog: source.ProgVar, var: dsa.Var[source.ProgVarName | nip.GuardVarName]) -> None:
     assert prog == dsa.unpack_dsa_var(var)[0]
 
 
-def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName], node: source.Node[dsa.VarName]) -> None:
+def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName], node: source.Node[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
     if isinstance(prog, source.NodeBasic):
         assert isinstance(node, source.NodeBasic)
 
@@ -157,7 +158,7 @@ def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName], node: sour
         assert_never(prog)
 
 
-def assert_is_join_node(node: source.Node[dsa.VarName]) -> None:
+def assert_is_join_node(node: source.Node[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
 
     assert isinstance(node, source.NodeBasic)
     for upd in node.upds:
@@ -169,7 +170,7 @@ def assert_is_join_node(node: source.Node[dsa.VarName]) -> None:
         assert lhs_name == rhs_name
 
 
-def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_func: source.Function[dsa.VarName]) -> None:
+def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_func: dsa.Function) -> None:
     assert set(prog_func.nodes.keys()).issubset(dsa_func.nodes.keys())
 
     join_node_names: list[source.NodeName] = []

@@ -2,14 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Any, Callable, Collection, Generic, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, TypeVar
+from typing import Any, Callable, Generic, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, TypeVar
 from typing_extensions import assert_never
 
 import syntax
 
 ProgVarName = NewType('ProgVarName', str)
-VarNameKind = TypeVar("VarNameKind")
-TypeKind = TypeVar("TypeKind")
+
+# expressions are immutable containers, so they are covariant in their generic
+# parameters.
+# https://mypy.readthedocs.io/en/stable/generics.html#variance-of-generic-types
+VarNameKind = TypeVar("VarNameKind", covariant=True)
+TypeKind = TypeVar("TypeKind", covariant=True)
 
 NodeName = NewType('NodeName', str)
 NodeNameErr = NodeName('Err')

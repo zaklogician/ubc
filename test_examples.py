@@ -50,7 +50,7 @@ def verify(unsafe_func: syntax.Function) -> smt.VerificationResult:
     ("fail_arr_undefined_behaviour2", smt.VerificationResult.FAIL),
     ("arr_static", smt.VerificationResult.OK),
     # ("unreachable_entry", smt.VerificationResult.OK),
-    # TODO: because no auto invariants
+    # TODO: because no auto for definedness invariants
     ("straight_into_loop", smt.VerificationResult.FAIL),
     ("overflow2", smt.VerificationResult.FAIL),
     ("greater_than_op___fail_overflow", smt.VerificationResult.FAIL),

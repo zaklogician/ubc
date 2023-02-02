@@ -1,33 +1,28 @@
 """ standalone file to visualize graph lang
 """
 
-import nip
-from dsa import dsa
+import dsa
 import logic
 from collections.abc import Callable
 from io import IOBase
 import subprocess
-from typing import Any, Iterator, Tuple, TypeVar, Mapping
+from typing import Any, TypeVar
 import tempfile
 
 import sys
 import os
 import source
+import nip
+
 
 import syntax
 from typing_extensions import assert_never
 import assume_prove
 
 
-def pretty_name(name: source.VarNameKind) -> str:
-    # so many bloody cases
-
-    # : -> dsa
-    # . -> something i don't wanna throw away
-    # __ -> type info I wanna throw away
-    if isinstance(name, tuple):
-        base, inc = name
-        return _pretty_name(base) + f"<sub>{inc}</sub>"
+def pretty_name(name: Any) -> str:
+    if isinstance(name, dsa.Incarnation):
+        return _pretty_name(name.base) + f"<sub>{name.inc}</sub>"
 
     assert isinstance(name, str)
     return _pretty_name(name)
@@ -35,6 +30,11 @@ def pretty_name(name: source.VarNameKind) -> str:
 
 def _pretty_name(name: str) -> str:
     return name
+    # so many bloody cases
+
+    # : -> dsa
+    # . -> something i don't wanna throw away
+    # __ -> type info I wanna throw away
     if "__" not in name:
         return name
     # return name
@@ -129,7 +129,7 @@ def pretty_updates(update: tuple[tuple[str, syntax.Type], syntax.Expr]) -> str:
     return "{} := {}".format(pretty_name(name), pretty_expr(expr))
 
 
-def pretty_safe_update(upd: source.Update[source.VarNameKind]) -> str:
+def pretty_safe_update(upd: source.Update[Any]) -> str:
     return "{} := {}".format(pretty_name(upd.var.name), pretty_safe_expr(upd.expr))
 
 
@@ -348,7 +348,7 @@ if __name__ == "__main__":
     # viz_function(source.convert_function(functions[function_name]))
     func = source.convert_function(functions[function_name])
     nip_func = nip.nip(func)
-    dsa_func = dsa(nip_func)
+    dsa_func = dsa.dsa(nip_func)
     viz_function(dsa_func)
     assume_prove.pretty_print_prog(
         assume_prove.make_prog(dsa_func))

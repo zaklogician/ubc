@@ -37,8 +37,7 @@ int unsigned_cast(unsigned int c)
     return 0;
 }
 
-// TODO: auto generate invariant here
-int hang___fail_because_missing_auto_invariant()
+int hang()
 {
     while (1) {}
 }

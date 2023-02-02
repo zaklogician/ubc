@@ -1,49 +1,71 @@
 import dataclasses
-from typing import Mapping, NamedTuple, NewType, Set, TypeAlias
+from typing import Generic, Mapping, NewType, Set, TypeAlias, TypeVar
 from typing_extensions import assert_never
 import abc_cfg
 import source
-from utils import clen, set_union
+import nip
+from utils import set_union
 from dataclasses import dataclass
 
 
 IncarnationNum = NewType('IncarnationNum', int)
 IncarnationBase = IncarnationNum(1)
 
+# Incarnation is immutable, so its generic parameter is covariant
+BaseVarName = TypeVar('BaseVarName', source.ProgVarName,
+                      nip.GuardVarName, covariant=True)
 
-class VarName(NamedTuple):
-    prog: source.ProgVarName
+
+@dataclass(frozen=True)
+class Incarnation(Generic[BaseVarName]):
+    base: BaseVarName
     inc: IncarnationNum
 
 
-Var: TypeAlias = source.ExprVarT[VarName]
+BaseVar: TypeAlias = source.ExprVarT[BaseVarName]
+Var: TypeAlias = source.ExprVarT[Incarnation[BaseVarName]]
 
 
-def make_dsa_var_name(v: source.ProgVarName, k: IncarnationNum) -> VarName:
-    return VarName(v, k)
+@dataclass(frozen=True)
+class Function(source.Function[Incarnation[source.ProgVarName | nip.GuardVarName]]):
+    """ DSA Function """
+
+    contexts: Mapping[source.NodeName,
+                      Mapping[source.ProgVar | nip.GuardVar, IncarnationNum]]
+    """ Mapping for each node from prog variable to the incarnation number at that node
+    """
 
 
-def unpack_dsa_var_name(v: VarName) -> tuple[source.ProgVarName, IncarnationNum]:
-    return v.prog, v.inc
+def unpack_dsa_var_name(v: Incarnation[BaseVarName]) -> tuple[BaseVarName, IncarnationNum]:
+    return v.base, v.inc
 
 
-def unpack_dsa_var(var: Var) -> tuple[source.ProgVar, IncarnationNum]:
-    return source.ExprVar(var.typ, var.name.prog), var.name.inc
+def unpack_dsa_var(var: Var[BaseVarName]) -> tuple[source.ExprVarT[BaseVarName], IncarnationNum]:
+    return source.ExprVar(var.typ, var.name.base), var.name.inc
 
 
-def get_prog_var(var: Var) -> source.ProgVar:
-    return source.ExprVar(var.typ, var.name.prog)
+def get_base_var(var: Var[BaseVarName]) -> BaseVar[BaseVarName]:
+    return source.ExprVar(var.typ, var.name.base)
 
 
-def make_dsa_var(v: source.ProgVar, inc: IncarnationNum) -> Var:
-    return source.ExprVar(v.typ, make_dsa_var_name(v.name, inc))
+def make_dsa_var(v: BaseVar[BaseVarName], inc: IncarnationNum) -> Var[BaseVarName]:
+    return source.ExprVar(v.typ, Incarnation(v.name, inc))
+
+
+def guard_var_at_node(func: Function, n: source.NodeName, var: Var[source.ProgVarName]) -> Var[nip.GuardVarName]:
+    guard_base_name = nip.guard_name(var.name.base)
+    guard_base_var = source.ExprVar(source.type_bool, guard_base_name)
+    incarnation: Incarnation[nip.GuardVarName] = Incarnation(
+        guard_base_name, func.contexts[n][guard_base_var])
+    return source.ExprVar(var.typ, incarnation)
 
 
 @dataclasses.dataclass
 class DSABuilder:
-    original_func: source.Function[source.ProgVarName]
+    original_func: source.Function[source.ProgVarName | nip.GuardVarName]
 
-    dsa_nodes: dict[source.NodeName, source.Node[VarName]]
+    dsa_nodes: dict[source.NodeName,
+                    source.Node[Incarnation[nip.GuardVarName | source.ProgVarName]]]
     """
     Mutated during construction
     """
@@ -86,7 +108,7 @@ def compute_node_variable_dependencies(func: source.Function[source.ProgVarName]
 
 def apply_incarnations(
         context: Mapping[source.ProgVar, IncarnationNum],
-        root: source.ExprT[source.ProgVarName]) -> source.ExprT[VarName]:
+        root: source.ExprT[BaseVarName]) -> source.ExprT[Incarnation[BaseVarName]]:
     """ applies incarnation, but if a variable isn't defined in the context, it silently uses base as the incarnation count.
     """
 
@@ -105,8 +127,7 @@ def apply_incarnations(
         else:
             incarnation_number = context[var]
 
-        dsa_name = make_dsa_var_name(root.name, incarnation_number)
-
+        dsa_name = Incarnation(root.name, incarnation_number)
         return source.ExprVar(root.typ, name=dsa_name)
     elif isinstance(root, source.ExprOp):
         return source.ExprOp(root.typ, source.Operator(root.operator), operands=tuple(
@@ -147,7 +168,8 @@ def apply_insertions(s: DSABuilder) -> None:
     for node_name, node_insertions in s.insertions.items():
         for pred_name in s.original_func.acyclic_preds_of(node_name):
 
-            updates: list[source.Update[VarName]] = []
+            updates: list[source.Update[Incarnation[source.ProgVarName | nip.GuardVarName]]] = [
+            ]
             for prog_var, new_incarnation_number in node_insertions.items():
                 # some variables might not be defined on all paths and still
                 # represent legal code
@@ -164,7 +186,7 @@ def apply_insertions(s: DSABuilder) -> None:
                 old_incarnation_number = s.incarnations[pred_name][prog_var]
 
                 updates.append(source.Update(make_dsa_var(prog_var, new_incarnation_number),
-                                             source.ExprVar(prog_var.typ, name=make_dsa_var_name(prog_var.name, old_incarnation_number))))
+                                             source.ExprVar(prog_var.typ, name=Incarnation(prog_var.name, old_incarnation_number))))
             if len(updates) == 0:
                 continue
 
@@ -192,10 +214,7 @@ def apply_insertions(s: DSABuilder) -> None:
             s.dsa_nodes[join_node_name] = join_node
 
 
-def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.LoopHeaderName, tuple[Var, ...]], new_cfg: abc_cfg.CFG) -> Mapping[source.LoopHeaderName, source.Loop[VarName]]:
-    """ source.Update the loop nodes (because dsa inserts some joiner nodes)
-    but keep everything else the same (in particular the loop targets are still source.ProgVarName!)
-    """
+def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.LoopHeaderName, tuple[Var[BaseVarName], ...]], new_cfg: abc_cfg.CFG) -> Mapping[source.LoopHeaderName, source.Loop[Incarnation[BaseVarName]]]:
     abc_cfg.assert_single_loop_header_per_loop(new_cfg)
 
     # loop header => loop nodes
@@ -213,7 +232,8 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.Loo
     assert all_loop_nodes.keys() == s.original_func.loops.keys(
     ), "loop headers should remain the same through DSA transformation"
 
-    loops: dict[source.LoopHeaderName, source.Loop[VarName]] = {}
+    loops: dict[source.LoopHeaderName,
+                source.Loop[Incarnation[BaseVarName]]] = {}
     for loop_header, loop_nodes in all_loop_nodes.items():
         assert set(s.original_func.loops[loop_header].nodes).issubset(
             loop_nodes), "dsa only inserts joiner nodes, all previous loop nodes should still be loop nodes"
@@ -223,16 +243,10 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.Loo
     return loops
 
 
-@dataclass(frozen=True)
-class Function(source.Function[VarName]):
-    """ DSA Function """
-
-    contexts: Mapping[source.NodeName, Mapping[source.ProgVar, IncarnationNum]]
-    """ Mapping for each node from prog variable to the incarnation number at that node
-    """
+X = source.ProgVarName | nip.GuardVarName
 
 
-def dsa(func: source.Function[source.ProgVarName]) -> Function:
+def dsa(func: source.Function[X]) -> Function:
     """
     Returns the dsa function, and an artifact to make it easy to emit
     expressions into the DSA later on (used to emit the loop invariants)
@@ -255,8 +269,10 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
     s = DSABuilder(original_func=func, insertions={},
                    dsa_nodes={}, incarnations={})
 
-    entry_incarnations: dict[source.ProgVar, IncarnationNum] = {}
-    dsa_args: list[Var] = []
+    entry_incarnations: dict[source.ExprVarT[source.ProgVarName |
+                                             nip.GuardVarName], IncarnationNum] = {}
+    dsa_args: list[source.ExprVarT[Incarnation[source.ProgVarName |
+                                               nip.GuardVarName]]] = []
     for arg in func.arguments:
         dsa_args.append(make_dsa_var(arg, IncarnationBase))
         entry_incarnations[arg] = IncarnationBase
@@ -264,7 +280,8 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
     assert len(set(unpack_dsa_var_name(arg.name)[0] for arg in dsa_args)) == len(
         dsa_args), "unexpected duplicate argument name"
 
-    dsa_loop_targets: dict[source.LoopHeaderName, tuple[Var, ...]] = {}
+    dsa_loop_targets: dict[source.LoopHeaderName,
+                           tuple[Var[source.ProgVarName | nip.GuardVarName], ...]] = {}
     for current_node in func.traverse_topologically():
 
         if current_node in (source.NodeNameErr, source.NodeNameRet):
@@ -272,8 +289,9 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
 
         # build up a context (map from prog var to incarnation numbers)
         # TODO: clean this up
-        context: dict[source.ProgVar, IncarnationNum]
-        curr_node_insertions: dict[source.ProgVar,
+        context: dict[BaseVar[source.ProgVarName |
+                              nip.GuardVarName], IncarnationNum]
+        curr_node_insertions: dict[BaseVar[source.ProgVarName | nip.GuardVarName],
                                    IncarnationNum] | None = None
         if current_node == func.cfg.entry:
             context = entry_incarnations
@@ -281,7 +299,7 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
             context = {}
             curr_node_insertions = {}
 
-            all_variables: set[source.ProgVar] = set_union(set(s.incarnations[p].keys(
+            all_variables: set[BaseVar[source.ProgVarName | nip.GuardVarName]] = set_union(set(s.incarnations[p].keys(
             )) for p in s.original_func.acyclic_preds_of(current_node))
 
             for var in all_variables:
@@ -304,7 +322,7 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
                 s.insertions[current_node] = curr_node_insertions
 
         if loop_header := func.is_loop_header(current_node):
-            targets: list[Var] = []
+            targets: list[Var[source.ProgVarName | nip.GuardVarName]] = []
 
             for target in func.loops[loop_header].targets:
                 # havoc the loop targets
@@ -316,7 +334,8 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
 
             dsa_loop_targets[loop_header] = tuple(targets)
 
-        added_incarnations: dict[source.ProgVar, Var] = {}
+        added_incarnations: dict[BaseVar[source.ProgVarName |
+                                         nip.GuardVarName], Var[source.ProgVarName | nip.GuardVarName]] = {}
 
         # print(f'{current_node=}')
         # print(f'{curr_node_insertions=}')
@@ -326,7 +345,8 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
 
         node = func.nodes[current_node]
         if isinstance(node, source.NodeBasic):
-            upds: list[source.Update[VarName]] = []
+            upds: list[source.Update[Incarnation[source.ProgVarName |
+                                                 nip.GuardVarName]]] = []
             for upd in node.upds:
                 # notice that we don't take into consideration the previous
                 # updates from the same node. That's because the updates are
@@ -351,7 +371,7 @@ def dsa(func: source.Function[source.ProgVarName]) -> Function:
             args = tuple(apply_incarnations(context, arg)
                          for arg in node.args)
 
-            rets: list[Var] = []
+            rets: list[Var[source.ProgVarName | nip.GuardVarName]] = []
             for ret in node.rets:
                 inc = get_next_dsa_var_incarnation_number_from_context(
                     s, context, ret)
