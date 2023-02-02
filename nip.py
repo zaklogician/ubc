@@ -44,7 +44,7 @@ Node: TypeAlias = NodeGuard | NodeStateUpdate
 
 
 def guard_name(name: source.ProgVarName) -> GuardVarName:
-    return GuardVarName(source.ProgVarName(name + '#init'))
+    return GuardVarName(source.ProgVarName(name + '#assigned'))
 
 
 def guard_var(var: source.ProgVar) -> GuardVar:
@@ -53,7 +53,7 @@ def guard_var(var: source.ProgVar) -> GuardVar:
 
 def var_deps(expr: source.ExprT[source.ProgVarName]) -> source.ExprT[GuardVarName]:
     # for now, we ignore short circuiting
-    # if a = b + c, returns a#init = b#init && c#init
+    # if a = b + c, returns a#assigned = b#assigned && c#assigned
     return reduce(source.expr_and, map(guard_var, source.all_vars_in_expr(expr)), source.expr_true)
 
 
