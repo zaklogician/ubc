@@ -302,14 +302,25 @@ int loop_conditional_extra__fails_because_no_inv()
     return a;
 }
 
+
+// (define-fun and5 ((a1 Bool) (a2 Bool) (a3 Bool) (a4 Bool) (a5 Bool)) Bool (and a1 (and a2 (and a3 (and a4 a5)))))
+// (define-fun loop_invariant@5 ((a___int@v (_ BitVec 32)) (a___int@v@assigned Bool) (b___int@v (_ BitVec 32)) (b___int@v@assigned Bool) (i___int@v (_ BitVec 32)) (i___int@v@assigned Bool) (loop@4@count (_ BitVec 64)) (loop@4@count@assigned Bool)) Bool (and loop@4@count@assigned
+//     (and5 i___int@v@assigned
+//           (bvsle (_ bv0 32) i___int@v)
+//           (bvsle i___int@v (_ bv10 32))
+//           (=> (bvsle (_ bv3 32) i___int@v) (and a___int@v@assigned (= a___int@v (_ bv1 32))))
+//           (=> (bvsle (_ bv6 32) i___int@v) b___int@v@assigned)
+//     )
+// ))
 int loop_conditional_extra2__fails_because_no_inv()
 {
     int a;
     int b;
     for (int i = 0; i < 10; i++)
     // inv= 0<=i<=10
-    //      i >= 3 ==> a_defined
-    //      i >= 6 ==> b_defined
+    //      3 <= i ==> (a_defined && a = 1)
+    //      6 <= i ==> b_defined
+    //      i_assigned
     {
         if (i == 2)
         {

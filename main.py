@@ -14,6 +14,8 @@ import dsa
 import nip
 import assume_prove
 
+import validate_dsa
+
 syntax.set_arch('rv64')
 
 
@@ -134,6 +136,8 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         dsa_func = dsa.dsa(nip_func)
         if CmdlineOption.SHOW_DSA in options:
             viz_function(dsa_func)
+
+        validate_dsa.validate(nip_func, dsa_func)
 
         prog = assume_prove.make_prog(dsa_func)
         if CmdlineOption.SHOW_AP in options:
