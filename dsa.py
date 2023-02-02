@@ -32,7 +32,8 @@ class Function(source.Function[Incarnation[source.ProgVarName | nip.GuardVarName
 
     contexts: Mapping[source.NodeName,
                       Mapping[source.ProgVar | nip.GuardVar, IncarnationNum]]
-    """ Mapping for each node from prog variable to the incarnation number at that node
+    """ Mapping for each node from prog variable to the incarnation number at
+        the _end_ of that node
     """
 
 
@@ -207,7 +208,7 @@ def apply_insertions(s: DSABuilder) -> None:
                     s.dsa_nodes[pred_name] = dataclasses.replace(
                         pred, succ_else=join_node_name)
             elif isinstance(pred, source.NodeBasic | source.NodeEmpty | source.NodeCall):
-                # carefull, type hints for dataclasses.replace are too
+                # careful, type hints for dataclasses.replace are too
                 # permissive right now
                 s.dsa_nodes[pred_name] = dataclasses.replace(
                     pred, succ=join_node_name)
@@ -217,6 +218,14 @@ def apply_insertions(s: DSABuilder) -> None:
             assert len(updates) > 0, f"{node_insertions=}"
             join_node = NodeJoiner(tuple(updates), node_name)
             s.dsa_nodes[join_node_name] = join_node
+            assert join_node_name not in s.incarnations
+
+            incarnation_at_joiner_node: dict[source.ProgVar | nip.GuardVar, IncarnationNum] = dict(
+                s.incarnations[pred_name])
+            for upd in updates:
+                incarnation_at_joiner_node[get_base_var(
+                    upd.var)] = upd.var.name.inc
+            s.incarnations[join_node_name] = incarnation_at_joiner_node
 
 
 def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.LoopHeaderName, tuple[Var[BaseVarName], ...]], new_cfg: abc_cfg.CFG) -> Mapping[source.LoopHeaderName, source.Loop[Incarnation[BaseVarName]]]:
