@@ -96,22 +96,6 @@ class DSABuilder:
     """
 
 
-def compute_node_variable_dependencies(func: source.Function[source.ProgVarName]) -> Mapping[source.NodeName, Set[source.ProgVar]]:
-    """
-    For a given node name n, deps[n] gives the set of variables that are
-    refered to in n or any of its (possibly indirect) successors.
-    """
-    deps: dict[source.NodeName, Set[source.ProgVar]] = {}
-    for node_name in func.traverse_topologically_bottom_up():
-        if node_name in (source.NodeNameErr, source.NodeNameRet):
-            deps[node_name] = set()
-            continue
-        deps[node_name] = source.used_variables_in_node(func.nodes[node_name]).union(
-            *(deps[succ] for succ in func.cfg.all_succs[node_name] if (node_name, succ) not in func.cfg.back_edges))
-
-    return deps
-
-
 def apply_incarnations(
         context: Mapping[source.ProgVar, IncarnationNum],
         root: source.ExprT[BaseVarName]) -> source.ExprT[Incarnation[BaseVarName]]:
@@ -168,8 +152,6 @@ def get_next_dsa_var_incarnation_number_from_context(s: DSABuilder, context: Map
 
 
 def apply_insertions(s: DSABuilder) -> None:
-    prog_var_deps = compute_node_variable_dependencies(s.original_func)
-
     j = 0
     for node_name, node_insertions in s.insertions.items():
         for pred_name in s.original_func.acyclic_preds_of(node_name):
@@ -182,11 +164,6 @@ def apply_insertions(s: DSABuilder) -> None:
                 # good examples: dsa.txt@fail_arr_undefined_behaviour
                 #                dsa.txt@shift_diag  (look at the ret variable)
                 if prog_var not in s.incarnations[pred_name]:
-                    continue
-
-                # the successors don't need this variable, so don't emit a
-                # joiner
-                if prog_var not in prog_var_deps[node_name]:
                     continue
 
                 old_incarnation_number = s.incarnations[pred_name][prog_var]
