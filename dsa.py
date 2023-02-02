@@ -36,6 +36,11 @@ class Function(source.Function[Incarnation[source.ProgVarName | nip.GuardVarName
     """
 
 
+@dataclass(frozen=True)
+class NodeJoiner(source.NodeBasic[Incarnation[source.ProgVarName | nip.GuardVarName]]):
+    pass
+
+
 def unpack_dsa_var_name(v: Incarnation[BaseVarName]) -> tuple[BaseVarName, IncarnationNum]:
     return v.base, v.inc
 
@@ -210,7 +215,7 @@ def apply_insertions(s: DSABuilder) -> None:
                 assert_never(pred)
 
             assert len(updates) > 0, f"{node_insertions=}"
-            join_node = source.NodeBasic(tuple(updates), node_name)
+            join_node = NodeJoiner(tuple(updates), node_name)
             s.dsa_nodes[join_node_name] = join_node
 
 
