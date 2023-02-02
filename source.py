@@ -704,7 +704,7 @@ class Function(Generic[VarNameKind]):
         assert len(visited - {NodeNameErr, NodeNameRet}
                    ) == len(self.nodes), visited
 
-    def traverse_topologically(self: Function[VarNameKind]) -> Iterator[NodeName]:
+    def traverse_topologically(self: Function[VarNameKind], skip_err_and_ret: bool = False) -> Iterator[NodeName]:
         q: list[NodeName] = [
             n for n, preds in self.cfg.all_preds.items() if len([p for p in self.acyclic_preds_of(n)]) == 0]
         visited: set[NodeName] = set()
@@ -717,7 +717,8 @@ class Function(Generic[VarNameKind]):
                 continue
 
             visited.add(n)
-            yield n
+            if n not in (NodeNameErr, NodeNameRet) or not skip_err_and_ret:
+                yield n
 
             for succ in self.cfg.all_succs[n]:
                 if (n, succ) not in self.cfg.back_edges:
