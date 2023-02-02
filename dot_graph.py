@@ -139,7 +139,16 @@ R = TypeVar("R")
 
 def viz(t: Callable[[IOBase, P], R]) -> Callable[[P], R]:
     def func(arg: P) -> R:
-        fd, filepath = tempfile.mkstemp(dir="/tmp/", suffix=".gv")
+        # don't use /tmp because stupid snap prevent firefox from opening
+        # files in there. Whitelist security is good, but you gotta give an
+        # easy way to add things to it stupid snap.
+        #
+        # So instead, we have to use this raw tmp folder, which I can't even
+        # hide with a ., doesn't get to live just in memory nor gets
+        # automatically cleaned up by the OS
+        tmp_dir = os.path.expanduser('~/tmp.ubc/')
+        os.makedirs(tmp_dir, exist_ok=True)
+        fd, filepath = tempfile.mkstemp(dir=tmp_dir, suffix=".gv")
         r = t(os.fdopen(fd, 'w'), arg)
         make_and_open_image(filepath)
         return r
@@ -196,7 +205,7 @@ def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
 
             if node.succ_else == ErrNodeName:
                 operands = list(source.expr_split_conjuncts(node.expr))
-                content = "<b>assert</b> " + pretty_safe_expr(operands[0])
+                content = "<b>assert</b>&nbsp;" + pretty_safe_expr(operands[0])
                 for operand in operands[1:]:
                     content += "<BR/><b>and</b> " + pretty_safe_expr(operand)
             else:
@@ -284,7 +293,7 @@ def viz_successor_graph(file: IOBase, all_succs: dict[str, list[str]]) -> None:
 
 def make_and_open_image(filepath: str) -> None:
     p = subprocess.Popen(
-        ["dot", "-n2", "-Tpng", "-O", filepath],
+        ["dot", "-n2", "-Tsvg", "-O", filepath],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -300,8 +309,11 @@ def make_and_open_image(filepath: str) -> None:
         exit(3)
 
     assert p.returncode == 0, (p.returncode, p.stderr.read())
+    # arg subscript don't render nicely on firefox
+    # https://bugzilla.mozilla.org/show_bug.cgi?id=308338
+    # gotta use chrome
     p = subprocess.Popen(
-        ["xdg-open", filepath + ".png"],
+        ["chromium", "--new-window", filepath + ".svg"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
