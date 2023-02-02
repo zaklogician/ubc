@@ -80,6 +80,9 @@ def make_initial_state(func: source.Function[source.ProgVarName]) -> Iterator[so
     for arg in func.arguments:
         yield source.Update(guard_var(arg), source.expr_true)
 
+    for other in func.all_variables() - set(func.arguments):
+        yield source.Update(guard_var(other), source.expr_false)
+
 
 def update_node_successors(node: source.Node[source.VarNameKind], successors: Sequence[source.NodeName]) -> source.Node[source.VarNameKind]:
     if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty):
@@ -116,9 +119,7 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
 
     state_updates[func.cfg.entry] = tuple(make_initial_state(func))
 
-    for n in func.traverse_topologically():
-        if n in (source.NodeNameErr, source.NodeNameRet):
-            continue
+    for n in func.traverse_topologically(skip_err_and_ret=True):
 
         node = func.nodes[n]
         if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeCond):

@@ -726,6 +726,14 @@ class Function(Generic[VarNameKind]):
 
         assert len(visited - {NodeNameErr, NodeNameRet}) == len(self.nodes)
 
+    def all_variables(self: Function[VarNameKind]) -> Set[ExprVarT[VarNameKind]]:
+        all_vars: set[ExprVarT[VarNameKind]] = set()
+        for n, node in self.nodes.items():
+            all_vars.update(used_variables_in_node(node))
+            all_vars.update(assigned_variables_in_node(
+                self, n, with_loop_targets=True))
+        return all_vars
+
 
 def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]]:
     used_variables: set[ExprVarT[VarNameKind]] = set()
