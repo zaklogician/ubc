@@ -45,11 +45,14 @@ ops_to_smt: Mapping[source.Operator, SMTLIB] = {
 # memsort for rv64 native
 MEM_SORT = SMTLIB('(Array (_ BitVec 61) (_ BitVec 64))')
 
+BOOL = 'Bool'
+
 # 〈simple_symbol 〉 ::= a non-empty sequence of letters, digits and the characters
 #                       + - / * = % ? ! . $ _ ~ & ˆ < > @ that does not start
 #                       with a digit
+RE_VALID_SMTLIB_SIMPLE_SYMBOL_STR = r'[a-zA-Z+\-/*=%?!.$_~<>@][a-zA-Z+\-/*=%?!.$_~<>@0-9]+'
 RE_VALID_SMTLIB_SIMPLE_SYMBOL = re.compile(
-    r'^[a-zA-Z+\-/*=%?!.$_~<>@][a-zA-Z+\-/*=%?!.$_~<>@0-9]+$')
+    "^" + RE_VALID_SMTLIB_SIMPLE_SYMBOL_STR + "$")
 
 Identifier = NewType('Identifier', str)
 
@@ -100,6 +103,16 @@ class CmdComment(NamedTuple):
 EmptyLine = CmdComment('')
 
 Cmd = CmdDeclareFun | CmdDefineFun | CmdAssert | CmdCheckSat | CmdComment | CmdSetLogic
+
+
+class DeclareFunModel(NamedTuple):
+    decl_fn: CmdDeclareFun
+    expr: source.ExprT[assume_prove.VarName]
+
+
+class Model(NamedTuple):
+    sat_unsats: Sequence[CheckSatResult]
+    decl_models: Sequence[DeclareFunModel]
 
 
 def smt_bitvec_of_size(val: int, size: int) -> SMTLIB:
