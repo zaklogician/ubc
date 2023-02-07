@@ -186,14 +186,26 @@ def parse_bin() -> pc.Parser[int]:
 
 
 def parse_num(typ: source.Type) -> pc.Parser[source.ExprT[assume_prove.VarName]]:
-    "only parses hex or binary strings for now"
+    """only parses hex or binary strings for now"""
     fn: tp.Callable[[int], source.ExprNumT] = lambda x: source.ExprNumT(
         typ=typ, num=x)
     return pc.pmap(pc.choice([parse_hex(), parse_bin()]), fn)
 
 
-def parse_define_fun_model() -> pc.Parser[smt.DeclareFunModel]:
-    def fn(s: str) -> pc.ParseResult[smt.DeclareFunModel]:
+def parse_sorted_var() -> pc.Parser[source.ExprVarT[assume_prove.VarName]]:
+    def to_exprvar(pair: tp.Tuple[smt.Identifier, source.Type]) -> source.ExprVarT[assume_prove.VarName]:
+        return source.ExprVar(typ=pair[1], name=assume_prove.VarName(str(pair[0])))
+    return pc.pmap(
+        pc.between(
+            ws(pc.char('(')),
+            pc.compose(parse_identifier(), parse_type()),
+            ws(pc.char(')'))
+        ), to_exprvar
+    )
+
+
+def parse_model_response() -> pc.Parser[smt.ModelResponse]:
+    def fn(s: str) -> pc.ParseResult[smt.ModelResponse]:
         maybeStart = pc.compose(
             ws(pc.char('(')), ws(pc.string("define-fun")))(s)
         if isinstance(maybeStart, pc.ParseError):
@@ -207,7 +219,7 @@ def parse_define_fun_model() -> pc.Parser[smt.DeclareFunModel]:
 
         maybeArgs = pc.array(
             ws(pc.char('(')),
-            parse_type(),
+            parse_sorted_var(),
             ws(pc.char(')')),
             pc.many1(pc.choice([
                 pc.space(),
@@ -235,30 +247,37 @@ def parse_define_fun_model() -> pc.Parser[smt.DeclareFunModel]:
         if isinstance(maybeParen, pc.ParseError):
             return maybeParen
         (_, s) = maybeParen
-        print(s)
-        return (smt.DeclareFunModel(smt.CmdDeclareFun(ident, args, ret_sort), expr), s)
+        return (smt.ModelResponse(symbol=ident, args=args, ret_sort=ret_sort, term=expr), s)
     return fn
 
 
-def parse_all_decl_fun_models() -> pc.Parser[tp.Sequence[smt.DeclareFunModel]]:
+def parse_get_model_response() -> pc.Parser[smt.GetModelResponse]:
+    # note that the model string here is for handling cvc4
     return pc.between(
         ws(pc.compose(pc.char('('), pc.try_and_ignore(ws(pc.string("model"))))),
-        pc.many(parse_define_fun_model()),
+        pc.many(parse_model_response()),
         ws(pc.char(')')))
 
 
-def parse_sat() -> pc.Parser[smt.CheckSatResult]:
-    return pc.pmap(ws(pc.string("sat")), lambda _: smt.CheckSatResult.SAT)
+def parse_sat() -> pc.Parser[smt.CheckSatResponse]:
+    return pc.pmap(ws(pc.string(smt.CheckSatResponse.SAT.value)), lambda _: smt.CheckSatResponse.SAT)
 
 
-def parse_unsat() -> pc.Parser[smt.CheckSatResult]:
-    return pc.pmap(ws(pc.string("unsat")), lambda _: smt.CheckSatResult.UNSAT)
+def parse_unsat() -> pc.Parser[smt.CheckSatResponse]:
+    return pc.pmap(ws(pc.string(smt.CheckSatResponse.UNSAT.value)), lambda _: smt.CheckSatResponse.UNSAT)
 
 
-def parse_model() -> pc.Parser[smt.Model]:
-    fn: tp.Callable[[tp.Tuple[list[smt.CheckSatResult], tp.Sequence[smt.DeclareFunModel]]],
-                    smt.Model] = lambda x: smt.Model(x[0], x[1])
-    return pc.pmap(pc.compose(
-        pc.many1(pc.choice([parse_sat(), parse_unsat()])),
-        parse_all_decl_fun_models()),
-        fn)
+def parse_unknown() -> pc.Parser[smt.CheckSatResponse]:
+    return pc.pmap(ws(pc.string(smt.CheckSatResponse.UNKNOWN.value)), lambda _: smt.CheckSatResponse.UNKNOWN)
+
+
+def parse_check_sat_response() -> pc.Parser[smt.CheckSatResponse]:
+    return pc.choice([parse_sat(), parse_unsat(), parse_unknown()])
+
+
+def parse_response() -> pc.Parser[smt.Response]:
+    return pc.choice([parse_check_sat_response(), parse_get_model_response()])
+
+
+def parse_responses() -> pc.Parser[smt.Responses]:
+    return pc.many(parse_response())

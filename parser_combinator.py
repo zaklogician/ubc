@@ -129,7 +129,7 @@ def compose(p1: Parser[T], p2: Parser[K]) -> Parser[tp.Tuple[T, K]]:
     return fn
 
 
-def choice(ps: list[Parser[T]]) -> Parser[T]:
+def choice(ps: tp.Sequence[Parser[T]]) -> Parser[T]:
     def fn(s: str) -> ParseResult[T]:
         firstError: None | ParseError = None
         # user error if this fails
@@ -147,7 +147,7 @@ def choice(ps: list[Parser[T]]) -> Parser[T]:
 
 
 def between(lhs: Parser[K], p: Parser[V], rhs: Parser[T]) -> Parser[V]:
-    "consumes lhs, parses p and then consumes rhs, any error occurring at any stage will also end up munching the string"
+    """consumes lhs, parses p and then consumes rhs, any error occurring at any stage will also end up munching the string"""
     def fn(s: str) -> ParseResult[V]:
         maybeLhs = lhs(s)
         if isinstance(maybeLhs, ParseError):
@@ -166,7 +166,7 @@ def between(lhs: Parser[K], p: Parser[V], rhs: Parser[T]) -> Parser[V]:
 
 
 def many(p: Parser[T]) -> Parser[list[T]]:
-    "consumes p repeatedly until an error occurs, the string will be processed up until the last successful parse"
+    """consumes p repeatedly until an error occurs, the string will be processed up until the last successful parse"""
     def fn(s: str) -> ParseResult[list[T]]:
         res: list[T] = []
         while True:
@@ -178,8 +178,8 @@ def many(p: Parser[T]) -> Parser[list[T]]:
     return fn
 
 
-def many1(p: Parser[T]) -> Parser[list[T]]:
-    def fn(s: str) -> ParseResult[list[T]]:
+def many1(p: Parser[T]) -> Parser[tp.Sequence[T]]:
+    def fn(s: str) -> ParseResult[tp.Sequence[T]]:
         maybePs = many(p)(s)
         assert not isinstance(maybePs, ParseError)
         (ps, s) = maybePs
@@ -213,7 +213,7 @@ def integer() -> Parser[int]:
 
 
 def ws() -> Parser[int]:
-    "a specialised parser to handle pc.many(pc.choice([pc.space(), pc.tab(), pc.carriage_return()])), returns a count of whitespace characters"
+    """a specialised parser to handle pc.many(pc.choice([pc.space(), pc.tab(), pc.carriage_return()])), returns a count of whitespace characters"""
 
     def is_whitespace(ch: str) -> bool:
         if ch[0] == ' ' or ch[0] == '\r' or ch[0] == '\t' or ch[0] == '\n':
@@ -221,24 +221,18 @@ def ws() -> Parser[int]:
         return False
 
     def fn(s: str) -> ParseResult[int]:
+        if len(s) == 0:
+            return (0, s)
         index = 0
-        newStr = s
         while True:
-            if index == len(s) - 1:
+            if index >= len(s):
                 break
-            try:
-
-                if not is_whitespace(s[index]):
-                    break
-            except:
-                print(len(s))
-                print(index)
-
+            if not is_whitespace(s[index]):
+                break
             index += 1
-        assert index < len(s)
-        newStr = s[index:]
-        print(f"GOT STR  [{newStr}]")
-        return (index, newStr)
+        assert len(s) >= index
+        s = s[index:]
+        return (index, s)
 
     return fn
 

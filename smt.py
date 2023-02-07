@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 import subprocess
-from typing import Any, Iterator, Literal, Mapping, Sequence
+from typing import Any, Iterator, Literal, Mapping, Sequence, TypeAlias
 from typing_extensions import NamedTuple, NewType, assert_never
 
 import textwrap
@@ -50,7 +50,7 @@ BOOL = 'Bool'
 # 〈simple_symbol 〉 ::= a non-empty sequence of letters, digits and the characters
 #                       + - / * = % ? ! . $ _ ~ & ˆ < > @ that does not start
 #                       with a digit
-RE_VALID_SMTLIB_SIMPLE_SYMBOL_STR = r'[a-zA-Z+\-/*=%?!.$_~<>@][a-zA-Z+\-/*=%?!.$_~<>@0-9]+'
+RE_VALID_SMTLIB_SIMPLE_SYMBOL_STR = r'[a-zA-Z+\-/*=%?!.$_~<>@][a-zA-Z+\-/*=%?!.$_~<>@0-9]*'
 RE_VALID_SMTLIB_SIMPLE_SYMBOL = re.compile(
     "^" + RE_VALID_SMTLIB_SIMPLE_SYMBOL_STR + "$")
 
@@ -105,14 +105,18 @@ EmptyLine = CmdComment('')
 Cmd = CmdDeclareFun | CmdDefineFun | CmdAssert | CmdCheckSat | CmdComment | CmdSetLogic
 
 
-class DeclareFunModel(NamedTuple):
-    decl_fn: CmdDeclareFun
-    expr: source.ExprT[assume_prove.VarName]
+ModelResponse: TypeAlias = CmdDefineFun
 
 
-class Model(NamedTuple):
-    sat_unsats: Sequence[CheckSatResult]
-    decl_models: Sequence[DeclareFunModel]
+class CheckSatResponse(Enum):
+    UNSAT = SMTLIB("unsat")
+    SAT = SMTLIB("sat")
+    UNKNOWN = SMTLIB("unknown")
+
+
+GetModelResponse = Sequence[ModelResponse]
+Response = CheckSatResponse | GetModelResponse
+Responses = Sequence[Response]
 
 
 def smt_bitvec_of_size(val: int, size: int) -> SMTLIB:
