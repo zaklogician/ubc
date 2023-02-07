@@ -119,6 +119,7 @@ def pretty_type_ascii(typ: Type) -> str:
 
 
 type_bool: Type = TypeBuiltin(Builtin.BOOL)
+type_mem: Type = TypeBuiltin(Builtin.MEM)
 type_word8 = TypeBitVec(8)
 type_word32 = TypeBitVec(32)
 type_word64 = TypeBitVec(64)

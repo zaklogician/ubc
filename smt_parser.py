@@ -37,9 +37,7 @@ def parse_op() -> pc.Parser[source.Operator]:
 
 
 def parse_integer() -> pc.Parser[int]:
-    def to_int(s: str) -> int:
-        return int(s, 10)
-    return pc.pmap(ws(pc.regex(re.compile(r"[0-9]+"))), to_int)
+    return ws(pc.integer())
 
 
 def parse_type_bit_vec() -> pc.Parser[source.TypeBitVec]:
@@ -71,15 +69,15 @@ def parse_type_bit_vec() -> pc.Parser[source.TypeBitVec]:
     return fn
 
 
-def parse_type_builtin_bool() -> pc.Parser[source.TypeBuiltin]:
-    return pc.pmap(ws(pc.string(smt.BOOL)), lambda _: source.TypeBuiltin(builtin=source.Builtin.BOOL))
+def parse_type_builtin_bool() -> pc.Parser[source.Type]:
+    return pc.pmap(ws(pc.string(smt.BOOL)), lambda _: source.type_bool)
 
 
-def parse_type_builtin_mem() -> pc.Parser[source.TypeBuiltin]:
-    return pc.pmap(ws(pc.string(smt.MEM_SORT)), lambda _: source.TypeBuiltin(builtin=source.Builtin.MEM))
+def parse_type_builtin_mem() -> pc.Parser[source.Type]:
+    return pc.pmap(ws(pc.string(smt.MEM_SORT)), lambda _: source.type_mem)
 
 
-def parse_type_builtin() -> pc.Parser[source.TypeBuiltin]:
+def parse_type_builtin() -> pc.Parser[source.Type]:
     return pc.choice([parse_type_builtin_mem(), parse_type_builtin_bool()])
 
 

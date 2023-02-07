@@ -45,7 +45,7 @@ ops_to_smt: Mapping[source.Operator, SMTLIB] = {
 # memsort for rv64 native
 MEM_SORT = SMTLIB('(Array (_ BitVec 61) (_ BitVec 64))')
 
-BOOL = 'Bool'
+BOOL = SMTLIB('Bool')
 
 # 〈simple_symbol 〉 ::= a non-empty sequence of letters, digits and the characters
 #                       + - / * = % ? ! . $ _ ~ & ˆ < > @ that does not start
@@ -227,7 +227,7 @@ def emit_expr(expr: source.ExprT[assume_prove.VarName]) -> SMTLIB:
 def emit_sort(typ: source.Type) -> SMTLIB:
     if isinstance(typ, source.TypeBuiltin):
         if typ.builtin is source.Builtin.BOOL:
-            return SMTLIB('Bool')
+            return BOOL
         elif typ.builtin is source.Builtin.MEM:
             return MEM_SORT
     elif isinstance(typ, source.TypeBitVec):
