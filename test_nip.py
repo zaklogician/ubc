@@ -1,4 +1,4 @@
-from typing import Set, get_args
+from typing import Set, cast, get_args
 from typing_extensions import assert_never
 import pytest
 import source
@@ -6,6 +6,7 @@ import nip
 
 
 import syntax
+from validate_dsa import assert_node_equals_mod_dsa
 
 # global variables are bad :(
 syntax.set_arch('rv64')
@@ -44,7 +45,8 @@ def non_nip_successors(nip_func: nip.Function, n: source.NodeName) -> Set[source
     return non_nip_succs
 
 
-def ensure_node_equals_mod_nip(lhs: source.Node[source.ProgVarName], rhs: source.Node[source.ProgVarName]) -> None:
+# TODO: rename to ensure_node_content_equal
+def ensure_node_equals_mod_nip(lhs: source.Node[source.VarNameKind], rhs: source.Node[source.VarNameKind]) -> None:
     if isinstance(lhs, source.NodeBasic):
         assert isinstance(rhs, source.NodeBasic)
         assert lhs.upds == rhs.upds
@@ -92,7 +94,7 @@ def ensure_correspondence(prog_func: source.Function[source.ProgVarName], nip_fu
             continue
 
         prog_node = prog_func.nodes[n]
-        ensure_node_equals_mod_nip(nip_func.nodes[n], prog_func.nodes[n])
+        ensure_node_equals_mod_nip(nip_node, prog_node)
 
         if isinstance(nip_node, source.NodeBasic | source.NodeEmpty | source.NodeCall):
             assert isinstance(prog_node, source.NodeBasic |
@@ -128,9 +130,20 @@ def ensure_guard_and_state_update_correctness(nip_func: nip.Function) -> None:
             assert guard.succ_else == source.NodeNameErr
             assert guard.succ_then == n
 
+            used_prog_variables: set[source.ProgVar] = set()
+            for var in used_variables:
+                if isinstance(var.name, source.ProgVarName):
+                    # we have to use this cast because mypy isn't smart enough
+                    used_prog_variables.add(cast(source.ProgVar, var))
+                elif not isinstance(var.name, nip.GuardVarName):
+                    assert_never(var.name)
+
+            assert len(used_prog_variables) == len(
+                used_variables), "we shouldn't have any nip variables in non nip nodes"
+
             # easy because we don't do any short-circuiting
             assert set(source.expr_split_conjuncts(guard.expr)) == set(
-                map(nip.guard_var, used_variables))
+                map(nip.guard_var, used_prog_variables))
 
         assigned_variables = source.assigned_variables_in_node(
             nip_func, n, with_loop_targets=False)
@@ -140,8 +153,19 @@ def ensure_guard_and_state_update_correctness(nip_func: nip.Function) -> None:
             upd_node = nip_func.nodes[succs[0]]
             assert isinstance(upd_node, nip.NodeStateUpdate)
 
+            assigned_prog_variables: set[source.ProgVar] = set()
+            for var in assigned_variables:
+                if isinstance(var.name, source.ProgVarName):
+                    # we have to use this cast because mypy isn't smart enough
+                    assigned_prog_variables.add(cast(source.ProgVar, var))
+                elif not isinstance(var.name, nip.GuardVarName):
+                    assert_never(var.name)
+
+            assert len(assigned_prog_variables) == len(
+                assigned_variables), "we shouldn't have any nip variables in non nip nodes"
+
             assert set(upd.var for upd in upd_node.upds) == set(
-                map(nip.guard_var, assigned_variables))
+                map(nip.guard_var, assigned_prog_variables))
             # TODO: make sure the dependencies are correct. Not much value in
             # doing that because I'm repeating the exact same logic that's in
             # the code already

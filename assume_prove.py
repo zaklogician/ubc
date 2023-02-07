@@ -1,4 +1,4 @@
-from typing import Mapping, NamedTuple, NewType, Sequence, TypeAlias
+from typing import Mapping, NamedTuple, NewType, Sequence, TypeAlias, cast
 from typing_extensions import assert_never
 import dsa
 import nip
@@ -89,14 +89,17 @@ def make_loop_invariant_function_name(loop_header: source.LoopHeaderName) -> Loo
     return LoopInvariantFunctionName(source.FunctionName(f'loop_invariant@{loop_header}'))
 
 
-def prog_var_to_ap_var(v: source.ProgVar) -> APVar:
+# TODO: rename to base var to ap var
+def prog_var_to_ap_var(v: source.ExprVarT[source.ProgVarName | nip.GuardVarName]) -> APVar:
     return source.ExprVar(v.typ, VarName(v.name))
 
 
-def get_loop_count_target_var(loop: source.Loop[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> source.ExprVarT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]:
+def get_loop_count_target_var(loop: source.Loop[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> source.ExprVarT[dsa.Incarnation[source.ProgVarName]]:
     for target in loop.targets:
         if target.name.base.startswith('loop#') and target.name.base.endswith('#count'):
-            return target
+            assert isinstance(target.name.base, source.ProgVarName)
+            # mypy isn't smart enough to not need this cast
+            return cast(source.ExprVarT[dsa.Incarnation[source.ProgVarName]], target)
     assert False, "loop doesn't have a loop a counter automatically inserted by the c parser"
 
 
@@ -116,7 +119,7 @@ def get_loop_invariant_function(func: dsa.Function, loop_header: source.LoopHead
     return FunctionDefinition(name=name, arguments=args, return_typ=source.type_bool, body=body)
 
 
-def apply_incarnation_for_node(func: dsa.Function, n: source.NodeName, prog_var: source.ProgVar) -> APVar:
+def apply_incarnation_for_node(func: dsa.Function, n: source.NodeName, prog_var: source.ExprVarT[source.ProgVarName | nip.GuardVarName]) -> APVar:
     # if a variable isn't defined at that node, we use an arbitrary value
     #
     # THIS IS A POTENTIAL SOURCE OF UNSOUDNESS

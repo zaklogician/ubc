@@ -46,7 +46,8 @@ def ensure_assigned_at_most_once(func: dsa.Function, path: Collection[source.Nod
 
 
 def ensure_using_latest_incarnation(func: dsa.Function, path: Collection[source.NodeName]) -> None:
-    latest_assignment: dict[source.ProgVar, dsa.IncarnationNum] = {}
+    latest_assignment: dict[source.ExprVarT[source.ProgVarName |
+                                            nip.GuardVarName], dsa.IncarnationNum] = {}
     for arg in func.arguments:
         prog_var, inc = dsa.unpack_dsa_var(arg)
         assert prog_var not in latest_assignment
@@ -83,7 +84,7 @@ def ensure_valid_dsa(dsa_func: dsa.Function) -> None:
         ensure_using_latest_incarnation(dsa_func, path)
 
 
-def assert_expr_equals_mod_dsa(lhs: source.ExprT[source.ProgVarName], rhs: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
+def assert_expr_equals_mod_dsa(lhs: source.ExprT[source.ProgVarName | nip.GuardVarName], rhs: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
     assert lhs.typ == rhs.typ
 
     if isinstance(lhs, source.ExprNum | source.ExprSymbol | source.ExprType):
@@ -107,11 +108,11 @@ def assert_expr_equals_mod_dsa(lhs: source.ExprT[source.ProgVarName], rhs: sourc
         assert_never(lhs)
 
 
-def assert_var_equals_mod_dsa(prog: source.ProgVar, var: dsa.Var[source.ProgVarName | nip.GuardVarName]) -> None:
+def assert_var_equals_mod_dsa(prog: source.ExprVarT[source.ProgVarName | nip.GuardVarName], var: dsa.Var[source.ProgVarName | nip.GuardVarName]) -> None:
     assert prog == dsa.unpack_dsa_var(var)[0]
 
 
-def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName], node: source.Node[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
+def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName | nip.GuardVarName], node: source.Node[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
     if isinstance(prog, source.NodeBasic):
         assert isinstance(node, source.NodeBasic)
 
@@ -155,7 +156,7 @@ def assert_is_join_node(node: source.Node[dsa.Incarnation[source.ProgVarName | n
         assert lhs_name == rhs_name
 
 
-def ensure_correspondence(prog_func: source.Function[source.ProgVarName], dsa_func: dsa.Function) -> None:
+def ensure_correspondence(prog_func: source.Function[source.ProgVarName | nip.GuardVarName], dsa_func: dsa.Function) -> None:
     assert set(prog_func.nodes.keys()).issubset(dsa_func.nodes.keys())
 
     join_node_names: list[source.NodeName] = []

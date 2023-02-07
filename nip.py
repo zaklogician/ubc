@@ -19,7 +19,10 @@ from typing_extensions import assert_never
 import source
 
 
-GuardVarName = NewType('GuardVarName', source.ProgVarName)
+class GuardVarName(str):
+    """ for example foo___int#v#assigned """
+
+
 GuardVar = source.ExprVarT[GuardVarName]
 
 

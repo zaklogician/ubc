@@ -7,7 +7,14 @@ from typing_extensions import assert_never
 
 import syntax
 
-ProgVarName = NewType('ProgVarName', str)
+
+class ProgVarName(str):
+    """ for example foo___int#v """
+
+
+class HumanVarName(str):
+    """ for example foo """
+
 
 # expressions are immutable containers, so they are covariant in their generic
 # parameters.
