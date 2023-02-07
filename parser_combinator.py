@@ -244,16 +244,10 @@ def without_ws(p: Parser[T]) -> Parser[T]:
 
 def regex(regex: re.Pattern[str]) -> Parser[str]:
     def fn(s: str) -> ParseResult[str]:
-        m = regex.search(s)
+        m = regex.match(s)
         errmsg = "was not able to find regex pattern"
         if m is None:
             return ParseError(errmsg)
-
-        # we don't care for matches that aren't immediately in our string
-        index = m.start()
-        if index != 0:
-            return ParseError(errmsg)
-
         matched = m.group()
         s = s[len(matched):]
         return (matched, s)
