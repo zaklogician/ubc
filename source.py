@@ -334,15 +334,22 @@ pretty_binary_operators_ascii = {
 
 
 @dataclass(frozen=True)
-class ExprOp(ABCExpr[VarNameKind, TypeKind]):
+class ExprOp(ABCExpr[TypeKind, VarNameKind]):
     operator: Operator
-    operands: tuple[Expr[VarNameKind, TypeKind], ...]
+    operands: tuple[Expr[TypeKind, VarNameKind], ...]
 
 
-ExprOpT: TypeAlias = ExprOp[VarNameKind, Type]
+ExprOpT: TypeAlias = ExprOp[Type, VarNameKind]
 
-Expr: TypeAlias = ExprVar[TypeKind, VarNameKind] | ExprNum[TypeKind] | ExprType[TypeKind] | ExprOp[TypeKind,
-                                                                                                   VarNameKind] | ExprFunction[TypeKind, VarNameKind] | ExprSymbol[TypeKind]
+
+Expr: TypeAlias = \
+    ExprVar[TypeKind, VarNameKind] \
+    | ExprNum[TypeKind] \
+    | ExprType[TypeKind] \
+    | ExprOp[TypeKind, VarNameKind] \
+    | ExprFunction[TypeKind, VarNameKind] \
+    | ExprSymbol[TypeKind] \
+
 ExprT: TypeAlias = Expr[Type, VarNameKind]
 
 ProgVar: TypeAlias = ExprVarT[ProgVarName]
@@ -368,7 +375,8 @@ def visit_expr(expr: ExprT[VarNameKind], visitor: Callable[[ExprT[VarNameKind]],
     elif isinstance(expr, ExprFunction):
         for arg in expr.arguments:
             visit_expr(arg, visitor)
-    elif not isinstance(expr, ExprVar | ExprNum | ExprType | ExprSymbol):
+    elif not isinstance(expr, ExprVar
+                        | ExprNum | ExprType | ExprSymbol):
         assert_never(expr)
 
 
