@@ -11,5 +11,6 @@ in mkShell {
     pyright
     graphviz
     z3_4_11
+    time
   ];
 }
