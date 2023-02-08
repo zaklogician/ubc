@@ -4,6 +4,7 @@ let
     ps.pytest
     ps.typing-extensions
     ps.mypy
+    ps.autopep8
   ]);
 in mkShell {
   packages = [
