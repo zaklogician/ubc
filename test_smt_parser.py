@@ -212,9 +212,6 @@ def test_parse_model() -> None:
         get_bvec_fn("b___int@v~2", "#x00000000", 16)
     ]
 
-    for out, expected in zip(responses[2], res):
-        assert out == expected
-
     maybeResponses = pc.parse(f,
                               """
         sat
@@ -250,6 +247,12 @@ def test_parse_model() -> None:
     assert responses[1] == smt.CheckSatResponse.SAT
     assert isinstance(responses[2], Sequence)
     assert len(responses[2]) == 21
+
+    res = [get_bool_fn("node_Err_ok", False), get_bool_fn("node_Ret_ok", True), get_bool_fn("node_2_ok", False), get_bool_fn("node_17_ok", False), get_bool_fn("node_9_ok", False), get_bool_fn("node_8_ok", True), get_bool_fn("node_7_ok", True), get_bool_fn("node_j2_ok", True), get_bool_fn("node_6_ok", False), get_bool_fn("node_5_ok", False), get_bool_fn("node_j1_ok", False), get_bool_fn("node_4_ok", False), get_bool_fn("node_3_ok", True), get_bool_fn("node_1_ok", True), get_bvec_fn("a___int@v~1", "#b10000000000000001111010001100010", 2), get_bvec_fn("b___int@v~1", "0b00000000000000000000101111011110", 2), get_bvec_fn("b___int@v~2", "#b00000000000000000000000000000000", 2), get_bvec_fn("a___int@v~3", "#b10000000000000010000000001000000", 2), get_bvec_fn("b___int@v~3", "#b00000000000000000000101111011110", 2), get_bvec_fn("a___int@v~2", "#b10000000000000010000000001000000", 2), get_bvec_fn("ret__int@v~1", "#b00000000000000000000000000000000", 2)
+           ]
+
+    for out, expected in zip(responses[2], res):
+        assert out == expected
 
 
 def test_should_parse_files() -> None:
