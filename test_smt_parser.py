@@ -212,6 +212,9 @@ def test_parse_model() -> None:
         get_bvec_fn("b___int@v~2", "#x00000000", 16)
     ]
 
+    for out, expected in zip(responses[2], res):
+        assert out == expected
+
     maybeResponses = pc.parse(f,
                               """
         sat
