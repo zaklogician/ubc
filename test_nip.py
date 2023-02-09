@@ -60,6 +60,8 @@ def ensure_node_equals_mod_nip(lhs: source.Node[source.VarNameKind], rhs: source
         assert lhs.fname == rhs.fname
     elif isinstance(lhs, source.NodeEmpty):
         assert isinstance(rhs, source.NodeEmpty)
+    elif isinstance(lhs, source.NodeAssume):
+        assert False, "didn't expect to see node assume in this stage"
     else:
         assert_never(lhs)
 
@@ -106,6 +108,8 @@ def ensure_correspondence(prog_func: source.Function[source.ProgVarName], nip_fu
                 nip_func, nip_node.succ_then) == prog_node.succ_then
             assert skip_nip_nodes(
                 nip_func, nip_node.succ_else) == prog_node.succ_else
+        elif isinstance(nip_node, source.NodeAssume):
+            assert False, "didn't expect to see NodeAssume in this stage"
         else:
             assert_never(nip_node)
 

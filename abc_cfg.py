@@ -31,7 +31,7 @@ def compute_all_successors_from_nodes(nodes: Mapping[source.NodeName, source.Nod
     all_succs: dict[source.NodeName, list[source.NodeName]] = {}
     for name, node in nodes.items():
         all_succs[name] = []
-        if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty):
+        if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume):
             all_succs[name].append(node.succ)
         elif isinstance(node, source.NodeCond):
             all_succs[name].append(node.succ_then)
@@ -173,7 +173,7 @@ def compute_loop_targets(
         elif isinstance(node, source.NodeCall):
             for ret in node.rets:
                 loop_targets.add(ret)
-        elif not isinstance(node, source.NodeEmpty | source.NodeCond):
+        elif not isinstance(node, source.NodeEmpty | source.NodeCond | source.NodeAssume):
             assert_never(node)
 
         for succ in cfg.all_succs[n]:

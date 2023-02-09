@@ -173,7 +173,7 @@ def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
     for idx, node in fun.nodes.items():
-        if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty):
+        if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume):
             puts(
                 f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
         elif isinstance(node, source.NodeCond):
@@ -207,14 +207,16 @@ def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
                 operands = list(source.expr_split_conjuncts(node.expr))
                 content = "<b>assert</b>&nbsp;" + pretty_safe_expr(operands[0])
                 for operand in operands[1:]:
-                    content += "<BR/><b>and</b> " + pretty_safe_expr(operand)
+                    content += "<BR/><b>and</b>&nbsp;" + \
+                        pretty_safe_expr(operand)
             else:
                 content = pretty_safe_expr(node.expr)
         elif isinstance(node, source.NodeEmpty):
-            content = ''
+            content = '&lt;empty&gt;'
+        elif isinstance(node, source.NodeAssume):
+            content = '<b>assume</b>&nbsp;' + pretty_safe_expr(node.expr)
         else:
             assert_never(node)
-            assert False
         if idx == fun.cfg.entry:
             puts(f"  {idx} [xlabel={idx}; label=<<i>Entry</i>>; penwidth=2]")
         else:

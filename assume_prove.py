@@ -211,6 +211,12 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
         # proves successors are correct, ignoring back edges
         if (n, node.succ) not in func.cfg.back_edges:
             script.append(InstructionProve(node_ok_ap_var(node.succ)))
+    elif isinstance(node, source.NodeAssume):
+        script.append(InstructionAssume(
+            convert_expr_dsa_vars_to_ap(node.expr)))
+        # proves successors are correct, ignoring back edges
+        if (n, node.succ) not in func.cfg.back_edges:
+            script.append(InstructionProve(node_ok_ap_var(node.succ)))
     else:
         assert_never(node)
 
@@ -230,6 +236,7 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
 
 
 def condition_to_take_path(func: dsa.Function, path: source.Path) -> source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]:
+    assert False, "TODO: remove dead code"
     cond: source.ExprT[dsa.Incarnation[source.ProgVarName |
                                        nip.GuardVarName]] = source.expr_true
     for i in range(len(path)):

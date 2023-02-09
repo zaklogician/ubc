@@ -396,7 +396,7 @@ def expr_where_vars_are_used_in_node(node: Node[VarNameKind], selection: Set[Exp
         for arg in node.args:
             for var in selection & all_vars_in_expr(arg):
                 yield var, arg
-    elif isinstance(node, NodeCond):
+    elif isinstance(node, NodeCond | NodeAssume):
         for var in selection & all_vars_in_expr(node.expr):
             yield var, node.expr
     elif not isinstance(node, NodeEmpty):
@@ -636,7 +636,13 @@ class NodeCond(Generic[VarNameKind]):
     succ_else: NodeName
 
 
-Node = NodeBasic[VarNameKind] | NodeCall[VarNameKind] | NodeCond[VarNameKind] | NodeEmpty
+@dataclass(frozen=True)
+class NodeAssume(Generic[VarNameKind]):
+    expr: ExprT[VarNameKind]
+    succ: NodeName
+
+
+Node = NodeBasic[VarNameKind] | NodeCall[VarNameKind] | NodeCond[VarNameKind] | NodeEmpty | NodeAssume[VarNameKind]
 
 LoopHeaderName = NewType('LoopHeaderName', NodeName)
 
@@ -759,7 +765,7 @@ def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]
     elif isinstance(node, NodeCall):
         for arg in node.args:
             used_variables |= all_vars_in_expr(arg)
-    elif isinstance(node, NodeCond):
+    elif isinstance(node, NodeCond | NodeAssume):
         used_variables |= all_vars_in_expr(node.expr)
     elif not isinstance(node, NodeEmpty):
         assert_never(node)
@@ -776,7 +782,13 @@ def assigned_variables_in_node(func: Function[VarNameKind], n: NodeName, *, with
         assigned_variables.update(upd.var for upd in node.upds)
     elif isinstance(node, NodeCall):
         assigned_variables.update(ret for ret in node.rets)
-    elif not isinstance(node, NodeEmpty | NodeCond):
+    elif not isinstance(node, NodeEmpty | NodeCond | NodeAssume):
+        # technically, NodeAssume can encode an assignment
+        # but it's just the wrong tool for the job, because the nip
+        # stage won't automatically know that it was assigned,
+        # so you'll have to do that yourself (and that's risky)
+        #
+        # so we say they never assign any variable
         assert_never(node)
 
     if (loop_header := func.is_loop_header(n)) and with_loop_targets:

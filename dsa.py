@@ -186,7 +186,7 @@ def apply_insertions(s: DSABuilder) -> None:
                 else:
                     s.dsa_nodes[pred_name] = dataclasses.replace(
                         pred, succ_else=join_node_name)
-            elif isinstance(pred, source.NodeBasic | source.NodeEmpty | source.NodeCall):
+            elif isinstance(pred, source.NodeBasic | source.NodeEmpty | source.NodeCall | source.NodeAssume):
                 # careful, type hints for dataclasses.replace are too
                 # permissive right now
                 s.dsa_nodes[pred_name] = dataclasses.replace(
@@ -373,6 +373,11 @@ def dsa(func: source.Function[source.ProgVarName | nip.GuardVarName]) -> Functio
                 args=args,
                 rets=tuple(rets),
                 fname=node.fname,
+            )
+        elif isinstance(node, source.NodeAssume):
+            s.dsa_nodes[current_node] = source.NodeAssume(
+                expr=apply_incarnations(context, node.expr),
+                succ=node.succ,
             )
         elif isinstance(node, source.NodeEmpty):
             s.dsa_nodes[current_node] = node

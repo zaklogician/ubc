@@ -135,7 +135,7 @@ def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName | nip.GuardV
         for i in range(len(prog.rets)):
             assert_var_equals_mod_dsa(prog.rets[i], node.rets[i])
 
-    elif isinstance(prog, source.NodeCond):
+    elif isinstance(prog, source.NodeCond | source.NodeAssume):
         assert isinstance(node, source.NodeCond)
         assert_expr_equals_mod_dsa(prog.expr, node.expr)
 

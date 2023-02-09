@@ -69,7 +69,9 @@ def make_state_update_for_node(node: source.Node[source.ProgVarName]) -> Iterato
                                         for arg in node.args), source.expr_true)
         for ret in node.rets:
             yield source.Update(guard_var(ret), deps)
-    elif not isinstance(node, source.NodeEmpty | source.NodeCond):
+    else:
+        assert not isinstance(node, source.NodeEmpty | source.NodeCond |
+                              source.NodeAssume), "doesn't make sense to have a state update for those nodes"
         assert_never(node)
 
 
@@ -88,7 +90,9 @@ def make_initial_state(func: source.Function[source.ProgVarName]) -> Iterator[so
 
 
 def update_node_successors(node: source.Node[source.VarNameKind], successors: Sequence[source.NodeName]) -> source.Node[source.VarNameKind]:
-    if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty):
+    # TOOD: DANGER this successor ordering is pretty dangerous
+    #       find a way to do this more safely.
+    if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume):
         assert len(successors) == 1, "wrong number of successors for node"
         return dataclasses.replace(node, succ=successors[0])
 
@@ -123,13 +127,15 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
     state_updates[func.cfg.entry] = tuple(make_initial_state(func))
 
     for n in func.traverse_topologically(skip_err_and_ret=True):
-
         node = func.nodes[n]
         if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeCond):
             assert n not in protections
             p = make_protection_for_node(node)
             if p != source.expr_true:
                 protections[n] = p
+        elif isinstance(node, source.NodeAssume):
+            # TODO(nice to have): we could make this type safe
+            assert False, "didn't expect to see node assume during this stage"
         elif not isinstance(node, source.NodeEmpty):
             assert_never(node)
 
