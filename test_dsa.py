@@ -1,6 +1,7 @@
 import pytest
 # FIXME: cyclic imports :(
 import abc_cfg  # we have cyclic imports, and so this import is actually needed, sorry
+import ghost_data
 import source
 import dsa
 import syntax
@@ -22,7 +23,7 @@ del f
 
 @pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
 def test_dsa_custom_tests(func: syntax.Function) -> None:
-    prog_func = source.convert_function(func)
+    prog_func = source.convert_function(func).with_ghost(ghost_data.empty)
     nip_func = nip.nip(prog_func)
     dsa_func = dsa.dsa(nip_func)
     validate_dsa.validate(nip_func, dsa_func)
@@ -38,7 +39,7 @@ def test_dsa_kernel_functions(function: syntax.Function) -> None:
     if len(validate_dsa.compute_all_path(source.convert_function(function).cfg)) > 100:
         pytest.skip("too many paths, checking them all is too slow")
 
-    prog_func = source.convert_function(function)
+    prog_func = source.convert_function(function).with_ghost(ghost_data.empty)
     nip_func = nip.nip(prog_func)
     dsa_func = dsa.dsa(nip_func)
     validate_dsa.validate(nip_func, dsa_func)

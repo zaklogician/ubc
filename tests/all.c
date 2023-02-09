@@ -125,7 +125,7 @@ int branches(int i)
 //                  (=> (bvsge i___int@v (_ bv3 32)) (= a___int@v (_ bv1 32)))
 //             )
 // )
-int undefined_var_with_loops___fail_because_no_loop_invariant()
+int undefined_var_with_loops___fail_missing_invariant()
 {
     // if i'm specifying a value for a potentially undefined variable
     // if it is indeed undefined, i won't be able to say anything about it (can't prove loop invariants)
@@ -194,7 +194,7 @@ int zoltanstest___fails_because_missing_invariant(unsigned int i) {
 //         )
 // ))
 
-// ; pre condition (0 <= n && n <= 100)
+// ; pre condition (0 < n && n < 100)
 // (assert (and (bvslt (_ bv0 32) n___int@v~1) (bvslt n___int@v~1 (_ bv100 32))))
 int arith_sum___fail_because_missing_invariants(int n)
 {
@@ -393,4 +393,16 @@ int loop_conditional_extra3__fails_because_no_inv()
     }
     // adds proof_obligation: a_defined
     return b;
+}
+
+int multiple_loops___fail_missing_invariant()
+{
+    int i = 0;
+    do
+    {
+        for (int j = 0; j < 10; j++)
+        {
+            i++;
+        }
+    } while (i < 100);
 }

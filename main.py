@@ -13,6 +13,7 @@ import smt
 import dsa
 import nip
 import assume_prove
+import ghost_data
 
 import validate_dsa
 
@@ -129,7 +130,8 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_RAW in options:
             viz_raw_function(unsafe_func)
 
-        prog_func = source.convert_function(unsafe_func)
+        prog_func = source.convert_function(unsafe_func).with_ghost(
+            ghost_data.get(filename, unsafe_func.name))
         if CmdlineOption.SHOW_GRAPH in options:
             viz_function(prog_func)
 

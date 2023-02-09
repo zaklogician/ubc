@@ -1,10 +1,12 @@
 import pytest
+import abc_cfg
 import source
 import nip
 import dsa
 import assume_prove
 import smt
 import syntax
+import ghost_data
 
 # global variables are bad :(
 syntax.set_arch('rv64')
@@ -21,8 +23,9 @@ with open('examples/dsa.txt') as f:
 del f
 
 
-def verify(unsafe_func: syntax.Function) -> smt.VerificationResult:
-    prog_func = source.convert_function(unsafe_func)
+def verify(filename: str, unsafe_func: syntax.Function) -> smt.VerificationResult:
+    prog_func = source.convert_function(unsafe_func).with_ghost(
+        ghost_data.get(filename, unsafe_func.name))
     nip_func = nip.nip(prog_func)
     dsa_func = dsa.dsa(nip_func)
     prog = assume_prove.make_prog(dsa_func)
@@ -31,60 +34,28 @@ def verify(unsafe_func: syntax.Function) -> smt.VerificationResult:
     return smt.parse_sats(sats)
 
 
-@pytest.mark.parametrize('func_name, expected', (
-    ("simple", smt.VerificationResult.FAIL),
-    ("two_vars", smt.VerificationResult.FAIL),
-    ("if_join", smt.VerificationResult.OK),
-    ("if_join_different_length", smt.VerificationResult.OK),
-    ("if_join_multiple_variables", smt.VerificationResult.OK),
-    ("if_join_multiple_variables_no_ret", smt.VerificationResult.OK),
-    ("elif_chain", smt.VerificationResult.OK),
-    ("simple_for_loop", smt.VerificationResult.FAIL),
-    ("shift_diag", smt.VerificationResult.FAIL),
-    ("fail_one_branch_undefined", smt.VerificationResult.FAIL),
-    ("one_branch_legal", smt.VerificationResult.OK),
-    ("fail_uninit", smt.VerificationResult.OK),
-    ("init", smt.VerificationResult.OK),
-    ("fail_arr_undefined_behaviour", smt.VerificationResult.FAIL),
-    ("fail_zoltans_horrible_fail_arr_undefined_behaviour", smt.VerificationResult.FAIL),
-    ("fail_arr_undefined_behaviour2", smt.VerificationResult.FAIL),
-    ("arr_static", smt.VerificationResult.OK),
-    # ("unreachable_entry", smt.VerificationResult.OK),
-    # TODO: because no auto for definedness invariants
-    ("straight_into_loop", smt.VerificationResult.FAIL),
-    ("overflow2", smt.VerificationResult.FAIL),
-    ("greater_than_op___fail_overflow", smt.VerificationResult.FAIL),
-))
-def test_dsa_examples(func_name: str, expected: smt.VerificationResult) -> None:
-    _, functions, _ = example_dsa_CFunctions
-    if "fail_" in func_name:
-        pytest.skip(
-            "TODO: add proof obligations to make sure variables are defined before being used")
+def do_test(filename: str, func: syntax.Function) -> None:
+    suffix = func.name.split('.')[-1]
+    should_fail = False
+    should_fail = should_fail or '_fail_' in suffix
+    should_fail = should_fail or suffix.endswith('_fail')
+    should_fail = should_fail or suffix.startswith('fail_')
+    should_fail = should_fail or '_fails_' in suffix
+    should_fail = should_fail or suffix.endswith('_fails')
+    should_fail = should_fail or suffix.startswith('fails_')
 
-    actual = verify(functions['tmp.' + func_name])
-    assert expected == actual
+    result = verify(filename, func)
+    if should_fail:
+        assert result is smt.VerificationResult.FAIL
+    else:
+        assert result is smt.VerificationResult.OK
 
 
-assert len(test_dsa_examples.pytestmark[0].args[1]) == len(   # type: ignore
-    example_dsa_CFunctions[1]), "not all/too many functions are tested"
+@pytest.mark.parametrize('func_name', example_dsa_CFunctions[1].keys())
+def test_dsa(func_name: str) -> None:
+    do_test('examples/dsa.c', example_dsa_CFunctions[1][func_name])
 
 
 @pytest.mark.parametrize('func_name', test_CFunctions[1].keys())
 def test_main(func_name: str) -> None:
-
-    should_fail = False
-    should_fail = should_fail or '_fail_' in func_name
-    should_fail = should_fail or func_name.endswith('_fail')
-    should_fail = should_fail or func_name.startswith('fail_')
-    should_fail = should_fail or '_fails_' in func_name
-    should_fail = should_fail or func_name.endswith('_fails')
-    should_fail = should_fail or func_name.startswith('fails_')
-
-    _, functions, _ = test_CFunctions
-    result = verify(functions[func_name])
-    if result is smt.VerificationResult.FAIL:
-        assert should_fail
-    elif result is smt.VerificationResult.OK:
-        assert not should_fail
-    else:
-        assert False, f"unexpected verification result {result}"
+    do_test('tests/all.c', test_CFunctions[1][func_name])

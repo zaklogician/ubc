@@ -460,6 +460,65 @@ def all_vars_in_expr(expr: ExprT[VarNameKind]) -> set[ExprVarT[VarNameKind]]:
     return s
 
 
+VarNameKind2 = TypeVar('VarNameKind2', covariant=True)
+
+# type hints could be stronger (when expr is ExprVar, we return an ExprVar,
+# etc) but I don't think python allows for it (unless we use overloads)
+
+
+def convert_expr_vars(f: Callable[[ExprVar[TypeKind, VarNameKind]], ExprVar[TypeKind, VarNameKind2]], expr: Expr[TypeKind, VarNameKind]) -> Expr[TypeKind, VarNameKind2]:
+    if isinstance(expr, ExprNum):
+        return expr
+    elif isinstance(expr, ExprVar):
+        return f(expr)
+    elif isinstance(expr, ExprOp):
+        ops = tuple(convert_expr_vars(f, operand) for operand in expr.operands)
+        return ExprOp(expr.typ, Operator(expr.operator), operands=ops)
+    elif isinstance(expr, ExprType | ExprSymbol):
+        return expr
+    elif isinstance(expr, ExprFunction):
+        args = tuple(convert_expr_vars(f, arg) for arg in expr.arguments)
+        return ExprFunction(expr.typ, expr.function_name, args)
+    assert_never(expr)
+
+
+def expr_eq(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
+    """ equate """
+    assert lhs.typ == rhs.typ
+    return ExprOp(type_bool, Operator.EQUALS, (lhs, rhs))
+
+
+def mk_binary_bitvec_operation(op: Operator) -> Callable[[ExprT[VarNameKind], ExprT[VarNameKind]], ExprT[VarNameKind]]:
+    def f(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
+        assert lhs.typ == rhs.typ
+        assert isinstance(lhs.typ, TypeBitVec)
+        return ExprOp(lhs.typ, op, (lhs, rhs))
+    return f
+
+
+def mk_binary_bitvec_relation(op: Operator) -> Callable[[ExprT[VarNameKind], ExprT[VarNameKind]], ExprT[VarNameKind]]:
+    def f(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
+        assert lhs.typ == rhs.typ
+        assert isinstance(lhs.typ, TypeBitVec)
+        return ExprOp(type_bool, op, (lhs, rhs))
+    return f
+
+
+expr_ult = mk_binary_bitvec_relation(Operator.LESS)
+expr_ule = mk_binary_bitvec_relation(Operator.LESS_EQUALS)
+expr_slt = mk_binary_bitvec_relation(Operator.SIGNED_LESS)
+expr_sle = mk_binary_bitvec_relation(Operator.SIGNED_LESS_EQUALS)
+expr_mul = mk_binary_bitvec_operation(Operator.TIMES)
+expr_sub = mk_binary_bitvec_operation(Operator.MINUS)
+expr_udiv = mk_binary_bitvec_operation(Operator.DIVIDED_BY)
+
+
+def expr_ite(cond: ExprT[VarNameKind], yes: ExprT[VarNameKind], no: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
+    assert yes.typ == no.typ
+    assert cond.typ == type_bool
+    return ExprOp(yes.typ, Operator.IF_THEN_ELSE, (cond, yes, no))
+
+
 def expr_negate(expr: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
     assert expr.typ == type_bool
 
@@ -671,7 +730,7 @@ import abc_cfg  # nopep8
 
 
 @dataclass(frozen=True)
-class Function(Generic[VarNameKind]):
+class GhostlessFunction(Generic[VarNameKind]):
 
     name: str
 
@@ -703,7 +762,7 @@ class Function(Generic[VarNameKind]):
         """ returns all the direct predecessors, removing the ones that would follow back edges """
         return (p for p in self.cfg.all_preds[node_name] if (p, node_name) not in self.cfg.back_edges)
 
-    def traverse_topologically_bottom_up(self: Function[VarNameKind]) -> Iterator[NodeName]:
+    def traverse_topologically_bottom_up(self) -> Iterator[NodeName]:
         q: list[NodeName] = [n for n, succs in self.cfg.all_succs.items() if len(
             [succ for succ in succs if (n, succ) not in self.cfg.back_edges]) == 0]
         visited: set[NodeName] = set()
@@ -726,7 +785,7 @@ class Function(Generic[VarNameKind]):
         assert len(visited - {NodeNameErr, NodeNameRet}
                    ) == len(self.nodes), visited
 
-    def traverse_topologically(self: Function[VarNameKind], skip_err_and_ret: bool = False) -> Iterator[NodeName]:
+    def traverse_topologically(self, skip_err_and_ret: bool = False) -> Iterator[NodeName]:
         q: list[NodeName] = [
             n for n, preds in self.cfg.all_preds.items() if len([p for p in self.acyclic_preds_of(n)]) == 0]
         visited: set[NodeName] = set()
@@ -748,13 +807,28 @@ class Function(Generic[VarNameKind]):
 
         assert len(visited - {NodeNameErr, NodeNameRet}) == len(self.nodes)
 
-    def all_variables(self: Function[VarNameKind]) -> Set[ExprVarT[VarNameKind]]:
+    def all_variables(self) -> Set[ExprVarT[VarNameKind]]:
         all_vars: set[ExprVarT[VarNameKind]] = set()
         for n, node in self.nodes.items():
             all_vars.update(used_variables_in_node(node))
             all_vars.update(assigned_variables_in_node(
                 self, n, with_loop_targets=True))
         return all_vars
+
+    def with_ghost(self, ghost: Ghost) -> Function[VarNameKind]:
+        return Function(name=self.name, nodes=self.nodes, loops=self.loops, arguments=self.arguments, cfg=self.cfg, ghost=ghost)
+
+
+@dataclass(frozen=True)
+class Ghost:
+    precondition: ExprT[HumanVarName]
+    postcondition: ExprT[HumanVarName]
+    loop_invariants: Mapping[LoopHeaderName, ExprT[HumanVarName]]
+
+
+@dataclass(frozen=True)
+class Function(GhostlessFunction[VarNameKind]):
+    ghost: Ghost
 
 
 def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]]:
@@ -772,7 +846,7 @@ def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]
     return used_variables
 
 
-def assigned_variables_in_node(func: Function[VarNameKind], n: NodeName, *, with_loop_targets: bool) -> Set[ExprVarT[VarNameKind]]:
+def assigned_variables_in_node(func: GhostlessFunction[VarNameKind], n: NodeName, *, with_loop_targets: bool) -> Set[ExprVarT[VarNameKind]]:
     if n in (NodeNameRet, NodeNameErr):
         return set()
 
@@ -828,7 +902,7 @@ def convert_function_nodes(nodes: Mapping[str | int, syntax.Node]) -> Mapping[No
     return safe_nodes
 
 
-def convert_function(func: syntax.Function) -> Function[ProgVarName]:
+def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName]:
     safe_nodes = convert_function_nodes(func.nodes)
     all_succs = abc_cfg.compute_all_successors_from_nodes(safe_nodes)
     assert func.entry is not None
@@ -839,4 +913,4 @@ def convert_function(func: syntax.Function) -> Function[ProgVarName]:
     args = tuple(ExprVar(convert_type(typ), ProgVarName(name))
                  for name, typ in func.inputs)
 
-    return Function(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=args, name=func.name)
+    return GhostlessFunction(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=args, name=func.name)

@@ -1,4 +1,4 @@
-from typing import Mapping, NamedTuple, NewType, Sequence, TypeAlias, cast
+from typing import Mapping, NamedTuple, NewType, Sequence, TypeAlias, cast, overload
 from typing_extensions import assert_never
 import dsa
 import nip
@@ -58,6 +58,20 @@ def convert_dsa_var_to_ap_var(var: dsa.Incarnation[source.ProgVarName | nip.Guar
 
 def convert_expr_var(expr: source.ExprVarT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> APVar:
     return source.ExprVar(expr.typ, name=convert_dsa_var_to_ap_var(expr.name))
+
+
+# TODO: make sure mypy enforces this?
+# TODO: rename to dsa_var_to_ap
+
+
+@overload
+def convert_expr_dsa_vars_to_ap(expr: source.ExprVarT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> source.ExprVarT[VarName]:
+    ...
+
+
+@overload
+def convert_expr_dsa_vars_to_ap(expr: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> source.ExprT[VarName]:
+    ...
 
 
 def convert_expr_dsa_vars_to_ap(expr: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> source.ExprT[VarName]:

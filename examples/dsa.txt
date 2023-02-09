@@ -12,16 +12,9 @@ Function tmp.init 5 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions Wo
 7 Basic 6 1 a___int#v Word 32 Num 0 Word 32
 EntryPoint 7
 
-Function tmp.simple 5 a___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+Function tmp.empty 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
-2 Cond 1 Err Op False Bool 0
-3 Basic 1 1 ret__int#v Word 32 Var a___int#v Word 32
-4 Basic 3 1 a___int#v Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Num 5 Word 32
-5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Num 5 Word 32 Op SignedLessEquals Bool 2 Num 5 Word 32 Var a___int#v Word 32
-6 Basic 5 1 a___int#v Word 32 Num 4 Word 32
-7 Basic 6 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 2 Word 32
-8 Cond 7 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 2 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 2 Word 32
-EntryPoint 8
+EntryPoint 1
 
 Function tmp.if_join 5 cond___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
@@ -34,30 +27,6 @@ Function tmp.if_join 5 cond___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAsserti
 8 Cond 5 7 Op Not Bool 1 Op Equals Bool 2 Var cond___int#v Word 32 Num 0 Word 32
 9 Basic 8 1 a___int#v Word 32 Num 10 Word 32
 EntryPoint 9
-
-Function tmp.two_vars 6 a___int#v Word 32 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
-1 Basic Ret 0
-2 Cond 1 Err Op False Bool 0
-3 Basic 1 1 ret__int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
-4 Cond 3 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var b___int#v Word 32
-5 Basic 4 1 a___int#v Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
-6 Cond 5 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Var b___int#v Word 32 Var a___int#v Word 32
-7 Basic 6 1 b___int#v Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
-8 Cond 7 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Var b___int#v Word 32 Var a___int#v Word 32
-9 Basic 8 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
-10 Cond 9 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var b___int#v Word 32
-EntryPoint 10
-
-Function tmp.overflow2 6 branch___int#v Word 32 j___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
-1 Basic Ret 0
-2 Cond 1 Err Op False Bool 0
-3 Basic 1 1 ret__int#v Word 32 Var j___int#v Word 32
-4 Basic 3 1 j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 1 Word 32
-5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
-6 Basic 3 1 j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 2 Word 32
-7 Cond 6 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 2 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 2 Word 32
-8 Cond 5 7 Op Not Bool 1 Op Equals Bool 2 Var branch___int#v Word 32 Num 0 Word 32
-EntryPoint 8
 
 Function tmp.arr_static 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
@@ -86,18 +55,6 @@ Function tmp.elif_chain 6 x___int#v Word 32 y___int#v Word 32 Mem Mem HTD HTD PM
 15 Basic 14 1 a___int#v Word 32 Num 1 Word 32
 EntryPoint 15
 
-Function tmp.shift_diag 7 p___struct_point_C#v.x_C Word 32 p___struct_point_C#v.y_C Word 32 offset___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 6 ret__struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
-1 Basic Ret 0
-2 Cond 1 Err Op False Bool 0
-3 Basic 1 2 ret__struct_point_C#v.x_C Word 32 Var p___struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Var p___struct_point_C#v.y_C Word 32
-4 Basic 3 1 p___struct_point_C#v.y_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.y_C Word 32 Var offset___int#v Word 32
-5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var p___struct_point_C#v.y_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.y_C Word 32 Var offset___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var offset___int#v Word 32
-6 Basic 5 1 p___struct_point_C#v.x_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.x_C Word 32 Var offset___int#v Word 32
-7 Cond 6 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var p___struct_point_C#v.x_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.x_C Word 32 Var offset___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var offset___int#v Word 32
-8 Basic 1 2 ret__struct_point_C#v.x_C Word 32 Num 0 Word 32 ret__struct_point_C#v.y_C Word 32 Num 0 Word 32
-9 Cond 8 7 Op Equals Bool 2 Var offset___int#v Word 32 Num 0 Word 32
-EntryPoint 9
-
 Function tmp.fail_uninit 5 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0
@@ -107,28 +64,28 @@ Function tmp.fail_uninit 5 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssert
 6 Cond 5 4 Op Not Bool 1 Op Equals Bool 2 Var b___int#v Word 32 Num 0 Word 32
 EntryPoint 6
 
-Function tmp.greater_than_op 6 a___int#v Word 32 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+Function tmp.almost_empty 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
-2 Cond 1 Err Op False Bool 0
-3 Basic 1 1 ret__int#v Word 32 Op IfThenElse Word 32 3 Op SignedLess Bool 2 Op Minus Word 32 2 Num 0 Word 32 Var b___int#v Word 32 Var a___int#v Word 32 Num 1 Word 32 Num 0 Word 32
-4 Cond 3 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Num 0 Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Var b___int#v Word 32 Num 0 Word 32
-EntryPoint 4
+EntryPoint 1
 
-Function tmp.simple_for_loop 5 n___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+Function tmp.non_void_empty 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0
-3 Basic 1 1 ret__int#v Word 32 Var s___int#v Word 32
-8 Basic 4 1 i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32
-9 Cond 8 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
-10 Basic 9 1 s___int#v Word 32 Op Plus Word 32 2 Var s___int#v Word 32 Var i___int#v Word 32
-11 Cond 10 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var s___int#v Word 32 Op Plus Word 32 2 Var s___int#v Word 32 Var i___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var i___int#v Word 32
-4 Basic 5 1 loop#4#count Word 64 Op Plus Word 64 2 Var loop#4#count Word 64 Num 1 Word 64
-5 Cond 6 Err Op True Bool 0
-6 Cond 11 3 Op SignedLess Bool 2 Var i___int#v Word 32 Var n___int#v Word 32
-7 Basic 5 1 loop#4#count Word 64 Num 0 Word 64
-12 Basic 7 1 i___int#v Word 32 Num 0 Word 32
-13 Basic 12 1 s___int#v Word 32 Num 0 Word 32
-EntryPoint 13
+3 Basic 1 1 ret__int#v Word 32 Num 0 Word 32
+EntryPoint 3
+
+Function tmp.two_vars___fail 6 a___int#v Word 32 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
+4 Cond 3 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var b___int#v Word 32
+5 Basic 4 1 a___int#v Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
+6 Cond 5 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Var b___int#v Word 32 Var a___int#v Word 32
+7 Basic 6 1 b___int#v Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
+8 Cond 7 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Var b___int#v Word 32 Var a___int#v Word 32
+9 Basic 8 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32
+10 Cond 9 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var b___int#v Word 32
+EntryPoint 10
 
 Function tmp.one_branch_legal 5 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
@@ -137,18 +94,6 @@ Function tmp.one_branch_legal 5 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostA
 4 Basic 3 1 a___int#v Word 32 Num 2 Word 32
 5 Cond 4 3 Op Not Bool 1 Op Equals Bool 2 Var b___int#v Word 32 Num 0 Word 32
 EntryPoint 5
-
-Function tmp.straight_into_loop 5 i___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
-1 Basic Ret 0
-2 Cond 1 Err Op False Bool 0
-3 Basic 1 1 ret__int#v Word 32 Var i___int#v Word 32
-8 Basic 4 1 i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32
-9 Cond 8 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
-4 Basic 5 1 loop#4#count Word 64 Op Plus Word 64 2 Var loop#4#count Word 64 Num 1 Word 64
-5 Cond 6 Err Op True Bool 0
-6 Cond 9 3 Op SignedLess Bool 2 Var i___int#v Word 32 Num 10 Word 32
-7 Basic 5 1 loop#4#count Word 64 Num 0 Word 64
-EntryPoint 7
 
 Function tmp.if_join_different_length 5 cond___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
@@ -172,6 +117,17 @@ Function tmp.fail_one_branch_undefined 5 b___int#v Word 32 Mem Mem HTD HTD PMS P
 5 Cond 4 3 Op Not Bool 1 Op Equals Bool 2 Var b___int#v Word 32 Num 0 Word 32
 EntryPoint 5
 
+Function tmp.overflow2___fail_overflow 6 branch___int#v Word 32 j___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Var j___int#v Word 32
+4 Basic 3 1 j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 1 Word 32
+5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+6 Basic 3 1 j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 2 Word 32
+7 Cond 6 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var j___int#v Word 32 Op Plus Word 32 2 Var j___int#v Word 32 Num 2 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 2 Word 32
+8 Cond 5 7 Op Not Bool 1 Op Equals Bool 2 Var branch___int#v Word 32 Num 0 Word 32
+EntryPoint 8
+
 Function tmp.if_join_multiple_variables 5 cond___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0
@@ -191,6 +147,18 @@ Function tmp.if_join_multiple_variables 5 cond___int#v Word 32 Mem Mem HTD HTD P
 16 Basic 15 1 b___int#v Word 32 Num 20 Word 32
 17 Basic 16 1 a___int#v Word 32 Num 10 Word 32
 EntryPoint 17
+
+Function tmp.shift_diag___fail_overflow 7 p___struct_point_C#v.x_C Word 32 p___struct_point_C#v.y_C Word 32 offset___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 6 ret__struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 2 ret__struct_point_C#v.x_C Word 32 Var p___struct_point_C#v.x_C Word 32 ret__struct_point_C#v.y_C Word 32 Var p___struct_point_C#v.y_C Word 32
+4 Basic 3 1 p___struct_point_C#v.y_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.y_C Word 32 Var offset___int#v Word 32
+5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var p___struct_point_C#v.y_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.y_C Word 32 Var offset___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var offset___int#v Word 32
+6 Basic 5 1 p___struct_point_C#v.x_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.x_C Word 32 Var offset___int#v Word 32
+7 Cond 6 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var p___struct_point_C#v.x_C Word 32 Op Plus Word 32 2 Var p___struct_point_C#v.x_C Word 32 Var offset___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var offset___int#v Word 32
+8 Basic 1 2 ret__struct_point_C#v.x_C Word 32 Num 0 Word 32 ret__struct_point_C#v.y_C Word 32 Num 0 Word 32
+9 Cond 8 7 Op Equals Bool 2 Var offset___int#v Word 32 Num 0 Word 32
+EntryPoint 9
 
 Function tmp.fail_arr_undefined_behaviour 5 i___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
@@ -213,6 +181,13 @@ Function tmp.fail_arr_undefined_behaviour2 6 i___int#v Word 32 j___int#v Word 32
 9 Cond 6 8 Op Not Bool 1 Op Equals Bool 2 Var j___int#v Word 32 Num 0 Word 32
 EntryPoint 9
 
+Function tmp.greater_than_op___fail_overflow 6 a___int#v Word 32 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Op IfThenElse Word 32 3 Op SignedLess Bool 2 Op Minus Word 32 2 Num 0 Word 32 Var b___int#v Word 32 Var a___int#v Word 32 Num 1 Word 32 Num 0 Word 32
+4 Cond 3 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Num 0 Word 32 Var b___int#v Word 32 Op SignedLessEquals Bool 2 Var b___int#v Word 32 Num 0 Word 32
+EntryPoint 4
+
 Function tmp.if_join_multiple_variables_no_ret 5 cond___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0
@@ -232,6 +207,51 @@ Function tmp.if_join_multiple_variables_no_ret 5 cond___int#v Word 32 Mem Mem HT
 16 Basic 15 1 a___int#v Word 32 Num 10 Word 32
 EntryPoint 16
 
+Function tmp.simple__fail_missing_precondition 5 a___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Var a___int#v Word 32
+4 Basic 3 1 a___int#v Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Num 5 Word 32
+5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 32 Op Minus Word 32 2 Var a___int#v Word 32 Num 5 Word 32 Op SignedLessEquals Bool 2 Num 5 Word 32 Var a___int#v Word 32
+6 Basic 5 1 a___int#v Word 32 Num 4 Word 32
+7 Basic 6 1 a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 2 Word 32
+8 Cond 7 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var a___int#v Word 32 Op Plus Word 32 2 Var a___int#v Word 32 Num 2 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 2 Word 32
+EntryPoint 8
+
+Function tmp.simple_for_loop___fail_missing_invariant 5 n___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Var s___int#v Word 32
+8 Basic 4 1 i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32
+9 Cond 8 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+10 Basic 9 1 s___int#v Word 32 Op Plus Word 32 2 Var s___int#v Word 32 Var i___int#v Word 32
+11 Cond 10 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var s___int#v Word 32 Op Plus Word 32 2 Var s___int#v Word 32 Var i___int#v Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Var i___int#v Word 32
+4 Basic 5 1 loop#4#count Word 64 Op Plus Word 64 2 Var loop#4#count Word 64 Num 1 Word 64
+5 Cond 6 Err Op True Bool 0
+6 Cond 11 3 Op SignedLess Bool 2 Var i___int#v Word 32 Var n___int#v Word 32
+7 Basic 5 1 loop#4#count Word 64 Num 0 Word 64
+12 Basic 7 1 i___int#v Word 32 Num 0 Word 32
+13 Basic 12 1 s___int#v Word 32 Num 0 Word 32
+EntryPoint 13
+
+Function tmp.branch_then_loop___fail_because_no_invariant 6 cond___int#v Word 32 a___unsigned#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Op WordCast Word 32 1 Op Times Word 32 2 Op WordCastSigned Word 32 1 Var i___int#v Word 32 Var a___unsigned#v Word 32
+8 Basic 4 1 i___int#v Word 32 Op WordCast Word 32 1 Op Plus Word 32 2 Op WordCastSigned Word 32 1 Var i___int#v Word 32 Var a___unsigned#v Word 32
+4 Basic 5 1 loop#4#count Word 64 Op Plus Word 64 2 Var loop#4#count Word 64 Num 1 Word 64
+5 Cond 6 Err Op True Bool 0
+6 Cond 8 3 Op SignedLess Bool 2 Var i___int#v Word 32 Num 100 Word 32
+7 Basic 5 1 loop#4#count Word 64 Num 0 Word 64
+9 Basic 7 1 i___int#v Word 32 Num 0 Word 32
+10 Basic 9 1 a___unsigned#v Word 32 Op Plus Word 32 2 Var a___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 1 Word 32
+11 Basic 9 1 a___unsigned#v Word 32 Op Plus Word 32 2 Var a___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 1 Word 32
+12 Basic 11 1 a___unsigned#v Word 32 Op Times Word 32 2 Var a___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 2 Word 32
+13 Cond 10 12 Op Not Bool 1 Op Equals Bool 2 Var cond___int#v Word 32 Num 0 Word 32
+14 Basic 13 1 a___unsigned#v Word 32 Op Modulus Word 32 2 Var a___unsigned#v Word 32 Op WordCastSigned Word 32 1 Num 100 Word 32
+15 Cond 14 Err Op Not Bool 1 Op Equals Bool 2 Num 100 Word 32 Num 0 Word 32
+EntryPoint 15
+
 Function tmp.fail_zoltans_horrible_fail_arr_undefined_behaviour 5 i___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0
@@ -242,3 +262,15 @@ Function tmp.fail_zoltans_horrible_fail_arr_undefined_behaviour 5 i___int#v Word
 7 Basic 6 1 arr___int_array8#v.0 Word 32 Num 2 Word 32
 8 Cond 7 Err Op And Bool 2 Op SignedLess Bool 2 Num 0 Word 32 Num 8 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 0 Word 32
 EntryPoint 8
+
+Function tmp.straight_into_loop___fail_because_missing_invariant 5 i___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Var i___int#v Word 32
+8 Basic 4 1 i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32
+9 Cond 8 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+4 Basic 5 1 loop#4#count Word 64 Op Plus Word 64 2 Var loop#4#count Word 64 Num 1 Word 64
+5 Cond 6 Err Op True Bool 0
+6 Cond 9 3 Op SignedLess Bool 2 Var i___int#v Word 32 Num 10 Word 32
+7 Basic 5 1 loop#4#count Word 64 Num 0 Word 64
+EntryPoint 7

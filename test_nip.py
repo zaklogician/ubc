@@ -3,6 +3,7 @@ from typing_extensions import assert_never
 import pytest
 import source
 import nip
+import ghost_data
 
 
 import syntax
@@ -177,7 +178,7 @@ def ensure_guard_and_state_update_correctness(nip_func: nip.Function) -> None:
 
 def do_nip_test(func: syntax.Function) -> None:
     print(func.name)
-    prog_func = source.convert_function(func)
+    prog_func = source.convert_function(func).with_ghost(ghost_data.empty)
     nip_func = nip.nip(prog_func)
     ensure_correspondence(prog_func, nip_func)
     ensure_guard_and_state_update_correctness(nip_func)

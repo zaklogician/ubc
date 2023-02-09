@@ -1,3 +1,5 @@
 *.pyc
 demo/*.zip
 /pyrightconfig.json
+a.out
+.hypothesis

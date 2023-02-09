@@ -201,4 +201,4 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
     all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
     cfg = abc_cfg.compute_cfg_from_all_succs(all_succs, func.cfg.entry)
     loops = abc_cfg.compute_loops(new_nodes, cfg)
-    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, name=func.name)
+    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, name=func.name, ghost=func.ghost)

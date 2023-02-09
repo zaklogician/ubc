@@ -18,6 +18,7 @@ import nip
 import syntax
 from typing_extensions import assert_never
 import assume_prove
+import ghost_data
 
 
 def pretty_name(name: Any) -> str:
@@ -361,7 +362,8 @@ if __name__ == "__main__":
 
     # viz_raw_function(functions[function_name])
     # viz_function(source.convert_function(functions[function_name]))
-    func = source.convert_function(functions[function_name])
+    func = source.convert_function(
+        functions[function_name]).with_ghost(ghost_data.empty)
     nip_func = nip.nip(func)
     dsa_func = dsa.dsa(nip_func)
     viz_function(dsa_func)

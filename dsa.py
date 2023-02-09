@@ -409,4 +409,5 @@ def dsa(func: source.Function[source.ProgVarName | nip.GuardVarName]) -> Functio
         loops=loops,
         name=func.name,
         nodes=s.dsa_nodes,
-        contexts=s.incarnations)
+        contexts=s.incarnations,
+        ghost=func.ghost)

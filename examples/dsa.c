@@ -1,4 +1,8 @@
-int simple(int a)
+/* look at the precondition/post condition/loop invariants in
+   the auto_ghost_data.py file
+   */
+
+int simple__fail_missing_precondition(int a)
 {
     a += 2;
     a = 4;
@@ -6,7 +10,7 @@ int simple(int a)
     return a;
 }
 
-int two_vars(int a, int b)
+int two_vars___fail(int a, int b)
 {
     a = a + b;
     b = a - b;
@@ -88,7 +92,7 @@ int elif_chain(int x, int y)
     return a;
 }
 
-int simple_for_loop(int n)
+int simple_for_loop___fail_missing_invariant(int n)
 {
     int s = 0;
     for (int i = 0; i < n; i++)
@@ -102,7 +106,7 @@ struct point { int x; int y; };
 
 struct point origin = {0};
 
-struct point shift_diag(struct point p, int offset)
+struct point shift_diag___fail_overflow(struct point p, int offset)
 {
     if (offset == 0)
     {
@@ -226,7 +230,7 @@ int straight_into_loop___fail_because_missing_invariant(int i)
     return i;
 }
 
-int overflow2(int branch, int j)
+int overflow2___fail_overflow(int branch, int j)
 {
     if (branch)
     {
@@ -243,3 +247,39 @@ int greater_than_op___fail_overflow(int a, int b)
 {
     return a > -b;
 }
+
+int branch_then_loop___fail_because_no_invariant(int cond, unsigned int a)
+{
+    a = a % 100;
+    if (cond)
+    {
+        a += 1;
+    }
+    else
+    {
+        a *= 2;
+        a += 1;
+    }
+    int i = 0;
+    while (i < 100)
+    {
+        i += a;
+    }
+    return i * a;
+}
+
+
+int non_void_empty()
+{
+    return 0;
+}
+
+void empty()
+{}
+
+void almost_empty()
+{
+    return;
+}
+
+// void prototype();
