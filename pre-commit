@@ -2,6 +2,13 @@
 
 set -e
 
+# manually do recursion
+if grep -nE '(tuple\[\w+\]|tuple\[\w+\[[A-Za-z0-9_, ]+\]\])' $(find . -name "*.py"); then
+    echo "Did you really mean to have tuple[x] instead of tuple[x, ...]?"
+    echo "If yes, then disable this check in the pre-commit"
+    exit 1
+fi
+
 mypy --strict .
 
 find -name '*.py' | xargs autopep8 -d > /tmp/autopep8diff

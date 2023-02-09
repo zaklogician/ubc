@@ -617,7 +617,7 @@ def all_vars_have_prop(expr, prop):
 
 
 def all_vars_in_set(expr, var_set):
-    # type: (syntax.Expr, tuple[str]) -> bool
+    # type: (syntax.Expr, tuple[str, ...]) -> bool
     return all_vars_have_prop(expr, lambda v: v in var_set)
 
 
