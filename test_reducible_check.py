@@ -204,6 +204,7 @@ with open('examples/kernel_CFunctions.txt') as f:
     kernel_C = syntax.parse_and_install_all(f, None)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize('unsafe_func', (f for f in kernel_C[1].values() if f.entry is not None))
 def test_kernel_functions_all_reducible(unsafe_func: syntax.Function) -> None:
     """ we haven't checked manually """

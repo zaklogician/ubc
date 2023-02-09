@@ -189,6 +189,7 @@ def test_nip_test_functions(func: syntax.Function) -> None:
     do_nip_test(func)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize('func', (f for f in sorted(kernel_CFunctions[1].values(), key=lambda f: len(f.nodes)) if f.entry is not None))
 def test_nip_kernel_functions(func: syntax.Function) -> None:
     do_nip_test(func)

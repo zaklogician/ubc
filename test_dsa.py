@@ -29,6 +29,7 @@ def test_dsa_custom_tests(func: syntax.Function) -> None:
     validate_dsa.validate(nip_func, dsa_func)
 
 
+@pytest.mark.slow
 # sort so that the smallest functions fail first
 @pytest.mark.parametrize('function', (f for f in sorted(kernel_CFunctions[1].values(), key=lambda f: len(f.nodes)) if f.entry is not None))
 def test_dsa_kernel_functions(function: syntax.Function) -> None:
