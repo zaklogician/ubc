@@ -219,6 +219,7 @@ def compute_loops(nodes: Mapping[source.NodeName, source.Node[source.VarNameKind
     # and good enough for now
     for back_edge in cfg.back_edges:
         _, loop_header = back_edge
+        loop_header = source.LoopHeaderName(back_edge[1])
 
         loop_nodes = compute_natural_loop(cfg, back_edge)
 
@@ -228,8 +229,9 @@ def compute_loops(nodes: Mapping[source.NodeName, source.Node[source.VarNameKind
         loop_targets = compute_loop_targets(
             nodes, cfg, loop_header, loop_nodes)
 
-        loops[source.LoopHeaderName(loop_header)] = source.Loop(
-            back_edge, loop_nodes, tuple(sorted(loop_targets, key=loop_target_sorting_key)))
+        loops[loop_header] = source.Loop(
+            back_edge, loop_nodes, tuple(
+                sorted(loop_targets, key=loop_target_sorting_key)))
     return loops
 
 

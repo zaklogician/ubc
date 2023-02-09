@@ -1,4 +1,4 @@
-from collections import defaultdict
+from functools import reduce
 import source
 
 conj = source.expr_and
@@ -17,13 +17,23 @@ T = source.expr_true
 F = source.expr_false
 
 
+def conjs(*xs: source.ExprT[source.VarNameKind]) -> source.ExprT[source.VarNameKind]:
+    # pyright is stupid, but mypy works it out (we only care about mypy)
+    return reduce(source.expr_and, xs)  # pyright: ignore
+
+
 def i32(n: int) -> source.ExprNumT:
     assert -0x8000_0000 <= n and n <= 0x7fff_ffff
     return source.ExprNum(source.type_word32, n)
 
 
 def i32v(name: str) -> source.ExprVarT[source.HumanVarName]:
-    return source.ExprVar(source.type_word32, source.HumanVarName(name))
+    return source.ExprVar(source.type_word32, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=False))
+
+
+def g(name: str) -> source.ExprVarT[source.HumanVarName]:
+    """ guard """
+    return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=True))
 
 
 def sbounded(var: source.ExprVarT[source.HumanVarName], lower: source.ExprT[source.HumanVarName], upper: source.ExprT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
@@ -62,11 +72,17 @@ universe = {
             postcondition=T,
         ),
 
-        "tmp.arith_sum___fail_because_missing_invariants": source.Ghost(
+        "tmp.arith_sum": source.Ghost(
             loop_invariants={
                 # 0 <= i <= n
                 # s = i * (i - 1) / 2
-                lh('5'): conj(sbounded(i32v('i'), i32(0), i32v('n')), eq(i32v('s'), udiv(mul(i32v('i'), sub(i32v('i'), i32(1))), i32(2)))),
+                # i#assigned
+                # s#assigned
+                lh('5'): conjs(
+                    sbounded(i32v('i'), i32(0), i32v('n')),
+                    eq(i32v('s'), udiv(mul(i32v('i'), sub(i32v('i'), i32(1))), i32(2))),
+                    g('i'),
+                    g('s')),
             },
             precondition=sbounded(i32v('n'), i32(0), i32(100)),
             postcondition=T,
@@ -74,11 +90,10 @@ universe = {
     }
 }
 
-empty = source.Ghost(
-    precondition=T, postcondition=T, loop_invariants=defaultdict(lambda: T))
 
-
-def get(file_name: str, func_name: str) -> source.Ghost:
+def get(file_name: str, func_name: str) -> source.Ghost[source.HumanVarName] | None:
+    if file_name.endswith('.c'):
+        file_name = file_name[:-len('.c')] + '.txt'
     if file_name in universe and func_name in universe[file_name]:
         return universe[file_name][func_name]
-    return empty
+    return None

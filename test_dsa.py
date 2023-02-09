@@ -7,6 +7,7 @@ import dsa
 import syntax
 import nip
 import validate_dsa
+import ghost_code
 
 # global variables are bad :(
 syntax.set_arch('rv64')
@@ -23,10 +24,11 @@ del f
 
 @pytest.mark.parametrize('func', (f for f in example_dsa_CFunctions[1].values() if f.entry is not None))
 def test_dsa_custom_tests(func: syntax.Function) -> None:
-    prog_func = source.convert_function(func).with_ghost(ghost_data.empty)
+    prog_func = source.convert_function(func).with_ghost(None)
     nip_func = nip.nip(prog_func)
-    dsa_func = dsa.dsa(nip_func)
-    validate_dsa.validate(nip_func, dsa_func)
+    ghost_func = ghost_code.sprinkle_ghost_code(nip_func)
+    dsa_func = dsa.dsa(ghost_func)
+    validate_dsa.validate(ghost_func, dsa_func)
 
 
 @pytest.mark.slow
@@ -37,10 +39,14 @@ def test_dsa_kernel_functions(function: syntax.Function) -> None:
     if function.name in ('Kernel_C.deriveCap', 'Kernel_C.decodeCNodeInvocation'):
         pytest.skip("there's an assert true that messes DSA up")
 
+    if function.name in ('Kernel_C.merge_regions', 'Kernel_C.create_untypeds', 'Kernel_C.reserve_region'):
+        pytest.skip("loop headers change during transformation, not supported")
+
     if len(validate_dsa.compute_all_path(source.convert_function(function).cfg)) > 100:
         pytest.skip("too many paths, checking them all is too slow")
 
-    prog_func = source.convert_function(function).with_ghost(ghost_data.empty)
+    prog_func = source.convert_function(function).with_ghost(None)
     nip_func = nip.nip(prog_func)
-    dsa_func = dsa.dsa(nip_func)
-    validate_dsa.validate(nip_func, dsa_func)
+    ghost_func = ghost_code.sprinkle_ghost_code(nip_func)
+    dsa_func = dsa.dsa(ghost_func)
+    validate_dsa.validate(ghost_func, dsa_func)

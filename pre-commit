@@ -17,7 +17,7 @@ find -name '*.py' | xargs autopep8 -d > /tmp/autopep8diff
 
 
 if test "$1" = "quick"; then
-    pytest -m 'not slow'
+    pytest -m 'not slow' -x
 else
     time -p pytest -x
 fi

@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, unique
 from typing import Collection, Sequence, Tuple, Any, Dict
 
 import sys
@@ -14,6 +14,7 @@ import dsa
 import nip
 import assume_prove
 import ghost_data
+import ghost_code
 
 import validate_dsa
 
@@ -32,7 +33,7 @@ def assert_all_kernel_functions_are_reducible() -> None:
     print("[check] all kernel functions with an entry are reducible")
 
 
-def same_var_diff_type(func: source.Function[source.ProgVarName]) -> None:
+def same_var_diff_type(func: source.Function) -> None:
     vars: dict[str, set[source.ProgVarName]] = {}
     for n in func.nodes:
         for var in source.used_variables_in_node(func.nodes[n]).union(source.assigned_variables_in_node(func, n, with_loop_targets=True)):
@@ -51,19 +52,31 @@ def same_var_diff_type(func: source.Function[source.ProgVarName]) -> None:
         print(f"diffs: {func.name} {diff}")
 
 
+@unique
 class CmdlineOption(Enum):
     SHOW_RAW = '--show-raw'
     """ Show the raw function """
+
     SHOW_GRAPH = '--show-graph'
     """ Show the graph lang """
+
+    SHOW_NIP = '--show-nip'
+    """ Show the non-initialized protected cfg """
+
+    SHOW_GHOST = '--show-ghost'
+    """ Show the cfg with the ghost code inserted
+        (pre condition, post condition and loop invariants)
+    """
+
     SHOW_DSA = '--show-dsa'
     """ Show the graph after having applied dynamic single assignment """
-    SHOW_NIP = '--show-nip'
-    """ Show the non-initialized protected graph """
+
     SHOW_AP = '--show-ap'
     """ Show the assume prove prog """
+
     SHOW_SMT = '--show-smt'
     """ Show the SMT given to the solvers """
+
     SHOW_SATS = '--show-sats'
     """ Show the raw results from the smt solvers (sat/unsat) """
 
@@ -139,11 +152,15 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_NIP in options:
             viz_function(nip_func)
 
-        dsa_func = dsa.dsa(nip_func)
+        ghost_func = ghost_code.sprinkle_ghost_code(nip_func)
+        if CmdlineOption.SHOW_GHOST in options:
+            viz_function(ghost_func)
+
+        dsa_func = dsa.dsa(ghost_func)
         if CmdlineOption.SHOW_DSA in options:
             viz_function(dsa_func)
 
-        validate_dsa.validate(nip_func, dsa_func)
+        validate_dsa.validate(ghost_func, dsa_func)
 
         prog = assume_prove.make_prog(dsa_func)
         if CmdlineOption.SHOW_AP in options:

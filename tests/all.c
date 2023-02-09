@@ -184,19 +184,7 @@ int zoltanstest___fails_because_missing_invariant(unsigned int i) {
     return b + 1;
 }
 
-// ; loop invariant (0 <= i <= n && s == (i-1)*i/2)
-// (define-fun loop_invariant@5 ((i___int@v (_ BitVec 32)) (s___int@v (_ BitVec 32)) (loop@4@count (_ BitVec 64))) Bool (
-//     and (bvsle (_ bv0 32) i___int@v)
-//         (bvsle i___int@v n___int@v~1)
-//         (= s___int@v (
-//             bvsdiv (bvmul (bvsub i___int@v (_ bv1 32)) i___int@v)
-//                    (_ bv2 32))
-//         )
-// ))
-
-// ; pre condition (0 < n && n < 100)
-// (assert (and (bvslt (_ bv0 32) n___int@v~1) (bvslt n___int@v~1 (_ bv100 32))))
-int arith_sum___fail_because_missing_invariants(int n)
+int arith_sum(int n)
 {
     int s = 0;
     for (int i = 0; i < n; i++)

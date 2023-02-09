@@ -22,24 +22,11 @@ class InstructionProve(NamedTuple):
 Instruction = InstructionAssume | InstructionProve
 Script = Sequence[InstructionAssume | InstructionProve]
 
-LoopInvariantFunctionName = NewType(
-    'LoopInvariantFunctionName', source.FunctionName)
-
-
-class FunctionDefinition(NamedTuple):
-    """ This is an *smt* function, not a C function """
-    name: source.FunctionName
-    arguments: Sequence[APVar]
-    return_typ: source.Type
-    body: APVar
-
 
 class AssumeProveProg(NamedTuple):
     nodes_script: Mapping[NodeOkName, Script]
 
     entry: NodeOkName
-
-    function_definitions: Sequence[FunctionDefinition]
 
     # TODO: specify each assert with a specific error message
 
@@ -99,10 +86,6 @@ def make_assume(var: dsa.Var[source.ProgVarName | nip.GuardVarName], expr: sourc
     return InstructionAssume(eq)
 
 
-def make_loop_invariant_function_name(loop_header: source.LoopHeaderName) -> LoopInvariantFunctionName:
-    return LoopInvariantFunctionName(source.FunctionName(f'loop_invariant@{loop_header}'))
-
-
 # TODO: rename to base var to ap var
 def prog_var_to_ap_var(v: source.ExprVarT[source.ProgVarName | nip.GuardVarName]) -> APVar:
     return source.ExprVar(v.typ, VarName(v.name))
@@ -115,22 +98,6 @@ def get_loop_count_target_var(loop: source.Loop[dsa.Incarnation[source.ProgVarNa
             # mypy isn't smart enough to not need this cast
             return cast(source.ExprVarT[dsa.Incarnation[source.ProgVarName]], target)
     assert False, "loop doesn't have a loop a counter automatically inserted by the c parser"
-
-
-def get_loop_invariant_function(func: dsa.Function, loop_header: source.LoopHeaderName) -> FunctionDefinition:
-    # TODO: there is no point rebuilding the same object multiple times
-    #       hint to use an AP builder
-    name = make_loop_invariant_function_name(loop_header)
-    args = [prog_var_to_ap_var(dsa.get_base_var(target))
-            for target in func.loops[loop_header].targets]
-
-    # c parser inserts a loop count automatically, so we automatically prove that it is initialized
-    loop_count_init_var = prog_var_to_ap_var(nip.guard_var(
-        dsa.get_base_var(get_loop_count_target_var(func.loops[loop_header]))))
-    assert loop_count_init_var in args
-
-    body: APVar = loop_count_init_var
-    return FunctionDefinition(name=name, arguments=args, return_typ=source.type_bool, body=body)
 
 
 def apply_incarnation_for_node(func: dsa.Function, n: source.NodeName, prog_var: source.ExprVarT[source.ProgVarName | nip.GuardVarName]) -> APVar:
@@ -171,35 +138,19 @@ def apply_incarnation_for_node(func: dsa.Function, n: source.NodeName, prog_var:
 def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) -> Script:
     node = func.nodes[n]
 
-    # 1. assume invariant if we are a loop header
-    # 2. emit node specific assume/prove instruction
-    # 3. if we jump to a loop header, prove that it's loop invariant is maintained
-
     script: list[Instruction] = []
-    if loop_header := func.is_loop_header(n):
-        # we get to assume the loop invariant
-        invariant = get_loop_invariant_function(func, loop_header)
-
-        args = [convert_expr_var(target)
-                for target in func.loops[loop_header].targets]
-        script.append(InstructionAssume(source.ExprFunction(
-            invariant.return_typ, invariant.name, args)))
-
     if isinstance(node, source.NodeCond):
         # CondNode(expr, succ_then, succ_else)
         #     prove expr --> succ_then_ok
         #     prove not expr --> succ_else_ok
         cond = convert_expr_dsa_vars_to_ap(node.expr)
 
-        assert not any(func.is_loop_header(succ)
-                       for succ in func.cfg.all_succs[n])
-        assert not func.is_loop_latch(
-            n), "TODO: handle conditional nodes that are loop latches (recall that we remove back edges)"
-
-        script.append(InstructionProve(source.expr_implies(
-            cond, node_ok_ap_var(node.succ_then))))
-        script.append(InstructionProve(source.expr_implies(
-            source.expr_negate(cond), node_ok_ap_var(node.succ_else))))
+        if (n, node.succ_then) not in func.cfg.back_edges:
+            script.append(InstructionProve(source.expr_implies(
+                cond, node_ok_ap_var(node.succ_then))))
+        if (n, node.succ_else) not in func.cfg.back_edges:
+            script.append(InstructionProve(source.expr_implies(
+                source.expr_negate(cond), node_ok_ap_var(node.succ_else))))
 
     elif isinstance(node, source.NodeBasic):
         # BasicNode(upds, succ)
@@ -233,18 +184,6 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
             script.append(InstructionProve(node_ok_ap_var(node.succ)))
     else:
         assert_never(node)
-
-    for succ in func.cfg.all_succs[n]:
-        if loop_header := func.is_loop_header(succ):
-            # we need to prove that the loop invariant holds
-            invariant = get_loop_invariant_function(func, loop_header)
-
-            # use the incarnation at node n
-            args = [
-                apply_incarnation_for_node(func, n, dsa.get_base_var(arg)) for arg in func.loops[loop_header].targets]
-
-            script.append(InstructionProve(source.expr_implies(source.expr_negate(source.ExprFunction(
-                invariant.return_typ, invariant.name, args)), node_ok_ap_var(source.NodeNameErr))))
 
     return script
 
@@ -296,9 +235,7 @@ def make_prog(func: dsa.Function) -> AssumeProveProg:
     for script in nodes_script.values():
         assert all(ins.expr.typ == source.type_bool for ins in script)
 
-    function_definitions = [get_loop_invariant_function(
-        func, loop_header) for loop_header in func.loops]
-    return AssumeProveProg(nodes_script=nodes_script, entry=node_ok_name(func.cfg.entry), function_definitions=function_definitions)
+    return AssumeProveProg(nodes_script=nodes_script, entry=node_ok_name(func.cfg.entry))
 
 
 def pretty_instruction_ascii(ins: Instruction) -> str:

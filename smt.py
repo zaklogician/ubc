@@ -302,18 +302,6 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
 
     cmds.append(EmptyLine)
 
-    # emit all function definition (define-fun func_name ((a T1) (b T2) ...) T (body))
-    for func_def in p.function_definitions:
-        iden = Identifier(func_def.name)
-        cmds.append(CmdDefineFun(
-            iden, func_def.arguments, func_def.return_typ, func_def.body))
-        emited_identifiers.add(iden)
-
-    cmds.append(EmptyLine)
-
-    assert len(emited_identifiers) == len(
-        emited_variables) + len(p.function_definitions), "renaming variables to valid SMT LIB identifiers results in a name clash"
-
     # emit all assertions from nodes (node_x_ok = wp(x))
     for node_ok_name, script in p.nodes_script.items():
         expr = assume_prove.apply_weakest_precondition(script)

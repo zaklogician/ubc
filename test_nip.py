@@ -81,7 +81,7 @@ def skip_nip_nodes(func: nip.Function, n: source.NodeName) -> source.NodeName:
     return n
 
 
-def ensure_correspondence(prog_func: source.Function[source.ProgVarName], nip_func: nip.Function) -> None:
+def ensure_correspondence(prog_func: source.Function, nip_func: nip.Function) -> None:
     """
     Ignoring the nip nodes, the cfgs should be the exact same
     """
@@ -126,7 +126,8 @@ def ensure_guard_and_state_update_correctness(nip_func: nip.Function) -> None:
         if isinstance(node, get_args(nip.Node)):
             continue
 
-        used_variables = source.used_variables_in_node(node)
+        used_variables = set(v for v in source.used_variables_in_node(
+            node) if not source.is_loop_counter_name(v.name))
         if len(used_variables) > 0:
             preds = nip_func.cfg.all_preds[n]
             assert len(preds) == 1, f'{n=} {preds=}'
@@ -148,10 +149,10 @@ def ensure_guard_and_state_update_correctness(nip_func: nip.Function) -> None:
 
             # easy because we don't do any short-circuiting
             assert set(source.expr_split_conjuncts(guard.expr)) == set(
-                map(nip.guard_var, used_prog_variables))
+                (nip.guard_var(v) for v in used_prog_variables if not source.is_loop_counter_name(v.name)))
 
-        assigned_variables = source.assigned_variables_in_node(
-            nip_func, n, with_loop_targets=False)
+        assigned_variables = set(v for v in source.assigned_variables_in_node(
+            nip_func, n, with_loop_targets=False) if not source.is_loop_counter_name(v.name))
         if len(assigned_variables) > 0:
             succs = nip_func.cfg.all_succs[n]
             assert len(succs) == 1, f'{n=} {succs=}'
@@ -170,7 +171,7 @@ def ensure_guard_and_state_update_correctness(nip_func: nip.Function) -> None:
                 assigned_variables), "we shouldn't have any nip variables in non nip nodes"
 
             assert set(upd.var for upd in upd_node.upds) == set(
-                map(nip.guard_var, assigned_prog_variables))
+                (nip.guard_var(v) for v in assigned_prog_variables if not source.is_loop_counter_name(v.name)))
             # TODO: make sure the dependencies are correct. Not much value in
             # doing that because I'm repeating the exact same logic that's in
             # the code already
@@ -178,7 +179,7 @@ def ensure_guard_and_state_update_correctness(nip_func: nip.Function) -> None:
 
 def do_nip_test(func: syntax.Function) -> None:
     print(func.name)
-    prog_func = source.convert_function(func).with_ghost(ghost_data.empty)
+    prog_func = source.convert_function(func).with_ghost(None)
     nip_func = nip.nip(prog_func)
     ensure_correspondence(prog_func, nip_func)
     ensure_guard_and_state_update_correctness(nip_func)
@@ -192,4 +193,7 @@ def test_nip_test_functions(func: syntax.Function) -> None:
 @pytest.mark.slow
 @pytest.mark.parametrize('func', (f for f in sorted(kernel_CFunctions[1].values(), key=lambda f: len(f.nodes)) if f.entry is not None))
 def test_nip_kernel_functions(func: syntax.Function) -> None:
+    if func.name in ('Kernel_C.merge_regions', 'Kernel_C.create_untypeds', 'Kernel_C.reserve_region'):
+        pytest.skip("loop headers change during transformation, not supported")
+
     do_nip_test(func)

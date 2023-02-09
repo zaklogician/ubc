@@ -18,7 +18,7 @@ import nip
 import syntax
 from typing_extensions import assert_never
 import assume_prove
-import ghost_data
+import ghost_code
 
 
 def pretty_name(name: Any) -> str:
@@ -160,7 +160,7 @@ ErrNodeName = 'Err'
 
 
 @viz
-def viz_function(file: IOBase, fun: source.Function[Any]) -> None:
+def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
     puts: Callable[...,
                    None] = lambda *args, **kwargs: print(*args, file=file, **kwargs)
 
@@ -363,9 +363,10 @@ if __name__ == "__main__":
     # viz_raw_function(functions[function_name])
     # viz_function(source.convert_function(functions[function_name]))
     func = source.convert_function(
-        functions[function_name]).with_ghost(ghost_data.empty)
+        functions[function_name]).with_ghost(None)
     nip_func = nip.nip(func)
-    dsa_func = dsa.dsa(nip_func)
+    ghost_func = ghost_code.sprinkle_ghost_code(nip_func)
+    dsa_func = dsa.dsa(ghost_func)
     viz_function(dsa_func)
     assume_prove.pretty_print_prog(
         assume_prove.make_prog(dsa_func))

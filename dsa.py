@@ -4,6 +4,7 @@ from typing_extensions import assert_never
 import abc_cfg
 import source
 import nip
+import ghost_code
 from utils import set_union
 from dataclasses import dataclass
 
@@ -17,7 +18,7 @@ BaseVarName = TypeVar('BaseVarName', source.ProgVarName, nip.GuardVarName,
                       source.ProgVarName | nip.GuardVarName, covariant=True)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class Incarnation(Generic[BaseVarName]):
     base: BaseVarName
     inc: IncarnationNum
@@ -28,7 +29,7 @@ Var: TypeAlias = source.ExprVarT[Incarnation[BaseVarName]]
 
 
 @dataclass(frozen=True)
-class Function(source.Function[Incarnation[source.ProgVarName | nip.GuardVarName]]):
+class GenericFunction(ghost_code.GenericFunction[source.VarNameKind, source.VarNameKind2]):
     """ DSA Function """
 
     contexts: Mapping[source.NodeName,
@@ -36,6 +37,10 @@ class Function(source.Function[Incarnation[source.ProgVarName | nip.GuardVarName
     """ Mapping for each node from prog variable to the incarnation number at
         the _end_ of that node
     """
+
+
+Function = GenericFunction[Incarnation[source.ProgVarName |
+                                       nip.GuardVarName], source.ProgVarName | nip.GuardVarName]
 
 
 @dataclass(frozen=True)
@@ -69,7 +74,7 @@ def guard_var_at_node(func: Function, n: source.NodeName, var: Var[source.ProgVa
 
 @dataclasses.dataclass
 class DSABuilder:
-    original_func: source.Function[source.ProgVarName | nip.GuardVarName]
+    original_func: ghost_code.Function
 
     dsa_nodes: dict[source.NodeName,
                     source.Node[Incarnation[nip.GuardVarName | source.ProgVarName]]]
@@ -236,7 +241,7 @@ def recompute_loops_post_dsa(s: DSABuilder, dsa_loop_targets: Mapping[source.Loo
     return loops
 
 
-def dsa(func: source.Function[source.ProgVarName | nip.GuardVarName]) -> Function:
+def dsa(func: ghost_code.Function) -> Function:
     """
     Returns the dsa function, and an artifact to make it easy to emit
     expressions into the DSA later on (used to emit the loop invariants)
@@ -402,6 +407,7 @@ def dsa(func: source.Function[source.ProgVarName | nip.GuardVarName]) -> Functio
 
     # FIXME: this function is useless
     loops = recompute_loops_post_dsa(s, dsa_loop_targets, cfg)
+    # loops = abc_cfg.compute_loops(s.dsa_nodes, cfg)
 
     return Function(
         cfg=cfg,

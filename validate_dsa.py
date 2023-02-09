@@ -3,6 +3,7 @@ from typing_extensions import assert_never
 import abc_cfg
 import source
 import nip
+import ghost_code
 import dsa
 
 
@@ -40,8 +41,9 @@ def ensure_assigned_at_most_once(func: dsa.Function, path: Collection[source.Nod
     assigned_variables: list[dsa.Var[source.ProgVarName |
                                      nip.GuardVarName]] = []
     for node in path:
-        assigned_variables.extend(
-            source.assigned_variables_in_node(func, node, with_loop_targets=True))
+        assigned_variables.extend(source.assigned_variables_in_node(
+            func, node, with_loop_targets=True))
+
     assert len(assigned_variables) == len(set(assigned_variables))
 
 
@@ -135,8 +137,12 @@ def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName | nip.GuardV
         for i in range(len(prog.rets)):
             assert_var_equals_mod_dsa(prog.rets[i], node.rets[i])
 
-    elif isinstance(prog, source.NodeCond | source.NodeAssume):
+    elif isinstance(prog, source.NodeCond):
         assert isinstance(node, source.NodeCond)
+        assert_expr_equals_mod_dsa(prog.expr, node.expr)
+
+    elif isinstance(prog, source.NodeAssume):
+        assert isinstance(node, source.NodeAssume)
         assert_expr_equals_mod_dsa(prog.expr, node.expr)
 
     elif isinstance(prog, source.NodeEmpty):
@@ -156,7 +162,7 @@ def assert_is_join_node(node: source.Node[dsa.Incarnation[source.ProgVarName | n
         assert lhs_name == rhs_name
 
 
-def ensure_correspondence(prog_func: source.Function[source.ProgVarName | nip.GuardVarName], dsa_func: dsa.Function) -> None:
+def ensure_correspondence(prog_func: ghost_code.Function, dsa_func: dsa.Function) -> None:
     assert set(prog_func.nodes.keys()).issubset(dsa_func.nodes.keys())
 
     join_node_names: list[source.NodeName] = []
@@ -234,7 +240,7 @@ def ensure_valid_contexts(func: dsa.Function) -> None:
     assert new_contexts == func.contexts
 
 
-def validate(func: source.Function[source.ProgVarName | nip.GuardVarName], dsa_func: dsa.Function) -> None:
+def validate(func: ghost_code.Function, dsa_func: dsa.Function) -> None:
     ensure_correspondence(func, dsa_func)
     ensure_valid_dsa(dsa_func)
     ensure_valid_contexts(dsa_func)

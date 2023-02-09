@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Any, Callable, Generic, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, TypeVar
+from typing import Any, Callable, Generic, Iterator, Literal, Mapping, NamedTuple, NewType, Sequence, Set, TypeAlias, TypeVar
 from typing_extensions import assert_never
 
 import syntax
@@ -12,8 +12,14 @@ class ProgVarName(str):
     """ for example foo___int#v """
 
 
-class HumanVarName(str):
+HumanVarNameSubject = NewType('HumanVarNameSubject', str)
+
+
+class HumanVarName(NamedTuple):
+    subject: HumanVarNameSubject
     """ for example foo """
+    use_guard: bool
+    """ if set to true, this will evaluate to foo#assigned """
 
 
 # expressions are immutable containers, so they are covariant in their generic
@@ -730,7 +736,11 @@ import abc_cfg  # nopep8
 
 
 @dataclass(frozen=True)
-class GhostlessFunction(Generic[VarNameKind]):
+class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
+    """
+    First generic parameter: var name kind for nodes
+    Second generic parameter: var name kind for ghost
+    """
 
     name: str
 
@@ -755,8 +765,8 @@ class GhostlessFunction(Generic[VarNameKind]):
         return None
 
     def is_loop_latch(self, node_name: NodeName) -> bool:
-        """ A loop latch is a node which jumps back to the loop header """
-        return any((node_name, succ) in self.cfg.back_edges for succ in self.cfg.all_succs[node_name])
+        """ A loop latch is a node which jumps (not necessarily back) to the loop header (LLVM terminology) """
+        return any(self.is_loop_header(succ) is not None for succ in self.cfg.all_succs[node_name])
 
     def acyclic_preds_of(self, node_name: NodeName) -> Iterator[NodeName]:
         """ returns all the direct predecessors, removing the ones that would follow back edges """
@@ -815,20 +825,34 @@ class GhostlessFunction(Generic[VarNameKind]):
                 self, n, with_loop_targets=True))
         return all_vars
 
-    def with_ghost(self, ghost: Ghost) -> Function[VarNameKind]:
-        return Function(name=self.name, nodes=self.nodes, loops=self.loops, arguments=self.arguments, cfg=self.cfg, ghost=ghost)
+    def with_ghost(self, ghost: Ghost[HumanVarName] | None) -> GenericFunction[VarNameKind, HumanVarName]:
+        if ghost is None:
+            ghost = Ghost(precondition=expr_true,
+                          postcondition=expr_true,
+                          loop_invariants={lh: expr_true for lh in self.loops.keys()})
+        assert self.loops.keys() == ghost.loop_invariants.keys(), "loop invariants don't match"
+        return GenericFunction(name=self.name, nodes=self.nodes, loops=self.loops, arguments=self.arguments, cfg=self.cfg, ghost=ghost)
 
 
 @dataclass(frozen=True)
-class Ghost:
-    precondition: ExprT[HumanVarName]
-    postcondition: ExprT[HumanVarName]
-    loop_invariants: Mapping[LoopHeaderName, ExprT[HumanVarName]]
+class Ghost(Generic[VarNameKind]):
+    precondition: ExprT[VarNameKind]
+    postcondition: ExprT[VarNameKind]
+    loop_invariants: Mapping[LoopHeaderName, ExprT[VarNameKind]]
 
 
 @dataclass(frozen=True)
-class Function(GhostlessFunction[VarNameKind]):
-    ghost: Ghost
+class GenericFunction(GhostlessFunction[VarNameKind, VarNameKind2]):
+    ghost: Ghost[VarNameKind2]
+
+
+Function = GenericFunction[ProgVarName, HumanVarName]
+
+
+def is_loop_counter_name(var: str) -> bool:
+    return (var.startswith("loop#")
+            and var.endswith("#count")
+            and all(map(lambda c: ord('0') <= ord(c) and ord(c) <= ord('9'), var[len("loop#"):-len("#count")])))
 
 
 def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]]:
@@ -846,7 +870,7 @@ def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]
     return used_variables
 
 
-def assigned_variables_in_node(func: GhostlessFunction[VarNameKind], n: NodeName, *, with_loop_targets: bool) -> Set[ExprVarT[VarNameKind]]:
+def assigned_variables_in_node(func: GhostlessFunction[VarNameKind, Any], n: NodeName, *, with_loop_targets: bool) -> Set[ExprVarT[VarNameKind]]:
     if n in (NodeNameRet, NodeNameErr):
         return set()
 
@@ -902,13 +926,14 @@ def convert_function_nodes(nodes: Mapping[str | int, syntax.Node]) -> Mapping[No
     return safe_nodes
 
 
-def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName]:
+def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, Any]:
     safe_nodes = convert_function_nodes(func.nodes)
     all_succs = abc_cfg.compute_all_successors_from_nodes(safe_nodes)
     assert func.entry is not None
     cfg = abc_cfg.compute_cfg_from_all_succs(
         all_succs, NodeName(str(func.entry)))
-    loops = abc_cfg.compute_loops(safe_nodes, cfg)
+    loops = abc_cfg.compute_loops(
+        safe_nodes, cfg)
 
     args = tuple(ExprVar(convert_type(typ), ProgVarName(name))
                  for name, typ in func.inputs)

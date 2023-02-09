@@ -7,6 +7,7 @@ import assume_prove
 import smt
 import syntax
 import ghost_data
+import ghost_code
 
 # global variables are bad :(
 syntax.set_arch('rv64')
@@ -27,7 +28,9 @@ def verify(filename: str, unsafe_func: syntax.Function) -> smt.VerificationResul
     prog_func = source.convert_function(unsafe_func).with_ghost(
         ghost_data.get(filename, unsafe_func.name))
     nip_func = nip.nip(prog_func)
-    dsa_func = dsa.dsa(nip_func)
+    ghost_func = ghost_code.sprinkle_ghost_code(nip_func)
+    dsa_func = dsa.dsa(ghost_func)
+
     prog = assume_prove.make_prog(dsa_func)
     smtlib = smt.make_smtlib(prog)
     sats = tuple(smt.send_smtlib_to_z3(smtlib))

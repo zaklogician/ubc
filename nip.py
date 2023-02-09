@@ -10,11 +10,13 @@ short circuiting: a && b won't evaluate b is a is true. So the statement
     prove a_defined && b_defined && a && b
 """
 
+from __future__ import annotations
+from collections import defaultdict
 from dataclasses import dataclass
 import dataclasses
 from functools import reduce
 import abc_cfg
-from typing import Iterator, NewType, Sequence, TypeAlias, cast
+from typing import Any, Callable, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, overload
 from typing_extensions import assert_never
 import source
 
@@ -27,10 +29,15 @@ GuardVar = source.ExprVarT[GuardVarName]
 
 
 @dataclass(frozen=True)
-class Function(source.Function[source.ProgVarName | GuardVarName]):
+class GenericFunction(source.GenericFunction[source.VarNameKind, source.VarNameKind2]):
     """
     Non-initialized protected function
     """
+    ghost: source.Ghost[source.VarNameKind2]
+
+
+Function = GenericFunction[source.ProgVarName |
+                           GuardVarName, source.ProgVarName | GuardVarName]
 
 
 @dataclass(frozen=True)
@@ -63,11 +70,14 @@ def var_deps(expr: source.ExprT[source.ProgVarName]) -> source.ExprT[GuardVarNam
 def make_state_update_for_node(node: source.Node[source.ProgVarName]) -> Iterator[source.Update[GuardVarName]]:
     if isinstance(node, source.NodeBasic):
         for upd in node.upds:
-            yield source.Update(guard_var(upd.var), var_deps(upd.expr))
+            if not source.is_loop_counter_name(upd.var.name):
+                yield source.Update(guard_var(upd.var), var_deps(upd.expr))
     elif isinstance(node, source.NodeCall):
         deps = reduce(source.expr_and, (var_deps(arg)
                                         for arg in node.args), source.expr_true)
         for ret in node.rets:
+            assert not source.is_loop_counter_name(
+                ret.name), "didn't expect a return value to be a loop counter"
             yield source.Update(guard_var(ret), deps)
     else:
         assert not isinstance(node, source.NodeEmpty | source.NodeCond |
@@ -77,10 +87,10 @@ def make_state_update_for_node(node: source.Node[source.ProgVarName]) -> Iterato
 
 def make_protection_for_node(node: source.Node[source.ProgVarName]) -> source.ExprT[GuardVarName]:
     # for now, we ignore short circuiting
-    return reduce(source.expr_and, map(guard_var, source.used_variables_in_node(node)), source.expr_true)
+    return reduce(source.expr_and, (guard_var(v) for v in source.used_variables_in_node(node) if not source.is_loop_counter_name(v.name)), source.expr_true)
 
 
-def make_initial_state(func: source.Function[source.ProgVarName]) -> Iterator[source.Update[GuardVarName]]:
+def make_initial_state(func: source.Function) -> Iterator[source.Update[GuardVarName]]:
     # TODO: globals
     for arg in func.arguments:
         yield source.Update(guard_var(arg), source.expr_true)
@@ -90,8 +100,8 @@ def make_initial_state(func: source.Function[source.ProgVarName]) -> Iterator[so
 
 
 def update_node_successors(node: source.Node[source.VarNameKind], successors: Sequence[source.NodeName]) -> source.Node[source.VarNameKind]:
-    # TOOD: DANGER this successor ordering is pretty dangerous
-    #       find a way to do this more safely.
+    # FIXME: DANGER this successor ordering is pretty dangerous
+    #        find a way to do this more safely.
     if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume):
         assert len(successors) == 1, "wrong number of successors for node"
         return dataclasses.replace(node, succ=successors[0])
@@ -103,7 +113,49 @@ def update_node_successors(node: source.Node[source.VarNameKind], successors: Se
     assert_never(node)
 
 
-def nip(func: source.Function[source.ProgVarName]) -> Function:
+class UnificationError(Exception):
+    pass
+
+
+def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.ProgVarName | GuardVarName]:
+    conversion_map: defaultdict[source.ExprVarT[source.HumanVarName],
+                                list[source.ExprVarT[source.ProgVarName | GuardVarName]]] = defaultdict(lambda: [])
+
+    # FIXME: make this more efficient if needed
+    all_vars = func.all_variables()
+    for var in all_vars:
+
+        prefix = source.HumanVarNameSubject(var.name.split('___')[0])
+        conversion_map[source.ExprVar(var.typ, source.HumanVarName(
+            prefix, use_guard=False))].append(var)
+        conversion_map[source.ExprVar(source.type_bool, source.HumanVarName(
+            prefix, use_guard=True))].append(guard_var(var))
+
+    def converter(human: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName | GuardVarName]:
+
+        if human not in conversion_map:
+            raise UnificationError(f"no variable matched with {human}")
+
+        if len(conversion_map[human]) > 1:
+            raise UnificationError(
+                f"ambiguous name {human}, matches with all of {conversion_map[human]}")
+
+        match = conversion_map[human][0]
+        if human.typ != match.typ:
+            raise UnificationError(
+                f"matched variable doesn't have equal type: {human} {match}")
+
+        return match
+
+    return source.Ghost(
+        precondition=source.convert_expr_vars(
+            converter, func.ghost.precondition),
+        postcondition=source.convert_expr_vars(
+            converter, func.ghost.postcondition),
+        loop_invariants={lh: source.convert_expr_vars(converter, inv) for lh, inv in func.ghost.loop_invariants.items()})
+
+
+def nip(func: source.Function) -> Function:
     """
     - after the entry node, forall all arguments a, set <a>_initialized = true in a
       basic block.
@@ -141,7 +193,9 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
 
         if isinstance(node, source.NodeBasic | source.NodeCall):
             assert n not in state_updates
-            state_updates[n] = tuple(make_state_update_for_node(node))
+            upds = tuple(make_state_update_for_node(node))
+            if len(upds) > 0:
+                state_updates[n] = upds
         elif not isinstance(node, source.NodeEmpty | source.NodeCond):
             assert_never(node)
 
@@ -200,5 +254,11 @@ def nip(func: source.Function[source.ProgVarName]) -> Function:
 
     all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
     cfg = abc_cfg.compute_cfg_from_all_succs(all_succs, func.cfg.entry)
-    loops = abc_cfg.compute_loops(new_nodes, cfg)
-    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, name=func.name, ghost=func.ghost)
+    loops = abc_cfg.compute_loops(
+        new_nodes, cfg)
+
+    assert loops.keys() == func.loops.keys(
+    ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
+
+    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments,
+                    name=func.name, ghost=unify_variables_to_make_ghost(func))
