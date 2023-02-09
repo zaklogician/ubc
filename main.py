@@ -4,7 +4,7 @@ from typing import Collection, Sequence, Tuple, Any, Dict
 import sys
 import os
 from typing_extensions import assert_never
-from dot_graph import viz_function
+from dot_graph import viz_function, viz_raw_function
 
 import syntax
 import source
@@ -51,6 +51,8 @@ def same_var_diff_type(func: source.Function[source.ProgVarName]) -> None:
 
 
 class CmdlineOption(Enum):
+    SHOW_RAW = '--show-raw'
+    """ Show the raw function """
     SHOW_GRAPH = '--show-graph'
     """ Show the graph lang """
     SHOW_DSA = '--show-dsa'
@@ -124,6 +126,8 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
 
     for name in function_names:
         unsafe_func = functions[find_functions_by_name(functions.keys(), name)]
+        if CmdlineOption.SHOW_RAW in options:
+            viz_raw_function(unsafe_func)
 
         prog_func = source.convert_function(unsafe_func)
         if CmdlineOption.SHOW_GRAPH in options:
