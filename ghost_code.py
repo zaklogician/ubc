@@ -182,8 +182,6 @@ def sprinkle_precondition(func: nip.Function) -> Iterable[Insertion]:
 def sprinkle_postcondition(func: nip.Function) -> Iterable[Insertion]:
     assert len(func.cfg.all_preds[source.NodeNameRet]) == 1, ("not to worry, just need to handle the case "
                                                               "where the Err node has multiple predecessors")
-    if func.ghost.postcondition != source.expr_true:
-        raise NotImplementedError
     pred = func.cfg.all_preds[source.NodeNameRet][0]
     yield Insertion(node_name=source.NodeName('post_condition'),
                     after=pred,
@@ -246,4 +244,4 @@ def sprinkle_ghost_code(func: nip.Function) -> Function:
         new_nodes, cfg)
     assert loops.keys() == func.loops.keys(
     ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
-    return Function(name=func.name, arguments=func.arguments, rets=func.rets, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost)
+    return Function(name=func.name, arguments=func.arguments, returns=func.returns, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost)

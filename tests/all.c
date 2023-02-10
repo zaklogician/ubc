@@ -400,3 +400,29 @@ int ret_variable___fail_overflow(int ret)
 {
     return ret + 1;
 }
+
+void dont_return_things(int ret)
+{
+    if (-100 < ret && ret < 100)
+    {
+        ret *= 2;
+    }
+}
+
+int less_than(int n, int m)
+{
+    return n < m;
+}
+
+int multiple_ret_incarnations___fail_missing_invariants(int n)
+{
+    int i = 0;
+    // having a function call in the condition forces the c parser to
+    // re-arrange the graph around a little
+    while (less_than(i, n))
+    {
+        i++;
+        n--;
+    }
+    return i;
+}

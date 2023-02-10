@@ -206,9 +206,49 @@ def usage() -> None:
     exit(0)
 
 
+def debug1() -> None:
+    with open('examples/kernel_CFunctions.txt') as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        pains = []
+        for unsafe_func in functions.values():
+            if not unsafe_func.entry:
+                continue
+            func = source.convert_function(unsafe_func)
+            rets = set(var for var in func.all_variables() if var.name.startswith(
+                'ret__') and '.' not in var.name and not var.name.startswith('ret___'))
+            if len(rets) > 1:
+                pains.append((func, unsafe_func.outputs, rets))
+
+        for func, outputs, rets in sorted(pains, key=lambda v: len(v[0].nodes)):
+            print(func.name, outputs, len(func.nodes), len(rets))
+
+
+def debug() -> None:
+    with open('examples/dsa.txt') as f:
+        structs, functions, const_globals = syntax.parse_and_install_all(
+            f, None)
+        pains: list[Any] = []
+        for unsafe_func in functions.values():
+            if not unsafe_func.entry:
+                continue
+            func = source.convert_function(unsafe_func)
+            ret_assigns = []
+            for n in func.nodes:
+                for var in source.assigned_variables_in_node(func, n, with_loop_targets=False):
+                    if var.name.startswith('ret__') and not var.name.startswith('ret___'):
+                        ret_assigns.append(n)
+            if len(ret_assigns) > 1:
+                print(func.name, ret_assigns)
+
+
 def main() -> None:
     if '--help' in sys.argv or '-h' in sys.argv or len(sys.argv) == 1:
         usage()
+
+    if '--debug' in sys.argv:
+        debug()
+        exit(0)
 
     options: list[CmdlineOption] = []
     function_names: list[str] = []

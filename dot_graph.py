@@ -169,7 +169,7 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
     args = '<BR ALIGN="LEFT"/>'.join(pretty_name(arg.name)
                                      for arg in fun.arguments)
     rets = '<BR ALIGN="LEFT"/>'.join(pretty_name(ret.name)
-                                     for ret in fun.rets)
+                                     for ret in fun.returns)
     puts(
         f'  FunctionName [label=<<u>{fun.name}</u><BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Arguments:<BR ALIGN="LEFT"/>{args}<BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Returns:<BR ALIGN="LEFT"/>{rets}<BR ALIGN="LEFT"/>>] [shape=plaintext]')
     puts()

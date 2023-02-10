@@ -28,12 +28,16 @@ def i32(n: int) -> source.ExprNumT:
 
 
 def i32v(name: str) -> source.ExprVarT[source.HumanVarName]:
-    return source.ExprVar(source.type_word32, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=False))
+    return source.ExprVar(source.type_word32, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=False, path=()))
 
 
 def g(name: str) -> source.ExprVarT[source.HumanVarName]:
     """ guard """
-    return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=True))
+    return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=True, path=()))
+
+
+i32ret = source.ExprVar(source.type_word32, source.HumanVarName(
+    source.HumanVarNameSpecial.RET, use_guard=False, path=()))
 
 
 def sbounded(var: source.ExprVarT[source.HumanVarName], lower: source.ExprT[source.HumanVarName], upper: source.ExprT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
@@ -85,7 +89,14 @@ universe = {
                     g('s')),
             },
             precondition=sbounded(i32v('n'), i32(0), i32(100)),
-            postcondition=T,
+            postcondition=eq(i32ret, udiv(
+                mul(i32v('n'), sub(i32v('i'), i32(1))), i32(2))),
+        ),
+
+        "tmp.multiple_ret_incarnations___fail_missing_invariants": source.Ghost(
+            loop_invariants={lh('5'): T},
+            precondition=sle(i32(0), i32v('n')),
+            postcondition=eq(i32ret, udiv(i32v('n'), i32(2)))
         )
     }
 }

@@ -283,3 +283,18 @@ void almost_empty()
 }
 
 // void prototype();
+
+struct rect
+{
+    struct point botleft;
+    struct point topright;
+};
+
+struct rect grow(struct rect r)
+{
+    if (r.topright.x < 1024)
+        r.topright.x += 1;
+    if (r.topright.y < 1024)
+        r.topright.y += 1;
+    return r;
+}

@@ -127,9 +127,11 @@ def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.
 
         prefix = source.HumanVarNameSubject(var.name.split('___')[0])
         conversion_map[source.ExprVar(var.typ, source.HumanVarName(
-            prefix, use_guard=False))].append(var)
+            prefix, path=(), use_guard=False))].append(var)
         conversion_map[source.ExprVar(source.type_bool, source.HumanVarName(
-            prefix, use_guard=True))].append(guard_var(var))
+            prefix, path=(), use_guard=True))].append(guard_var(var))
+
+    # conversion_map[]
 
     def converter(human: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName | GuardVarName]:
 
@@ -147,11 +149,23 @@ def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.
 
         return match
 
+    def postcondition_converter(human: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName | GuardVarName]:
+        if human.name.subject is source.HumanVarNameSpecial.RET:
+            assert len(human.name.path) == 0, "path aren't supported yet"
+            ret = func.c_return(human.name.path)
+            # TODO: better error reporting mechanism
+            if ret is None:
+                raise ValueError(
+                    "UserError: post condition used return value but functions has return type void")
+            return ret
+
+        return converter(human)
+
     return source.Ghost(
         precondition=source.convert_expr_vars(
             converter, func.ghost.precondition),
         postcondition=source.convert_expr_vars(
-            converter, func.ghost.postcondition),
+            postcondition_converter, func.ghost.postcondition),
         loop_invariants={lh: source.convert_expr_vars(converter, inv) for lh, inv in func.ghost.loop_invariants.items()})
 
 
@@ -260,5 +274,5 @@ def nip(func: source.Function) -> Function:
     assert loops.keys() == func.loops.keys(
     ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
 
-    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, rets=func.rets,
+    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, returns=func.returns,
                     name=func.name, ghost=unify_variables_to_make_ghost(func))

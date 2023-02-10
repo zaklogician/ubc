@@ -264,13 +264,13 @@ def dsa(func: ghost_code.Function) -> Function:
     s = DSABuilder(original_func=func, insertions={},
                    dsa_nodes={}, incarnations={})
 
-    entry_incarnations: dict[source.ExprVarT[source.ProgVarName |
-                                             nip.GuardVarName], IncarnationNum] = {}
+    entry_context: dict[source.ExprVarT[source.ProgVarName |
+                                        nip.GuardVarName], IncarnationNum] = {}
     dsa_args: list[source.ExprVarT[Incarnation[source.ProgVarName |
                                                nip.GuardVarName]]] = []
     for arg in func.arguments:
         dsa_args.append(make_dsa_var(arg, IncarnationBase))
-        entry_incarnations[arg] = IncarnationBase
+        entry_context[arg] = IncarnationBase
 
     assert len(set(unpack_dsa_var_name(arg.name)[0] for arg in dsa_args)) == len(
         dsa_args), "unexpected duplicate argument name"
@@ -282,6 +282,8 @@ def dsa(func: ghost_code.Function) -> Function:
         if current_node in (source.NodeNameErr, source.NodeNameRet):
             continue
 
+        node = func.nodes[current_node]
+
         # build up a context (map from prog var to incarnation numbers)
         # TODO: clean this up
         context: dict[source.ExprVarT[source.ProgVarName |
@@ -289,7 +291,7 @@ def dsa(func: ghost_code.Function) -> Function:
         curr_node_insertions: dict[source.ExprVarT[source.ProgVarName | nip.GuardVarName],
                                    IncarnationNum] | None = None
         if current_node == func.cfg.entry:
-            context = entry_incarnations
+            context = dict(entry_context)
         else:
             context = {}
             curr_node_insertions = {}
@@ -329,6 +331,47 @@ def dsa(func: ghost_code.Function) -> Function:
 
             dsa_loop_targets[loop_header] = tuple(targets)
 
+        if isinstance(node, ghost_code.NodePostConditionProofObligation):
+            # we need to use the entry's context for the argument variables in
+            # the post condition, eg
+            #
+            #     int add_one(int n)
+            #     ensures ret == n + 1
+            #     {
+            #         n = 0;         // n2 = 0
+            #         return 1;      // prove 1 == n1 + 1    ; notice n1, not n2
+            #     }
+            #
+            # This function shouldn't verify. From the perspective of the
+            # caller,
+            #
+            #     add_one(3) == 4, not 1
+            #
+            # But for local variable, it should be just regular DSA
+            #
+            #     int add(int a, int b)
+            #     ensures ret == a + b
+            #     {
+            #         int sum = 0;      // sum1 = 0
+            #         sum = sum + a;    // sum2 = sum1 + a1
+            #         sum = sum + b;    // sum3 = sum2 + b1
+            #         a = 0;            // a2 = 0
+            #         b = 0;            // b2 = 0
+            #         return sum;       // prove sum3 = a1 + b1   ; notice sum3, not sum1
+            #     }
+            #
+            # using a different context in the middle of the graph could
+            # result in some very weird behavior. This doesn't matter because
+            # the post condition proof obligation is right at the bottom of
+            # the function. So to be safe, we validate those assumptions
+            assert node.succ_then == source.NodeNameRet
+            assert node.succ_else == source.NodeNameErr
+
+            # in the post condition, when you mention a function argument, you
+            # mean its value at the start of the function.
+            for arg in func.arguments:
+                context[arg] = entry_context[arg]
+
         added_incarnations: dict[source.ExprVarT[source.ProgVarName |
                                                  nip.GuardVarName], Var[source.ProgVarName | nip.GuardVarName]] = {}
 
@@ -338,7 +381,9 @@ def dsa(func: ghost_code.Function) -> Function:
         #     print(
         #         f'  {var.name}', context[var], '  [joiner]' if curr_node_insertions and var in curr_node_insertions else '')
 
-        node = func.nodes[current_node]
+        # it's important that we use dataclasses.replace here because node
+        # might be a subtype of NodeBasic/NodeCond, and we don't want to
+        # lose that information by using the constructor explicitely
         if isinstance(node, source.NodeBasic):
             upds: list[source.Update[Incarnation[source.ProgVarName |
                                                  nip.GuardVarName]]] = []
@@ -354,14 +399,15 @@ def dsa(func: ghost_code.Function) -> Function:
                 assert upd.var not in added_incarnations, "duplicate updates in BasicNode"
                 added_incarnations[upd.var] = dsa_var
 
-            s.dsa_nodes[current_node] = source.NodeBasic(
-                tuple(upds), succ=node.succ)
+            # mypy doesn't know about dataclasses.replace anyway, so it
+            # doesn't provide any guarantees. That also means it's not able
+            # to figure out that node will now be of the right type, so this
+            # type ignore is required.
+            s.dsa_nodes[current_node] = dataclasses.replace(
+                node, upds=tuple(upds))  # type: ignore
         elif isinstance(node, source.NodeCond):
-            s.dsa_nodes[current_node] = source.NodeCond(
-                expr=apply_incarnations(context, node.expr),
-                succ_then=node.succ_then,
-                succ_else=node.succ_else,
-            )
+            s.dsa_nodes[current_node] = dataclasses.replace(
+                node, expr=apply_incarnations(context, node.expr))  # type: ignore
         elif isinstance(node, source.NodeCall):
             args = tuple(apply_incarnations(context, arg)
                          for arg in node.args)
@@ -373,17 +419,11 @@ def dsa(func: ghost_code.Function) -> Function:
                 rets.append(make_dsa_var(ret, inc))
                 added_incarnations[ret] = rets[-1]
 
-            s.dsa_nodes[current_node] = source.NodeCall(
-                succ=node.succ,
-                args=args,
-                rets=tuple(rets),
-                fname=node.fname,
-            )
+            s.dsa_nodes[current_node] = dataclasses.replace(
+                node, args=args, rets=tuple(rets))  # type: ignore
         elif isinstance(node, source.NodeAssume):
-            s.dsa_nodes[current_node] = source.NodeAssume(
-                expr=apply_incarnations(context, node.expr),
-                succ=node.succ,
-            )
+            s.dsa_nodes[current_node] = dataclasses.replace(
+                node, expr=apply_incarnations(context, node.expr))  # type: ignore
         elif isinstance(node, source.NodeEmpty):
             s.dsa_nodes[current_node] = node
         else:
@@ -409,10 +449,12 @@ def dsa(func: ghost_code.Function) -> Function:
     loops = recompute_loops_post_dsa(s, dsa_loop_targets, cfg)
     # loops = abc_cfg.compute_loops(s.dsa_nodes, cfg)
 
+    assert loops.keys() == func.loops.keys()
+
     return Function(
         cfg=cfg,
         arguments=tuple(dsa_args),
-        rets=func.rets,
+        returns=func.returns,
         loops=loops,
         name=func.name,
         nodes=s.dsa_nodes,

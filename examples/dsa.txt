@@ -1,6 +1,21 @@
+Struct tmp.rect_C 16 4
+StructField botleft_C Struct tmp.point_C 0
+StructField topright_C Struct tmp.point_C 8
 Struct tmp.point_C 8 4
 StructField x_C Word 32 0
 StructField y_C Word 32 4
+
+Function tmp.grow 8 r___struct_rect_C#v.botleft_C.x_C Word 32 r___struct_rect_C#v.botleft_C.y_C Word 32 r___struct_rect_C#v.topright_C.x_C Word 32 r___struct_rect_C#v.topright_C.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 8 ret__struct_rect_C#v.botleft_C.x_C Word 32 ret__struct_rect_C#v.botleft_C.y_C Word 32 ret__struct_rect_C#v.topright_C.x_C Word 32 ret__struct_rect_C#v.topright_C.y_C Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 4 ret__struct_rect_C#v.botleft_C.x_C Word 32 Var r___struct_rect_C#v.botleft_C.x_C Word 32 ret__struct_rect_C#v.botleft_C.y_C Word 32 Var r___struct_rect_C#v.botleft_C.y_C Word 32 ret__struct_rect_C#v.topright_C.x_C Word 32 Var r___struct_rect_C#v.topright_C.x_C Word 32 ret__struct_rect_C#v.topright_C.y_C Word 32 Var r___struct_rect_C#v.topright_C.y_C Word 32
+4 Basic 3 1 r___struct_rect_C#v.topright_C.y_C Word 32 Op Plus Word 32 2 Var r___struct_rect_C#v.topright_C.y_C Word 32 Num 1 Word 32
+5 Cond 4 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var r___struct_rect_C#v.topright_C.y_C Word 32 Op Plus Word 32 2 Var r___struct_rect_C#v.topright_C.y_C Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+6 Cond 5 3 Op SignedLess Bool 2 Var r___struct_rect_C#v.topright_C.y_C Word 32 Num 1024 Word 32
+7 Basic 6 1 r___struct_rect_C#v.topright_C.x_C Word 32 Op Plus Word 32 2 Var r___struct_rect_C#v.topright_C.x_C Word 32 Num 1 Word 32
+8 Cond 7 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var r___struct_rect_C#v.topright_C.x_C Word 32 Op Plus Word 32 2 Var r___struct_rect_C#v.topright_C.x_C Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+9 Cond 8 6 Op SignedLess Bool 2 Var r___struct_rect_C#v.topright_C.x_C Word 32 Num 1024 Word 32
+EntryPoint 9
 
 Function tmp.init 5 b___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
