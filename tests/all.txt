@@ -76,6 +76,13 @@ Function tmp.signed_cast__fail_overflow 5 c___int#v Word 32 Mem Mem HTD HTD PMS 
 6 Cond 5 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var c___int#v Word 32 Op Plus Word 32 2 Var c___int#v Word 32 Num 32 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 32 Word 32
 EntryPoint 6
 
+Function tmp.ret_variable___fail_overflow 5 ret___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Op Plus Word 32 2 Var ret___int#v Word 32 Num 1 Word 32
+4 Cond 3 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var ret___int#v Word 32 Op Plus Word 32 2 Var ret___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+EntryPoint 4
+
 Function tmp.used_undefined_variable3__ok 5 cond___int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0

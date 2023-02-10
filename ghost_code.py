@@ -246,4 +246,4 @@ def sprinkle_ghost_code(func: nip.Function) -> Function:
         new_nodes, cfg)
     assert loops.keys() == func.loops.keys(
     ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
-    return Function(name=func.name, arguments=func.arguments, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost)
+    return Function(name=func.name, arguments=func.arguments, rets=func.rets, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost)

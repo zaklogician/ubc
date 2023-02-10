@@ -260,5 +260,5 @@ def nip(func: source.Function) -> Function:
     assert loops.keys() == func.loops.keys(
     ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
 
-    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments,
+    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, rets=func.rets,
                     name=func.name, ghost=unify_variables_to_make_ghost(func))

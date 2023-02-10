@@ -394,3 +394,9 @@ int multiple_loops___fail_missing_invariant()
         }
     } while (i < 100);
 }
+
+
+int ret_variable___fail_overflow(int ret)
+{
+    return ret + 1;
+}

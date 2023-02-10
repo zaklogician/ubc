@@ -12,6 +12,17 @@ class ProgVarName(str):
     """ for example foo___int#v """
 
 
+class RetVarName(str):
+    """ for example ret__int#v, MEM
+
+    Notice there are only 2 underscores on ret__. Local variables have three
+    underscores. So ret__unsigned#v is the return value, ret__unsigned#v is
+    just a local variable of type unsigned. A function can have just
+    one "real" output (c code obviously), but it has multiple return value
+    that the c parser adds (like MEM).
+    """
+
+
 HumanVarNameSubject = NewType('HumanVarNameSubject', str)
 
 
@@ -517,6 +528,7 @@ expr_sle = mk_binary_bitvec_relation(Operator.SIGNED_LESS_EQUALS)
 expr_mul = mk_binary_bitvec_operation(Operator.TIMES)
 expr_sub = mk_binary_bitvec_operation(Operator.MINUS)
 expr_udiv = mk_binary_bitvec_operation(Operator.DIVIDED_BY)
+# don't implement expr_sdiv (cparser will never generate signed division)
 
 
 def expr_ite(cond: ExprT[VarNameKind], yes: ExprT[VarNameKind], no: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
@@ -759,6 +771,8 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
 
     arguments: tuple[ExprVarT[VarNameKind], ...]
 
+    rets: tuple[ExprVarT[RetVarName], ...]
+
     def is_loop_header(self, node_name: NodeName) -> LoopHeaderName | None:
         if node_name in self.loops:
             return LoopHeaderName(node_name)
@@ -831,7 +845,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
                           postcondition=expr_true,
                           loop_invariants={lh: expr_true for lh in self.loops.keys()})
         assert self.loops.keys() == ghost.loop_invariants.keys(), "loop invariants don't match"
-        return GenericFunction(name=self.name, nodes=self.nodes, loops=self.loops, arguments=self.arguments, cfg=self.cfg, ghost=ghost)
+        return GenericFunction(name=self.name, nodes=self.nodes, loops=self.loops, arguments=self.arguments, rets=self.rets, cfg=self.cfg, ghost=ghost)
 
 
 @dataclass(frozen=True)
@@ -937,5 +951,7 @@ def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, An
 
     args = tuple(ExprVar(convert_type(typ), ProgVarName(name))
                  for name, typ in func.inputs)
+    rets = tuple(ExprVar(convert_type(typ), RetVarName(name))
+                 for name, typ in func.outputs)
 
-    return GhostlessFunction(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=args, name=func.name)
+    return GhostlessFunction(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=args, name=func.name, rets=rets)

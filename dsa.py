@@ -412,6 +412,7 @@ def dsa(func: ghost_code.Function) -> Function:
     return Function(
         cfg=cfg,
         arguments=tuple(dsa_args),
+        rets=func.rets,
         loops=loops,
         name=func.name,
         nodes=s.dsa_nodes,
