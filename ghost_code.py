@@ -25,12 +25,12 @@ import nip
 
 
 @dataclass(frozen=True)
-class PostConditionProofObligation(source.NodeCond[source.VarNameKind]):
+class NodePostConditionProofObligation(source.NodeCond[source.VarNameKind]):
     pass
 
 
 @dataclass(frozen=True)
-class PreconditionAssumption(source.NodeAssume[source.VarNameKind]):
+class NodePreconditionAssumption(source.NodeAssume[source.VarNameKind]):
     pass
 
 
@@ -44,8 +44,8 @@ class NodeLoopInvariantProofObligation(source.NodeCond[source.VarNameKind]):
     pass
 
 
-NodeGhostCode = (PostConditionProofObligation[source.VarNameKind]
-                 | PreconditionAssumption[source.VarNameKind]
+NodeGhostCode = (NodePostConditionProofObligation[source.VarNameKind]
+                 | NodePreconditionAssumption[source.VarNameKind]
                  | NodeLoopInvariantAssumption[source.VarNameKind]
                  | NodeLoopInvariantProofObligation[source.VarNameKind])
 
@@ -65,8 +65,8 @@ Function = GenericFunction[source.ProgVarName |
 class K(Enum):
     """ Only used in this module, hence the short name """
 
-    POST_CONDITION_PROOF_OBLIGATION = PostConditionProofObligation
-    PRECONDITION_ASSUMPTION = PreconditionAssumption
+    POST_CONDITION_PROOF_OBLIGATION = NodePostConditionProofObligation
+    PRECONDITION_ASSUMPTION = NodePreconditionAssumption
     NODE_LOOP_INVARIANT_ASSUMPTION = NodeLoopInvariantAssumption
     NODE_LOOP_INVARIANT_PROOF_OBLIGATION = NodeLoopInvariantProofObligation
 
@@ -145,10 +145,10 @@ def apply_insertions(func: nip.Function, insertions: Sequence[Insertion]) -> Map
         def constructor(succ: source.NodeName) -> tuple[source.NodeName, source.Node[source.ProgVarName | nip.GuardVarName]]:
             # the value of kind of class of the node
             if ins.kind is K.POST_CONDITION_PROOF_OBLIGATION:
-                return ins.node_name, PostConditionProofObligation(ins.expr, succ_then=succ, succ_else=source.NodeNameErr)
+                return ins.node_name, NodePostConditionProofObligation(ins.expr, succ_then=succ, succ_else=source.NodeNameErr)
 
             if ins.kind is K.PRECONDITION_ASSUMPTION:
-                return ins.node_name, PreconditionAssumption(ins.expr, succ)
+                return ins.node_name, NodePreconditionAssumption(ins.expr, succ)
 
             if ins.kind is K.NODE_LOOP_INVARIANT_ASSUMPTION:
                 return ins.node_name, NodeLoopInvariantAssumption(ins.expr, succ)
