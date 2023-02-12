@@ -1,6 +1,5 @@
 from typing_extensions import assert_never
 import source
-import nip
 from typing import Collection, Mapping, NamedTuple, Sequence
 
 from utils import clen

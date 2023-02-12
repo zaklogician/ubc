@@ -403,11 +403,11 @@ def dsa(func: ghost_code.Function) -> Function:
             # doesn't provide any guarantees. That also means it's not able
             # to figure out that node will now be of the right type, so this
             # type ignore is required.
-            s.dsa_nodes[current_node] = dataclasses.replace(
-                node, upds=tuple(upds))  # type: ignore
+            s.dsa_nodes[current_node] = dataclasses.replace(   # type: ignore
+                node, upds=tuple(upds))
         elif isinstance(node, source.NodeCond):
-            s.dsa_nodes[current_node] = dataclasses.replace(
-                node, expr=apply_incarnations(context, node.expr))  # type: ignore
+            s.dsa_nodes[current_node] = dataclasses.replace(     # type: ignore
+                node, expr=apply_incarnations(context, node.expr))
         elif isinstance(node, source.NodeCall):
             args = tuple(apply_incarnations(context, arg)
                          for arg in node.args)
@@ -419,11 +419,11 @@ def dsa(func: ghost_code.Function) -> Function:
                 rets.append(make_dsa_var(ret, inc))
                 added_incarnations[ret] = rets[-1]
 
-            s.dsa_nodes[current_node] = dataclasses.replace(
-                node, args=args, rets=tuple(rets))  # type: ignore
+            s.dsa_nodes[current_node] = dataclasses.replace(   # type: ignore
+                node, args=args, rets=tuple(rets))
         elif isinstance(node, source.NodeAssume):
-            s.dsa_nodes[current_node] = dataclasses.replace(
-                node, expr=apply_incarnations(context, node.expr))  # type: ignore
+            s.dsa_nodes[current_node] = dataclasses.replace(   # type: ignore
+                node, expr=apply_incarnations(context, node.expr))
         elif isinstance(node, source.NodeEmpty):
             s.dsa_nodes[current_node] = node
         else:
