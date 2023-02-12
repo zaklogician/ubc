@@ -243,9 +243,9 @@ def emit_sort(typ: source.Type) -> SMTLIB:
         elif typ.builtin is source.Builtin.MEM:
             return MEM_SORT
         elif typ.builtin is source.Builtin.PMS:
-            return SMTLIB(PMS)
+            return PMS
         elif typ.builtin is source.Builtin.HTD:
-            return SMTLIB(HTD)
+            return HTD
     elif isinstance(typ, source.TypeBitVec):
         return SMTLIB(f'(_ BitVec {typ.size})')
     elif isinstance(typ, source.TypeWordArray):
