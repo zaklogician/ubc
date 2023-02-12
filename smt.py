@@ -47,6 +47,9 @@ MEM_SORT = SMTLIB('(Array (_ BitVec 61) (_ BitVec 64))')
 
 BOOL = SMTLIB('Bool')
 
+PMS = SMTLIB('PMS')
+HTD = SMTLIB('HTD')
+
 # 〈simple_symbol 〉 ::= a non-empty sequence of letters, digits and the characters
 #                       + - / * = % ? ! . $ _ ~ & ˆ < > @ that does not start
 #                       with a digit
@@ -55,6 +58,10 @@ RE_VALID_SMTLIB_SIMPLE_SYMBOL = re.compile(
     "^" + RE_VALID_SMTLIB_SIMPLE_SYMBOL_STR + "$")
 
 Identifier = NewType('Identifier', str)
+
+
+def word_array(typ: source.TypeWordArray) -> SMTLIB:
+    return SMTLIB(f"(Array (_ BitVec {typ.index_bits}) (_ BitVec {typ.value_bits}))")
 
 
 def identifier(illegal_name: assume_prove.VarName) -> Identifier:
@@ -96,13 +103,18 @@ class CmdDefineFun(NamedTuple):
     term: source.ExprT[assume_prove.VarName]
 
 
+class CmdDeclareSort(NamedTuple):
+    symbol: Identifier
+    arity: int
+
+
 class CmdComment(NamedTuple):
     comment: str
 
 
 EmptyLine = CmdComment('')
 
-Cmd = CmdDeclareFun | CmdDefineFun | CmdAssert | CmdCheckSat | CmdComment | CmdSetLogic
+Cmd = CmdDeclareFun | CmdDefineFun | CmdAssert | CmdCheckSat | CmdComment | CmdSetLogic | CmdDeclareSort
 
 
 ModelResponse: TypeAlias = CmdDefineFun
@@ -230,8 +242,14 @@ def emit_sort(typ: source.Type) -> SMTLIB:
             return BOOL
         elif typ.builtin is source.Builtin.MEM:
             return MEM_SORT
+        elif typ.builtin is source.Builtin.PMS:
+            return SMTLIB(PMS)
+        elif typ.builtin is source.Builtin.HTD:
+            return SMTLIB(HTD)
     elif isinstance(typ, source.TypeBitVec):
         return SMTLIB(f'(_ BitVec {typ.size})')
+    elif isinstance(typ, source.TypeWordArray):
+        return word_array(typ)
 
     assert False, f'unhandled sort {typ}'
 
@@ -264,6 +282,8 @@ def emit_cmd(cmd: Cmd) -> SMTLIB:
         return SMTLIB('; ' + cmd.comment)
     elif isinstance(cmd, CmdSetLogic):
         return SMTLIB(f'(set-logic {cmd.logic.value})')
+    elif isinstance(cmd, CmdDeclareSort):
+        return SMTLIB(f"(declare-sort {cmd.symbol} {cmd.arity})")
     assert_never(cmd)
 
 
@@ -275,11 +295,19 @@ def merge_smtlib(it: Iterator[SMTLIB]) -> SMTLIB:
     return SMTLIB('\n'.join(it))
 
 
+def emit_prelude() -> Sequence[Cmd]:
+    pms = CmdDeclareSort(Identifier(str(PMS)), 0)
+    htd = CmdDeclareSort(Identifier(str(HTD)), 0)
+    prelude = [pms, htd]
+    return prelude
+
+
 def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     emited_identifiers: set[Identifier] = set()
     emited_variables: set[assume_prove.VarName] = set()
 
     cmds: list[Cmd] = [CmdSetLogic(Logic.QF_ABV)]
+    cmds.extend(emit_prelude())
 
     # emit all auxilary variable declaration (declare-fun node_x_ok () Bool)
     for node_ok_name in p.nodes_script:
