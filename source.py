@@ -919,10 +919,13 @@ def assigned_variables_in_node(func: GhostlessFunction[VarNameKind, Any], n: Nod
 
     assigned_variables: set[ExprVarT[VarNameKind]] = set()
     node = func.nodes[n]
+    expected_length = 0
     if isinstance(node, NodeBasic):
         assigned_variables.update(upd.var for upd in node.upds)
+        expected_length += len(node.upds)
     elif isinstance(node, NodeCall):
         assigned_variables.update(ret for ret in node.rets)
+        expected_length += len(node.rets)
     elif not isinstance(node, NodeEmpty | NodeCond | NodeAssume):
         # technically, NodeAssume can encode an assignment
         # but it's just the wrong tool for the job, because the nip
@@ -934,6 +937,9 @@ def assigned_variables_in_node(func: GhostlessFunction[VarNameKind, Any], n: Nod
 
     if (loop_header := func.is_loop_header(n)) and with_loop_targets:
         assigned_variables.update(func.loops[loop_header].targets)
+        expected_length += len(func.loops[loop_header].targets)
+
+    assert len(assigned_variables) == expected_length
 
     return assigned_variables
 

@@ -38,11 +38,27 @@ def compute_all_path(cfg: abc_cfg.CFG) -> Sequence[Sequence[source.NodeName]]:
 
 
 def ensure_assigned_at_most_once(func: dsa.Function, path: Collection[source.NodeName]) -> None:
+    """ Ensure that each variable (name, typ) is assigned at most once
+    """
     assigned_variables: list[dsa.Var[source.ProgVarName |
                                      nip.GuardVarName]] = []
-    for node in path:
-        assigned_variables.extend(source.assigned_variables_in_node(
-            func, node, with_loop_targets=True))
+    for n in path:
+        # note that we don't use source.assigned_variables_in_node because it
+        # returns a set. That is, if there are duplicates, it will hide them
+        # from us.
+        if n in (source.NodeNameRet, source.NodeNameErr):
+            continue
+
+        node = func.nodes[n]
+        if isinstance(node, source.NodeBasic):
+            assigned_variables.extend(upd.var for upd in node.upds)
+        elif isinstance(node, source.NodeCall):
+            assigned_variables.extend(ret for ret in node.rets)
+        elif not isinstance(node, source.NodeEmpty | source.NodeCond | source.NodeAssume):
+            assert_never(node)
+
+        if loop_header := func.is_loop_header(n):
+            assigned_variables.extend(func.loops[loop_header].targets)
 
     assert len(assigned_variables) == len(set(assigned_variables))
 
@@ -269,7 +285,44 @@ def ensure_valid_contexts(func: dsa.Function) -> None:
     assert new_contexts == func.contexts
 
 
+def ensure_valid_variables(func: dsa.Function) -> None:
+    """ Ensure that each variable only ever has one type """
+    var_types: dict[dsa.Incarnation[source.ProgVarName |
+                                    nip.GuardVarName], source.Type] = {}
+
+    def add_or_ensure_same_typ(var_name: dsa.Incarnation[source.ProgVarName | nip.GuardVarName], typ: source.Type) -> None:
+        if var_name in var_types:
+            assert var_types[var_name] == typ
+        var_types[var_name] = typ
+
+    def check_expr_visitor(expr: source.ExprT[dsa.Incarnation[source.ProgVarName | nip.GuardVarName]]) -> None:
+        if isinstance(expr, source.ExprVar):
+            add_or_ensure_same_typ(expr.name, expr.typ)
+
+    for n, node in func.nodes.items():
+        if isinstance(node, source.NodeBasic):
+            for upd in node.upds:
+                add_or_ensure_same_typ(upd.var.name, upd.var.typ)
+                source.visit_expr(upd.expr, check_expr_visitor)
+        elif isinstance(node, source.NodeCall):
+            for arg in node.args:
+                source.visit_expr(arg, check_expr_visitor)
+            for ret in node.rets:
+                add_or_ensure_same_typ(ret.name, ret.typ)
+        elif isinstance(node, source.NodeAssume | source.NodeCond):
+            source.visit_expr(node.expr, check_expr_visitor)
+        elif not isinstance(node, source.NodeEmpty):
+            assert_never(node)
+
+        if lh := func.is_loop_header(n):
+            for target in func.loops[lh].targets:
+                add_or_ensure_same_typ(target.name, target.typ)
+
+    assert len(var_types) == len(func.all_variables())
+
+
 def validate(func: ghost_code.Function, dsa_func: dsa.Function) -> None:
+    ensure_valid_variables(dsa_func)
     ensure_correspondence(func, dsa_func)
     ensure_valid_dsa(dsa_func)
     ensure_valid_contexts(dsa_func)
