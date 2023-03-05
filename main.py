@@ -152,7 +152,8 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_NIP in options:
             viz_function(nip_func)
 
-        ghost_func = ghost_code.sprinkle_ghost_code(nip_func)
+        ghost_func = ghost_code.sprinkle_ghost_code(
+            filename, nip_func, functions)
         if CmdlineOption.SHOW_GHOST in options:
             viz_function(ghost_func)
 

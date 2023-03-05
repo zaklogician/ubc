@@ -54,7 +54,7 @@ def ensure_assigned_at_most_once(func: dsa.Function, path: Collection[source.Nod
             assigned_variables.extend(upd.var for upd in node.upds)
         elif isinstance(node, source.NodeCall):
             assigned_variables.extend(ret for ret in node.rets)
-        elif not isinstance(node, source.NodeEmpty | source.NodeCond | source.NodeAssume):
+        elif not isinstance(node, source.NodeEmpty | source.NodeCond | source.NodeAssume | source.NodeAssert):
             assert_never(node)
 
         if loop_header := func.is_loop_header(n):
@@ -68,7 +68,7 @@ def ensure_using_latest_incarnation(func: dsa.Function, path: Collection[source.
                                               nip.GuardVarName], dsa.IncarnationNum] = {}
 
     # TODO: globals
-    for arg in func.arguments:
+    for arg in func.metadata.arguments:
         prog_var, inc = dsa.unpack_dsa_var(arg)
         assert prog_var not in latest_incarnations
         latest_incarnations[prog_var] = inc
@@ -89,7 +89,7 @@ def ensure_using_latest_incarnation(func: dsa.Function, path: Collection[source.
 
             prog_var, inc = dsa.unpack_dsa_var(dsa_var)
             if isinstance(func.nodes[n], ghost_code.NodePostConditionProofObligation):
-                if any(prog_var == dsa.unpack_dsa_var(dsa_var)[0] for dsa_var in func.arguments):
+                if any(prog_var == dsa.unpack_dsa_var(dsa_var)[0] for dsa_var in func.metadata.arguments):
                     assert inc == entry_incarnations[prog_var], f'{inc} {entry_incarnations[prog_var]}'
                 elif prog_var in latest_incarnations:
                     # FIXME: we shouldn't need this condition here
@@ -171,8 +171,8 @@ def assert_node_equals_mod_dsa(prog: source.Node[source.ProgVarName | nip.GuardV
         assert isinstance(node, source.NodeCond)
         assert_expr_equals_mod_dsa(prog.expr, node.expr)
 
-    elif isinstance(prog, source.NodeAssume):
-        assert isinstance(node, source.NodeAssume)
+    elif isinstance(prog, source.NodeAssume | source.NodeAssert):
+        assert isinstance(node, source.NodeAssume | source.NodeAssert)
         assert_expr_equals_mod_dsa(prog.expr, node.expr)
 
     elif isinstance(prog, source.NodeEmpty):
@@ -240,7 +240,7 @@ def ensure_valid_contexts(func: dsa.Function) -> None:
     new_contexts: dict[source.NodeName, dict[source.ExprVarT[source.ProgVarName |
                                                              nip.GuardVarName], dsa.IncarnationNum]] = {}
     new_contexts[func.cfg.entry] = {dsa.get_base_var(
-        var): dsa.IncarnationBase for var in func.arguments}
+        var): dsa.IncarnationBase for var in func.metadata.arguments}
     assert new_contexts[func.cfg.entry] == func.contexts[func.cfg.entry]
 
     for n in func.traverse_topologically(skip_err_and_ret=True):
@@ -269,7 +269,7 @@ def ensure_valid_contexts(func: dsa.Function) -> None:
             assert isinstance(func.nodes[n], source.NodeCond)
             # in the post condition, when referencing function arguments, you
             # use initial incarnations.
-            for dsa_var in func.arguments:
+            for dsa_var in func.metadata.arguments:
                 prog_var, inc = dsa.unpack_dsa_var(dsa_var)
                 new_contexts[n][prog_var] = inc
 
@@ -309,7 +309,7 @@ def ensure_valid_variables(func: dsa.Function) -> None:
                 source.visit_expr(arg, check_expr_visitor)
             for ret in node.rets:
                 add_or_ensure_same_typ(ret.name, ret.typ)
-        elif isinstance(node, source.NodeAssume | source.NodeCond):
+        elif isinstance(node, source.NodeAssume | source.NodeCond | source.NodeAssert):
             source.visit_expr(node.expr, check_expr_visitor)
         elif not isinstance(node, source.NodeEmpty):
             assert_never(node)
