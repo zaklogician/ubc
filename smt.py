@@ -12,6 +12,8 @@ from utils import open_temp_file
 
 SMTLIB = NewType("SMTLIB", str)
 
+statically_infered_must_be_true = SMTLIB('true')
+
 ops_to_smt: Mapping[source.Operator, SMTLIB] = {
     source.Operator.PLUS: SMTLIB("bvadd"),
     source.Operator.MINUS: SMTLIB("bvsub"),
@@ -225,6 +227,15 @@ def emit_expr(expr: source.ExprT[assume_prove.VarName]) -> SMTLIB:
 
         if expr.operator in source.nulary_operators:
             return SMTLIB(ops_to_smt[expr.operator])
+
+        if expr.operator is source.Operator.P_ALIGN_VALID:
+            assert len(expr.operands) == 2
+            typ, val = expr.operands
+            assert isinstance(typ, source.ExprType), typ
+            if isinstance(val, source.ExprSymbol):
+                return statically_infered_must_be_true
+            raise NotImplementedError(
+                "PAlignValid for non symbols isn't supported")
 
         return SMTLIB(f'({ops_to_smt[expr.operator]} {" ".join(emit_expr(op) for op in expr.operands)})')
     elif isinstance(expr, source.ExprVar):
