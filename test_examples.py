@@ -64,4 +64,4 @@ def test_dsa(func_name: str) -> None:
 @pytest.mark.parametrize('func_name', test_CFunctions[1].keys())
 def test_main(func_name: str) -> None:
     do_test('tests/all.c', test_CFunctions[1]
-            [func_name], example_dsa_CFunctions[1])
+            [func_name], test_CFunctions[1])
