@@ -138,6 +138,9 @@ P = TypeVar("P")
 R = TypeVar("R")
 
 
+HIDE_ERROR_NODE = True
+
+
 def viz(t: Callable[[IOBase, P], R]) -> Callable[[P], R]:
     def func(arg: P) -> R:
         # don't use /tmp because stupid snap prevent firefox from opening
@@ -166,25 +169,41 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
 
     puts("digraph grph {")
     puts("  node[shape=box]")
-    args = '<BR ALIGN="LEFT"/>'.join(pretty_name(arg.name)
-                                     for arg in fun.signature.arguments)
-    rets = '<BR ALIGN="LEFT"/>'.join(pretty_name(ret.name)
-                                     for ret in fun.signature.returns)
-    puts(
-        f'  FunctionName [label=<<u>{fun.name}</u><BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Arguments:<BR ALIGN="LEFT"/>{args}<BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Returns:<BR ALIGN="LEFT"/>{rets}<BR ALIGN="LEFT"/>>] [shape=plaintext]')
-    puts()
+    puts("  graph[ranksep=0.3]")
+    args = ', '.join(pretty_name(arg.name)
+                     for arg in fun.signature.arguments)
+    rets = ', '.join(pretty_name(ret.name)
+                     for ret in fun.signature.returns)
+    font = '[fontname=monospace; fontsize="10px"]'
+    # font = '[fontname=monospace]'
+
+    main_label = f"{rets} = <b>{fun.name}</b>({args})"
+
+    # puts(f'  label=<<u>{fun.name}</u><BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Arguments:<BR ALIGN="LEFT"/>{args}<BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Returns:<BR ALIGN="LEFT"/>{rets}<BR ALIGN="LEFT"/>>')
+    puts(f'  label=<{main_label}>')
+    puts(f'  labelloc="t"')
+    puts(f'  fontsize="10px"')
+    puts(f'  fontname="monospace"')
+    # puts(
+    #     f'  subgraph func_label {{FunctionName [label=<<u>{fun.name}</u><BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Arguments:<BR ALIGN="LEFT"/>{args}<BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Returns:<BR ALIGN="LEFT"/>{rets}<BR ALIGN="LEFT"/>>] [shape=plaintext] {font}}}')
+    # puts()
+
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
-    for idx, node in fun.nodes.items():
+    weights: dict[source.NodeName, int] = {}
+    for idx in fun.traverse_topologically(skip_err_and_ret=True):
+        node = fun.nodes[idx]
+        weights[idx] = max((weights[p]
+                            for p in fun.acyclic_preds_of(idx)), default=1)
         if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume | source.NodeAssert):
             puts(
                 f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
         elif isinstance(node, source.NodeCond):
             puts(
-                f"  {idx} -> {node.succ_then} [label=T] {dom if (idx, node.succ_then) in fun.cfg.back_edges else non_dom}")
-            if node.succ_else != ErrNodeName:
+                f"  {idx} -> {node.succ_then} [label=T] {font} {dom if (idx, node.succ_then) in fun.cfg.back_edges else non_dom}")
+            if not HIDE_ERROR_NODE or node.succ_else != ErrNodeName:
                 puts(
-                    f"  {idx} -> {node.succ_else} [label=F] {dom if (idx, node.succ_else) in fun.cfg.back_edges else non_dom}")
+                    f"  {idx} -> {node.succ_else} [label=F] {font} {dom if (idx, node.succ_else) in fun.cfg.back_edges else non_dom}")
         else:
             assert_never(node)
 
@@ -206,7 +225,7 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
             )
         elif isinstance(node, source.NodeCond):
 
-            if node.succ_else == ErrNodeName:
+            if HIDE_ERROR_NODE and node.succ_else == ErrNodeName:
                 operands = list(source.expr_split_conjuncts(node.expr))
                 content = "<b>assert</b>&nbsp;" + pretty_safe_expr(operands[0])
                 for operand in operands[1:]:
@@ -222,10 +241,14 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
             content = '<b>assert</b>&nbsp;' + pretty_safe_expr(node.expr)
         else:
             assert_never(node)
+
+        puts(f"  {idx} [xlabel={idx}] [weight={weights[idx]}] {font}")
         if idx == fun.cfg.entry:
-            puts(f"  {idx} [xlabel={idx}; label=<<i>Entry</i>>; penwidth=2]")
+            puts(f"[label=<<i>Entry</i>>; penwidth=2]")
         else:
-            puts(f"  {idx} [xlabel={idx}] [label=<{content}>]")
+            puts(f"[label=<{content}>]")
+
+    # puts("; {rank=sink bottomlabel [label=foo]}")
 
     puts("}")
 

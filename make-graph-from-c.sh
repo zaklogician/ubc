@@ -85,6 +85,7 @@ echo -n "$ROOT" > ROOT
 echo "TV_ROOT $TV_ROOT"
 
 # if gcc can't compile it, then isabelle won't be able to parse it
+# TODO: make it platform specific
 if ! gcc -Wall -Werror -Wextra "$c_file" -o "$TMP_DIR/a.out" -c
 then
     # exit 0
