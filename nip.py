@@ -92,10 +92,10 @@ def make_protection_for_node(node: source.Node[source.ProgVarName]) -> source.Ex
 
 def make_initial_state(func: source.Function) -> Iterator[source.Update[GuardVarName]]:
     # TODO: globals
-    for arg in func.metadata.arguments:
+    for arg in func.signature.arguments:
         yield source.Update(guard_var(arg), source.expr_true)
 
-    for other in func.all_variables() - set(func.metadata.arguments):
+    for other in func.all_variables() - set(func.signature.arguments):
         yield source.Update(guard_var(other), source.expr_false)
 
 
@@ -272,5 +272,5 @@ def nip(func: source.Function) -> Function:
     assert loops.keys() == func.loops.keys(
     ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
 
-    return Function(cfg=cfg, nodes=new_nodes, loops=loops, metadata=func.metadata,
+    return Function(cfg=cfg, nodes=new_nodes, loops=loops, signature=func.signature,
                     name=func.name, ghost=unify_variables_to_make_ghost(func))

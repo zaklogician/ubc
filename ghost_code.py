@@ -13,7 +13,6 @@ insert_loop_invariant()
         insert NodeLoopInvariantAssumption
 """
 
-
 from dataclasses import dataclass
 import dataclasses
 from enum import Enum, unique
@@ -22,8 +21,7 @@ from typing_extensions import assert_never
 import abc_cfg
 import source
 import nip
-from collections import defaultdict
-import ghost_data as gd
+import ghost_data
 import syntax
 
 
@@ -61,8 +59,8 @@ NodeGhostCode = (NodePostConditionProofObligation[source.VarNameKind]
                  | NodePreconditionAssumption[source.VarNameKind]
                  | NodeLoopInvariantAssumption[source.VarNameKind]
                  | NodeLoopInvariantProofObligation[source.VarNameKind]
-                 | NodePrecondObligationFnCall
-                 | NodeAssumePostCondFnCall)
+                 | NodePrecondObligationFnCall[source.VarNameKind]
+                 | NodeAssumePostCondFnCall[source.VarNameKind])
 
 
 class GenericFunction(nip.GenericFunction[source.VarNameKind, source.VarNameKind2]):
@@ -94,11 +92,6 @@ class Insertion(NamedTuple):
     kind: K
     expr: source.ExprT[source.ProgVarName | nip.GuardVarName]
     node_name: source.NodeName
-
-
-class InsertionCommon(NamedTuple):
-    before: source.NodeName
-    expr: source.ExprT[source.ProgVarName | nip.GuardVarName]
 
 
 def no_insertion_on_same_edge(insertions: Sequence[Insertion]) -> bool:
@@ -258,37 +251,11 @@ def sprinkle_loop_invariants(func: nip.Function) -> Iterable[Insertion]:
 
 def sprinkle_call_assert_preconditions(fn: nip.Function, name: source.NodeName, precond: source.ExprT[source.ProgVarName | nip.GuardVarName]) -> Iterable[Insertion]:
     for pred in fn.cfg.all_preds[name]:
-        yield Insertion(node_name=source.NodeName(f"assert_precond_{pred}_{name}"), after=pred, before=name, kind=K.NODE_PRE_CONDITION_OBLIGATION_FNCALL, expr=precond)
+        yield Insertion(node_name=source.NodeName(f"prove_{pred}_{name}"), after=pred, before=name, kind=K.NODE_PRE_CONDITION_OBLIGATION_FNCALL, expr=precond)
 
 
 def sprinkle_call_assume_postcondition(name: source.NodeName, node: source.NodeCall[Any], postcond: source.ExprT[source.ProgVarName | nip.GuardVarName]) -> Insertion:
     return Insertion(node_name=source.NodeName(f"assume_postcond_{name}_{node.succ}"), after=name, before=node.succ, kind=K.NODE_ASSUME_POST_CONDITION_FNCALL, expr=postcond)
-
-
-def get_call_nodes(fn: nip.Function) -> list[Tuple[source.NodeName, source.NodeCall[source.ProgVarName | nip.GuardVarName]]]:
-    nodes: list[Tuple[source.NodeName,
-                      source.NodeCall[source.ProgVarName | nip.GuardVarName]]] = []
-    for (name, node) in fn.nodes.items():
-        if isinstance(node, source.NodeCall):
-            nodes.append((name, node))
-    return nodes
-
-
-def replace_vars(f: Callable[[source.ExprVarT[source.VarNameKind]], source.ExprT[source.VarNameKind2]], expr: source.ExprT[source.VarNameKind]) -> source.ExprT[source.VarNameKind2]:
-    """replace each variable with an expression"""
-    if isinstance(expr, source.ExprNum):
-        return expr
-    elif isinstance(expr, source.ExprVar):
-        return f(expr)
-    elif isinstance(expr, source.ExprOp):
-        ops = tuple(replace_vars(f, operand) for operand in expr.operands)
-        return source.ExprOp(expr.typ, source.Operator(expr.operator), operands=ops)
-    elif isinstance(expr, source.ExprType | source.ExprSymbol):
-        return expr
-    elif isinstance(expr, source.ExprFunction):
-        args = tuple(replace_vars(f, arg) for arg in expr.arguments)
-        return source.ExprFunction(expr.typ, expr.function_name, args)
-    assert_never(expr)
 
 
 def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tuple[source.ExprT[source.VarNameKind], ...], expected_args: Tuple[source.ExprVarT[source.ProgVarName], ...]) -> Tuple[Dict[source.ExprVarT[source.HumanVarName], source.ExprT[source.VarNameKind]], source.ExprT[source.VarNameKind]]:
@@ -304,7 +271,7 @@ def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tu
 
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
         return conversion_map[v]
-    return (conversion_map, replace_vars(f, raw_precondition))
+    return (conversion_map, source.convert_expr_vars(f, raw_precondition))
 
 
 def unify_postconds(raw_postcondition: source.ExprT[source.HumanVarName],
@@ -319,13 +286,16 @@ def unify_postconds(raw_postcondition: source.ExprT[source.HumanVarName],
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
         return conversion_map[v]
 
-    return replace_vars(f, raw_postcondition)
+    return source.convert_expr_vars(f, raw_postcondition)
 
 
-def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, source.FunctionMetadata[source.ProgVarName]]) -> Iterator[Insertion]:
-    nodes = get_call_nodes(fn)
-    for (name, node) in nodes:
-        ghost = gd.get(filename, node.fname)
+def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, source.FunctionSignature[source.ProgVarName]]) -> Iterator[Insertion]:
+    for name in fn.traverse_topologically(skip_err_and_ret=True):
+        node = fn.nodes[name]
+        if not isinstance(node,  source.NodeCall):
+            continue
+
+        ghost = ghost_data.get(filename, node.fname)
         # asserting True and assuming True is basically doing nothing
         raw_precondition = source.expr_true if ghost is None else ghost.precondition
         raw_postcondition = source.expr_true if ghost is None else ghost.postcondition
@@ -343,7 +313,7 @@ def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, sou
 
 
 def sprinkle_ghost_code(filename: str, func: nip.Function, ctx: Dict[str, syntax.Function]) -> Function:
-    new_ctx: dict[str, source.FunctionMetadata[source.ProgVarName]] = {}
+    new_ctx: dict[str, source.FunctionSignature[source.ProgVarName]] = {}
     for fname, syn_func in ctx.items():
         new_ctx[fname] = source.convert_function_metadata(syn_func)
     insertions: list[Insertion] = []
@@ -361,4 +331,4 @@ def sprinkle_ghost_code(filename: str, func: nip.Function, ctx: Dict[str, syntax
 
     # new_nodes = search_common_succs(func, cfg)
 
-    return Function(name=func.name, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost, metadata=func.metadata)
+    return Function(name=func.name, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost, signature=func.signature)

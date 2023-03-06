@@ -488,7 +488,7 @@ VarNameKind2 = TypeVar('VarNameKind2', covariant=True)
 # etc) but I don't think python allows for it (unless we use overloads)
 
 
-def convert_expr_vars(f: Callable[[ExprVar[TypeKind, VarNameKind]], ExprVar[TypeKind, VarNameKind2]], expr: Expr[TypeKind, VarNameKind]) -> Expr[TypeKind, VarNameKind2]:
+def convert_expr_vars(f: Callable[[ExprVar[TypeKind, VarNameKind]], Expr[TypeKind, VarNameKind2]], expr: Expr[TypeKind, VarNameKind]) -> Expr[TypeKind, VarNameKind2]:
     if isinstance(expr, ExprNum):
         return expr
     elif isinstance(expr, ExprVar):
@@ -782,7 +782,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
     loop header => loop information
     """
 
-    metadata: FunctionMetadata[VarNameKind]
+    signature: FunctionSignature[VarNameKind]
 
     def c_return(self, path: HumanVarNamePath) -> ExprVarT[ProgVarName] | None:
         """
@@ -799,7 +799,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
             raise NotImplementedError("struct and arrays aren't supported yet")
 
         c_ret: ExprVarT[ProgVarName] | None = None
-        for ret in self.metadata.returns:
+        for ret in self.signature.returns:
             if ret.name.startswith('ret__'):
                 assert c_ret is None, f'found 2 ret__ variables {ret.name} {c_ret}'
                 c_ret = ret
@@ -881,7 +881,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
                               lh: expr_true for lh in self.loops.keys()},
                           )
         assert self.loops.keys() == ghost.loop_invariants.keys(), "loop invariants don't match"
-        return GenericFunction(name=self.name, nodes=self.nodes, loops=self.loops, metadata=self.metadata, cfg=self.cfg, ghost=ghost)
+        return GenericFunction(name=self.name, nodes=self.nodes, loops=self.loops, signature=self.signature, cfg=self.cfg, ghost=ghost)
 
 
 @dataclass(frozen=True)
@@ -983,17 +983,17 @@ def convert_function_nodes(nodes: Mapping[str | int, syntax.Node]) -> Mapping[No
 
 
 @dataclass(frozen=True)
-class FunctionMetadata(Generic[VarNameKind]):
+class FunctionSignature(Generic[VarNameKind]):
     arguments: Tuple[ExprVarT[VarNameKind], ...]
     returns: Tuple[ExprVarT[ProgVarName], ...]
 
 
-def convert_function_metadata(func: syntax.Function) -> FunctionMetadata[ProgVarName]:
+def convert_function_metadata(func: syntax.Function) -> FunctionSignature[ProgVarName]:
     args = tuple(ExprVar(convert_type(typ), ProgVarName(name))
                  for name, typ in func.inputs)
     rets = tuple(ExprVar(convert_type(typ), ProgVarName(name))
                  for name, typ in func.outputs)
-    return FunctionMetadata(args, rets)
+    return FunctionSignature(args, rets)
 
 
 def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, Any]:
@@ -1007,4 +1007,4 @@ def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, An
 
     metadata = convert_function_metadata(func)
 
-    return GhostlessFunction(cfg=cfg, nodes=safe_nodes, loops=loops, metadata=metadata, name=func.name)
+    return GhostlessFunction(cfg=cfg, nodes=safe_nodes, loops=loops, signature=metadata, name=func.name)

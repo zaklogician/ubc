@@ -167,9 +167,9 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
     puts("digraph grph {")
     puts("  node[shape=box]")
     args = '<BR ALIGN="LEFT"/>'.join(pretty_name(arg.name)
-                                     for arg in fun.metadata.arguments)
+                                     for arg in fun.signature.arguments)
     rets = '<BR ALIGN="LEFT"/>'.join(pretty_name(ret.name)
-                                     for ret in fun.metadata.returns)
+                                     for ret in fun.signature.returns)
     puts(
         f'  FunctionName [label=<<u>{fun.name}</u><BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Arguments:<BR ALIGN="LEFT"/>{args}<BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Returns:<BR ALIGN="LEFT"/>{rets}<BR ALIGN="LEFT"/>>] [shape=plaintext]')
     puts()

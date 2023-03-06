@@ -268,7 +268,7 @@ def dsa(func: ghost_code.Function) -> Function:
                                         nip.GuardVarName], IncarnationNum] = {}
     dsa_args: list[source.ExprVarT[Incarnation[source.ProgVarName |
                                                nip.GuardVarName]]] = []
-    for arg in func.metadata.arguments:
+    for arg in func.signature.arguments:
         dsa_args.append(make_dsa_var(arg, IncarnationBase))
         entry_context[arg] = IncarnationBase
 
@@ -369,7 +369,7 @@ def dsa(func: ghost_code.Function) -> Function:
 
             # in the post condition, when you mention a function argument, you
             # mean its value at the start of the function.
-            for arg in func.metadata.arguments:
+            for arg in func.signature.arguments:
                 context[arg] = entry_context[arg]
 
         added_incarnations: dict[source.ExprVarT[source.ProgVarName |
@@ -453,8 +453,8 @@ def dsa(func: ghost_code.Function) -> Function:
 
     return Function(
         cfg=cfg,
-        metadata=source.FunctionMetadata(
-            tuple(dsa_args), func.metadata.returns),
+        signature=source.FunctionSignature(
+            tuple(dsa_args), func.signature.returns),
         loops=loops,
         name=func.name,
         nodes=s.dsa_nodes,

@@ -12,8 +12,6 @@ import ghost_code
 # global variables are bad :(
 syntax.set_arch('rv64')
 
-INVALID_FILENAME = "DONOTUSE/THIS/PATH/TEST_DSA_FILE.c"
-
 
 with open('examples/kernel_CFunctions.txt') as f:
     kernel_CFunctions = syntax.parse_and_install_all(
@@ -29,7 +27,7 @@ def test_dsa_custom_tests(func: syntax.Function) -> None:
     prog_func = source.convert_function(func).with_ghost(None)
     nip_func = nip.nip(prog_func)
     ghost_func = ghost_code.sprinkle_ghost_code(
-        INVALID_FILENAME, nip_func, example_dsa_CFunctions[1])
+        'examples/kernel_CFunctions.txt', nip_func, example_dsa_CFunctions[1])
     dsa_func = dsa.dsa(ghost_func)
     validate_dsa.validate(ghost_func, dsa_func)
 
@@ -55,6 +53,6 @@ def test_dsa_kernel_functions(function: syntax.Function) -> None:
     prog_func = source.convert_function(function).with_ghost(None)
     nip_func = nip.nip(prog_func)
     ghost_func = ghost_code.sprinkle_ghost_code(
-        INVALID_FILENAME, nip_func, kernel_CFunctions[1])
+        'examples/kernel_CFunctions.c', nip_func, kernel_CFunctions[1])
     dsa_func = dsa.dsa(ghost_func)
     validate_dsa.validate(ghost_func, dsa_func)
