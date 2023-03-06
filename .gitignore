@@ -3,3 +3,4 @@ demo/*.zip
 /pyrightconfig.json
 a.out
 .hypothesis
+.ccls-cache

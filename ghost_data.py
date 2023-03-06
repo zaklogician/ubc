@@ -7,6 +7,7 @@ imp = source.expr_implies
 
 udiv = source.expr_udiv
 mul = source.expr_mul
+plus = source.expr_plus
 sub = source.expr_sub
 
 slt = source.expr_slt
@@ -15,6 +16,14 @@ eq = source.expr_eq
 
 T = source.expr_true
 F = source.expr_false
+
+
+def get(file_name: str, func_name: str) -> source.Ghost[source.HumanVarName] | None:
+    if file_name.endswith('.c'):
+        file_name = file_name[:-len('.c')] + '.txt'
+    if file_name in universe and func_name in universe[file_name]:
+        return universe[file_name][func_name]
+    return None
 
 
 def conjs(*xs: source.ExprT[source.VarNameKind]) -> source.ExprT[source.VarNameKind]:
@@ -31,12 +40,24 @@ def i32v(name: str) -> source.ExprVarT[source.HumanVarName]:
     return source.ExprVar(source.type_word32, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=False, path=()))
 
 
+def i64v(name: str) -> source.ExprVarT[source.HumanVarName]:
+    return source.ExprVar(source.type_word64, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=False, path=()))
+
+
+def i64(n: int) -> source.ExprNumT:
+    assert -0x8000_0000_0000_0000 <= n and n <= 0x7fff_ffff_ffff_ffff
+    return source.ExprNum(source.type_word64, n)
+
+
 def g(name: str) -> source.ExprVarT[source.HumanVarName]:
     """ guard """
     return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=True, path=()))
 
 
 i32ret = source.ExprVar(source.type_word32, source.HumanVarName(
+    source.HumanVarNameSpecial.RET, use_guard=False, path=()))
+
+i64ret = source.ExprVar(source.type_word64, source.HumanVarName(
     source.HumanVarNameSpecial.RET, use_guard=False, path=()))
 
 
@@ -96,15 +117,7 @@ universe = {
         "tmp.multiple_ret_incarnations___fail_missing_invariants": source.Ghost(
             loop_invariants={lh('5'): T},
             precondition=sle(i32(0), i32v('n')),
-            postcondition=eq(i32ret, udiv(i32v('n'), i32(2)))
+            postcondition=eq(i32ret, udiv(i32v('n'), i32(2))),
         )
-    }
+    },
 }
-
-
-def get(file_name: str, func_name: str) -> source.Ghost[source.HumanVarName] | None:
-    if file_name.endswith('.c'):
-        file_name = file_name[:-len('.c')] + '.txt'
-    if file_name in universe and func_name in universe[file_name]:
-        return universe[file_name][func_name]
-    return None

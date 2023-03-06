@@ -81,7 +81,7 @@ def make_state_update_for_node(node: source.Node[source.ProgVarName]) -> Iterato
             yield source.Update(guard_var(ret), deps)
     else:
         assert not isinstance(node, source.NodeEmpty | source.NodeCond |
-                              source.NodeAssume), "doesn't make sense to have a state update for those nodes"
+                              source.NodeAssume | source.NodeAssert), "doesn't make sense to have a state update for those nodes"
         assert_never(node)
 
 
@@ -92,17 +92,17 @@ def make_protection_for_node(node: source.Node[source.ProgVarName]) -> source.Ex
 
 def make_initial_state(func: source.Function) -> Iterator[source.Update[GuardVarName]]:
     # TODO: globals
-    for arg in func.arguments:
+    for arg in func.signature.arguments:
         yield source.Update(guard_var(arg), source.expr_true)
 
-    for other in func.all_variables() - set(func.arguments):
+    for other in func.all_variables() - set(func.signature.arguments):
         yield source.Update(guard_var(other), source.expr_false)
 
 
 def update_node_successors(node: source.Node[source.VarNameKind], successors: Sequence[source.NodeName]) -> source.Node[source.VarNameKind]:
     # FIXME: DANGER this successor ordering is pretty dangerous
     #        find a way to do this more safely.
-    if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume):
+    if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume | source.NodeAssert):
         assert len(successors) == 1, "wrong number of successors for node"
         return dataclasses.replace(node, succ=successors[0])
 
@@ -124,7 +124,6 @@ def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.
     # FIXME: make this more efficient if needed
     all_vars = func.all_variables()
     for var in all_vars:
-
         prefix = source.HumanVarNameSubject(var.name.split('___')[0])
         conversion_map[source.ExprVar(var.typ, source.HumanVarName(
             prefix, path=(), use_guard=False))].append(var)
@@ -134,7 +133,6 @@ def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.
     # conversion_map[]
 
     def converter(human: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName | GuardVarName]:
-
         if human not in conversion_map:
             raise UnificationError(f"no variable matched with {human}")
 
@@ -199,7 +197,7 @@ def nip(func: source.Function) -> Function:
             p = make_protection_for_node(node)
             if p != source.expr_true:
                 protections[n] = p
-        elif isinstance(node, source.NodeAssume):
+        elif isinstance(node, source.NodeAssume | source.NodeAssert):
             # TODO(nice to have): we could make this type safe
             assert False, "didn't expect to see node assume during this stage"
         elif not isinstance(node, source.NodeEmpty):
@@ -274,5 +272,5 @@ def nip(func: source.Function) -> Function:
     assert loops.keys() == func.loops.keys(
     ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
 
-    return Function(cfg=cfg, nodes=new_nodes, loops=loops, arguments=func.arguments, returns=func.returns,
+    return Function(cfg=cfg, nodes=new_nodes, loops=loops, signature=func.signature,
                     name=func.name, ghost=unify_variables_to_make_ghost(func))

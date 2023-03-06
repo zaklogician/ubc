@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, unique
-from typing import Any, Callable, Generic, Iterator, Literal, Mapping, NamedTuple, NewType, Sequence, Set, TypeAlias, TypeVar
+from typing import Any, Callable, Generic, Iterator, Literal, Mapping, NamedTuple, NewType, Sequence, Set, TypeAlias, TypeVar, Tuple
 from typing_extensions import assert_never
 
 import syntax
@@ -418,7 +418,7 @@ def expr_where_vars_are_used_in_node(node: Node[VarNameKind], selection: Set[Exp
         for arg in node.args:
             for var in selection & all_vars_in_expr(arg):
                 yield var, arg
-    elif isinstance(node, NodeCond | NodeAssume):
+    elif isinstance(node, NodeCond | NodeAssume | NodeAssert):
         for var in selection & all_vars_in_expr(node.expr):
             yield var, node.expr
     elif not isinstance(node, NodeEmpty):
@@ -488,7 +488,7 @@ VarNameKind2 = TypeVar('VarNameKind2', covariant=True)
 # etc) but I don't think python allows for it (unless we use overloads)
 
 
-def convert_expr_vars(f: Callable[[ExprVar[TypeKind, VarNameKind]], ExprVar[TypeKind, VarNameKind2]], expr: Expr[TypeKind, VarNameKind]) -> Expr[TypeKind, VarNameKind2]:
+def convert_expr_vars(f: Callable[[ExprVar[TypeKind, VarNameKind]], Expr[TypeKind, VarNameKind2]], expr: Expr[TypeKind, VarNameKind]) -> Expr[TypeKind, VarNameKind2]:
     if isinstance(expr, ExprNum):
         return expr
     elif isinstance(expr, ExprVar):
@@ -531,6 +531,7 @@ expr_ule = mk_binary_bitvec_relation(Operator.LESS_EQUALS)
 expr_slt = mk_binary_bitvec_relation(Operator.SIGNED_LESS)
 expr_sle = mk_binary_bitvec_relation(Operator.SIGNED_LESS_EQUALS)
 expr_mul = mk_binary_bitvec_operation(Operator.TIMES)
+expr_plus = mk_binary_bitvec_operation(Operator.PLUS)
 expr_sub = mk_binary_bitvec_operation(Operator.MINUS)
 expr_udiv = mk_binary_bitvec_operation(Operator.DIVIDED_BY)
 # don't implement expr_sdiv (cparser will never generate signed division)
@@ -724,7 +725,14 @@ class NodeAssume(Generic[VarNameKind]):
     succ: NodeName
 
 
-Node = NodeBasic[VarNameKind] | NodeCall[VarNameKind] | NodeCond[VarNameKind] | NodeEmpty | NodeAssume[VarNameKind]
+@dataclass(frozen=True)
+class NodeAssert(Generic[VarNameKind]):
+    expr: ExprT[VarNameKind]
+    succ: NodeName
+
+
+Node = NodeBasic[VarNameKind] | NodeCall[VarNameKind] | NodeCond[
+    VarNameKind] | NodeEmpty | NodeAssume[VarNameKind] | NodeAssert[VarNameKind]
 
 LoopHeaderName = NewType('LoopHeaderName', NodeName)
 
@@ -774,10 +782,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
     loop header => loop information
     """
 
-    # shouldn't these for ProgVarNames?
-    arguments: tuple[ExprVarT[VarNameKind], ...]
-
-    returns: tuple[ExprVarT[ProgVarName], ...]
+    signature: FunctionSignature[VarNameKind]
 
     def c_return(self, path: HumanVarNamePath) -> ExprVarT[ProgVarName] | None:
         """
@@ -794,7 +799,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
             raise NotImplementedError("struct and arrays aren't supported yet")
 
         c_ret: ExprVarT[ProgVarName] | None = None
-        for ret in self.returns:
+        for ret in self.signature.returns:
             if ret.name.startswith('ret__'):
                 assert c_ret is None, f'found 2 ret__ variables {ret.name} {c_ret}'
                 c_ret = ret
@@ -872,9 +877,11 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
         if ghost is None:
             ghost = Ghost(precondition=expr_true,
                           postcondition=expr_true,
-                          loop_invariants={lh: expr_true for lh in self.loops.keys()})
+                          loop_invariants={
+                              lh: expr_true for lh in self.loops.keys()},
+                          )
         assert self.loops.keys() == ghost.loop_invariants.keys(), "loop invariants don't match"
-        return GenericFunction(name=self.name, nodes=self.nodes, loops=self.loops, arguments=self.arguments, returns=self.returns, cfg=self.cfg, ghost=ghost)
+        return GenericFunction(name=self.name, nodes=self.nodes, loops=self.loops, signature=self.signature, cfg=self.cfg, ghost=ghost)
 
 
 @dataclass(frozen=True)
@@ -906,7 +913,7 @@ def used_variables_in_node(node: Node[VarNameKind]) -> Set[ExprVarT[VarNameKind]
     elif isinstance(node, NodeCall):
         for arg in node.args:
             used_variables |= all_vars_in_expr(arg)
-    elif isinstance(node, NodeCond | NodeAssume):
+    elif isinstance(node, NodeCond | NodeAssume | NodeAssert):
         used_variables |= all_vars_in_expr(node.expr)
     elif not isinstance(node, NodeEmpty):
         assert_never(node)
@@ -926,7 +933,7 @@ def assigned_variables_in_node(func: GhostlessFunction[VarNameKind, Any], n: Nod
     elif isinstance(node, NodeCall):
         assigned_variables.update(ret for ret in node.rets)
         expected_length += len(node.rets)
-    elif not isinstance(node, NodeEmpty | NodeCond | NodeAssume):
+    elif not isinstance(node, NodeEmpty | NodeCond | NodeAssume | NodeAssert):
         # technically, NodeAssume can encode an assignment
         # but it's just the wrong tool for the job, because the nip
         # stage won't automatically know that it was assigned,
@@ -975,6 +982,20 @@ def convert_function_nodes(nodes: Mapping[str | int, syntax.Node]) -> Mapping[No
     return safe_nodes
 
 
+@dataclass(frozen=True)
+class FunctionSignature(Generic[VarNameKind]):
+    arguments: Tuple[ExprVarT[VarNameKind], ...]
+    returns: Tuple[ExprVarT[ProgVarName], ...]
+
+
+def convert_function_metadata(func: syntax.Function) -> FunctionSignature[ProgVarName]:
+    args = tuple(ExprVar(convert_type(typ), ProgVarName(name))
+                 for name, typ in func.inputs)
+    rets = tuple(ExprVar(convert_type(typ), ProgVarName(name))
+                 for name, typ in func.outputs)
+    return FunctionSignature(args, rets)
+
+
 def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, Any]:
     safe_nodes = convert_function_nodes(func.nodes)
     all_succs = abc_cfg.compute_all_successors_from_nodes(safe_nodes)
@@ -984,9 +1005,6 @@ def convert_function(func: syntax.Function) -> GhostlessFunction[ProgVarName, An
     loops = abc_cfg.compute_loops(
         safe_nodes, cfg)
 
-    args = tuple(ExprVar(convert_type(typ), ProgVarName(name))
-                 for name, typ in func.inputs)
-    rets = tuple(ExprVar(convert_type(typ), ProgVarName(name))
-                 for name, typ in func.outputs)
+    metadata = convert_function_metadata(func)
 
-    return GhostlessFunction(cfg=cfg, nodes=safe_nodes, loops=loops, arguments=args, name=func.name, returns=rets)
+    return GhostlessFunction(cfg=cfg, nodes=safe_nodes, loops=loops, signature=metadata, name=func.name)

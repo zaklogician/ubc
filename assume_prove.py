@@ -182,6 +182,9 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
         # proves successors are correct, ignoring back edges
         if (n, node.succ) not in func.cfg.back_edges:
             script.append(InstructionProve(node_ok_ap_var(node.succ)))
+    elif isinstance(node, source.NodeAssert):
+        script.append(InstructionProve(convert_expr_dsa_vars_to_ap(node.expr)))
+        script.append(InstructionProve(node_ok_ap_var(node.succ)))
     else:
         assert_never(node)
 

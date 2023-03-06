@@ -98,9 +98,9 @@ fi
 # cp result.txt "$output_file"
 
 # login to work machine, it's bigger so faster :)
-ssh vb-101 "rm -rf ~/.cparser-conversion"
-scp -r "$TMP_DIR" vb-101:.cparser-conversion
-ssh vb-101 "env L4V_ARCH='$L4V_ARCH' ~/verification/isabelle/bin/isabelle build -d ~/verification/l4v -D .cparser-conversion -c"
-scp vb-101:.cparser-conversion/result.txt "$output_file"
+ssh mathieup@vb-101 "rm -rf ~/.cparser-conversion"
+scp -r "$TMP_DIR" mathieup@vb-101:.cparser-conversion
+ssh mathieup@vb-101 "env L4V_ARCH='$L4V_ARCH' ~/verification/isabelle/bin/isabelle build -d ~/verification/l4v -D .cparser-conversion -c"
+scp mathieup@vb-101:.cparser-conversion/result.txt "$output_file"
 
 popd

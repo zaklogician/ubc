@@ -191,7 +191,7 @@ def apply_insertions(s: DSABuilder) -> None:
                 else:
                     s.dsa_nodes[pred_name] = dataclasses.replace(
                         pred, succ_else=join_node_name)
-            elif isinstance(pred, source.NodeBasic | source.NodeEmpty | source.NodeCall | source.NodeAssume):
+            elif isinstance(pred, source.NodeBasic | source.NodeEmpty | source.NodeCall | source.NodeAssume | source.NodeAssert):
                 # careful, type hints for dataclasses.replace are too
                 # permissive right now
                 s.dsa_nodes[pred_name] = dataclasses.replace(
@@ -268,7 +268,7 @@ def dsa(func: ghost_code.Function) -> Function:
                                         nip.GuardVarName], IncarnationNum] = {}
     dsa_args: list[source.ExprVarT[Incarnation[source.ProgVarName |
                                                nip.GuardVarName]]] = []
-    for arg in func.arguments:
+    for arg in func.signature.arguments:
         dsa_args.append(make_dsa_var(arg, IncarnationBase))
         entry_context[arg] = IncarnationBase
 
@@ -369,7 +369,7 @@ def dsa(func: ghost_code.Function) -> Function:
 
             # in the post condition, when you mention a function argument, you
             # mean its value at the start of the function.
-            for arg in func.arguments:
+            for arg in func.signature.arguments:
                 context[arg] = entry_context[arg]
 
         added_incarnations: dict[source.ExprVarT[source.ProgVarName |
@@ -421,7 +421,7 @@ def dsa(func: ghost_code.Function) -> Function:
 
             s.dsa_nodes[current_node] = dataclasses.replace(   # type: ignore
                 node, args=args, rets=tuple(rets))
-        elif isinstance(node, source.NodeAssume):
+        elif isinstance(node, source.NodeAssume | source.NodeAssert):
             s.dsa_nodes[current_node] = dataclasses.replace(   # type: ignore
                 node, expr=apply_incarnations(context, node.expr))
         elif isinstance(node, source.NodeEmpty):
@@ -453,8 +453,8 @@ def dsa(func: ghost_code.Function) -> Function:
 
     return Function(
         cfg=cfg,
-        arguments=tuple(dsa_args),
-        returns=func.returns,
+        signature=source.FunctionSignature(
+            tuple(dsa_args), func.signature.returns),
         loops=loops,
         name=func.name,
         nodes=s.dsa_nodes,

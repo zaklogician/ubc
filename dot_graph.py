@@ -167,16 +167,16 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
     puts("digraph grph {")
     puts("  node[shape=box]")
     args = '<BR ALIGN="LEFT"/>'.join(pretty_name(arg.name)
-                                     for arg in fun.arguments)
+                                     for arg in fun.signature.arguments)
     rets = '<BR ALIGN="LEFT"/>'.join(pretty_name(ret.name)
-                                     for ret in fun.returns)
+                                     for ret in fun.signature.returns)
     puts(
         f'  FunctionName [label=<<u>{fun.name}</u><BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Arguments:<BR ALIGN="LEFT"/>{args}<BR ALIGN="LEFT"/><BR ALIGN="LEFT"/>Returns:<BR ALIGN="LEFT"/>{rets}<BR ALIGN="LEFT"/>>] [shape=plaintext]')
     puts()
     dom = '[penwidth=3.0 color=darkblue]'
     non_dom = '[color="#888"]'
     for idx, node in fun.nodes.items():
-        if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume):
+        if isinstance(node, source.NodeBasic | source.NodeCall | source.NodeEmpty | source.NodeAssume | source.NodeAssert):
             puts(
                 f"  {idx} -> {node.succ} {dom if (idx, node.succ) in fun.cfg.back_edges else non_dom}")
         elif isinstance(node, source.NodeCond):
@@ -218,6 +218,8 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
             content = '&lt;empty&gt;'
         elif isinstance(node, source.NodeAssume):
             content = '<b>assume</b>&nbsp;' + pretty_safe_expr(node.expr)
+        elif isinstance(node, source.NodeAssert):
+            content = '<b>assert</b>&nbsp;' + pretty_safe_expr(node.expr)
         else:
             assert_never(node)
         if idx == fun.cfg.entry:
@@ -367,7 +369,7 @@ if __name__ == "__main__":
     func = source.convert_function(
         functions[function_name]).with_ghost(None)
     nip_func = nip.nip(func)
-    ghost_func = ghost_code.sprinkle_ghost_code(nip_func)
+    ghost_func = ghost_code.sprinkle_ghost_code(file_name, nip_func, functions)
     dsa_func = dsa.dsa(ghost_func)
     viz_function(dsa_func)
     assume_prove.pretty_print_prog(
