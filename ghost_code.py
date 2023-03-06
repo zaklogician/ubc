@@ -288,7 +288,7 @@ def replace_vars(f: Callable[[source.ExprVarT[source.VarNameKind]], source.ExprT
     elif isinstance(expr, source.ExprFunction):
         args = tuple(replace_vars(f, arg) for arg in expr.arguments)
         return source.ExprFunction(expr.typ, expr.function_name, args)
-    return NotImplemented
+    assert_never(expr)
 
 
 def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tuple[source.ExprT[source.VarNameKind], ...], expected_args: Tuple[source.ExprVarT[source.ProgVarName], ...]) -> Tuple[Dict[source.ExprVarT[source.HumanVarName], source.ExprT[source.VarNameKind]], source.ExprT[source.VarNameKind]]:
