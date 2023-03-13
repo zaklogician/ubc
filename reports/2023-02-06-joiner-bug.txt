@@ -1,0 +1,240 @@
+2023-02-06 Joiner node bug, Mathieu Paturel <z5312157@unsw.edu.au>
+
+ABSTRACT
+========
+
+Effective modifications of the DSA control flow graph *after* its construction
+broke some assumption that were made *during* its construction. It prevented us
+from proving the correctness of certain programs. It didn't affect soundness.
+
+(Effective because the DSA graph wasn't actually modified)
+
+DISCOVERY
+=========
+
+The issue was found by trying to prove the correctness of loop. Here is a simple
+example which triggers the issue (example A).
+
+    int a = 0;
+    for (int i = 0; i < 10; i++)
+    // invariant: 0 <= i <= 10
+    //            i <= 2 ==> a = 0
+    {
+        if (i == 2)
+        {
+            a = a + 1;
+        }
+
+    }
+
+The invariant is correct and allows us to prove that no overflows are possible,
+yet we can't prove that the invariant holds.
+
+CAUSE
+=====
+
+Fact 1:
+
+    The DSA transformation is such that we need to insert joiner nodes at the
+    junction of branches. For example (example B)
+
+    a = read_number()        | a1 = call read_number
+    if cond                  |     cond -T-->  a2 = a1 + 1
+        a += 1               |     |           a3 = a2 * 2
+        a *= 2               |     |           a4 = a3     // joiner node
+    else                     |     |-----F-->  a2 = 2
+        a = 2                |                 a4 = a2     // joiner node
+    return a                 | return a4
+
+    The joiner nodes insert joiner variables to ensure that later blocks only
+    ever need to refer to the same incarnation, namly a4 in this example.
+
+    !! During the DSA transformation, we only inserted joiner variables if we
+    !! saw that they were used later on.
+
+    So, if instead of `return a`, we had `return 0`, then the joiner nodes would
+    not have been inserted.
+
+Fact 2:
+
+    During the DSA transformation, a `contexts :: Mapping[NodeName][BaseVar]
+    [IncarnationNumber]` artifact is constructed, which makes it simple to
+    convert expressions in terms of BaseVar to DSAVar (ie. regular variables to
+    (regular variables, incarnation number) pairs).
+
+    This is used to embed assumptions and proof obligations for loop
+    invariants.
+
+    During the assume prove stage, whenever we meet a loop latch N for a loop L,
+    we add an extra proof requirements for that node's correctness condition,
+    namely that the loop invariant holds *in terms of the loop target's
+    incarnation at node N*.
+
+Combination:
+
+    If we have a loop invariant which depends on the loop target `a`, and
+    during the loop body, a is written to in a branch but *not used after
+    the branch*, no joiner node will be inserted (fact 1).
+
+    But it the joiner variable will be used, to prove that the loop invariant
+    is maintained (fact 2).
+
+    But we will be missing a relation about that joiner variable (namely that
+    it's equal to the previous incarnation on that branch).
+
+    And thus we might not be able to prove that the loop invariant holds.
+
+Here's a sketch of example A issue:
+
+    // inv :: i32 -> i32 -> bool
+    // inv i a = (0 <= i <= 10) && (i <= 2 ==> a = 0)
+
+    int a1 = 0;
+    int i1 = 0;
+    // prove inv i1 a1
+    while (i2 < 10)
+    {
+        // assume inv i2 a2
+        if (i2 == 2)
+        {
+            a3 = a2 + 1;
+            // should insert a4 = a3, where a4 is a joiner variable
+        }
+        // should insert a4 = a2
+        i3 = i2 + 1;
+        // prove inv i3 a4  // notice that we use a4
+    }
+
+Because we don't know that, if i2 == 2 then a4 = a3 else a4 = a2, we can't prove
+the invariant.
+
+FUNDAMENTAL CAUSE
+=================
+
+(1) Later modification of the DSA graph broke some assumption made during
+its constructions.
+
+broken assumption: a joiner variable only needs to be inserted if it is used
+later on in the graph.
+
+means: we inserted an expression which used a joiner variable that wasn't used
+by anything during the DSA construction.
+
+(2) extra logic in assume prove stage
+
+scapegoat
+---------
+
+The `contexts` artifact was essentially out-of-sync with the DSA graph (if it
+had been in sync, it would have raised a KeyError).
+
+But it only simplifies modification of the DSA graph after its construction.
+
+But one doesn't need the context artifact to modify the graph after its
+construction. This same issue could've occurred without a contexts artifact.
+
+CURRENT FIX
+===========
+
+Always insert joiner nodes.
+
+PREVENTING THE FUNDAMENTAL CAUSE
+================================
+
+After each DSA graph modification, prove its correctness, ie.
+    1. it is a valid DSA
+        - every variable is assigned at most once on each branch
+        - every expression uses the latest incarnation
+    2. the graph corresponds with the original function's graph
+
+Implication for the current implementation
+------------------------------------------
+
+The current assume prove stage doesn't modify the DSA graph, it performs some
+logic and then emits some assume prove script.
+
+So we could move the logic out of the assume prove stage into a new stage which
+actually modifies the DSA graph so that we can then run the correctness
+algorithms. Or we could run write equivalent correctness algorithms to run on
+the assume prove scripts.
+
+NON-IMPACT ON SOUDNESS
+======================
+
+This bug doesn't have an impact on soundness. Intuitively, we are dropping the
+knowledge that particular incarnation is equal to an older incarnation, which
+removes a restriction. SMT solvers still have to prove all the possible models
+are correct (ie. unsat). Removing a restriction just lets SMT solver consider
+more models, and thus can only prove less about our program.
+
+Proof:
+
+A program is correct if every code path never reaches the error node. That
+is
+
+    not ((A[1] /\ A[2] /\ A[3] ... /\ A[n]) --> False) is unsat
+
+Where A[i] are the assumption that each node along the code path allow us to
+make.
+
+A program is incorrect if a code path to the error node is satisfiable.
+
+To preserve soundness, we need to show that if an incorrect program led, as it
+should, to verification failure, then the same incorrect program verified
+by UBC with the bug should also fail to verify, that is, for every path:
+
+    if (not ((A[1] /\ A[2] ... A[n]) --> False)) is sat then
+       (not ((A[1] /\ A[2] /\ ... /\ A[i-1] /\ A[i+1] /\ ... /\ A[n]) --> False)) is sat
+
+Since `not (X --> False)` simplifies to `X`, so we just need to show that
+
+    if (A[1] /\ A[2] ... A[n]) is sat then
+       (A[1] /\ A[2] /\ ... /\ A[i-1] /\ A[i+1] /\ ... /\ A[n]) is sat
+
+We take for granted the following inference rules:
+
+         P is sat
+    ------------------ (sat1)
+    ~P is not provable
+
+    P is not provable
+    ----------------- (sat2)
+        ~P is sat
+
+      A is provable
+    ------------------ (disj)
+    A \/ B is provable
+
+Suppose `A /\ B is sat`. We have
+
+    ~(A /\ B) is not provable  (sat1)
+    ~A \/ ~B is not provable   (de Morgan)
+    ~A is not provable         (disj contrapositive)
+    A is sat.                  (sat2)
+
+Thus we have shown:
+
+    A /\ B is sat
+    -------------
+      A is sat
+
+Since /\ is associative and commutative, this inference rule completes the
+proof.
+
+
+VOCUBULARY
+==========
+
+back edge: an edge who's head node dominates its tail node (ref. dragon book)
+
+loop header: a node which is at the head of a back edge (in ubc we add extra
+requirements to ensure that a loop header uniquely identifies a loop)
+
+loop latch: a node which jumps to a loop header
+
+loop target: a variable which is on the left hand side of an assignment of some
+node in the loop body.
+
+DSA: Dynamic single assignment
+
+incarnation number: see workings of DSA

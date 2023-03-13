@@ -1,0 +1,18 @@
+2023-02-13 DSA transformation protection weakness, Mathieu Paturel <z5312157@unsw.edu.au>
+
+Each time the DSA transformation is run, we ensure its correctness by comparing
+it with the original function. This is done in validate_dsa.py.
+
+When obtaining a list of assigned variables in a node, we used a helper function
+which returned a *set* of assigned variables (in Python, a set automatically
+removes duplicates). Thus, if a basic node ever assigned the same variable more
+than once, the validation would not have caught the issue. When writing the
+test originally, this helper function returned a list, and thus we didn't have
+this issue. However, in the general case, it makes sense for the helper
+function to use a set, so, whilst working on the rest of the code, I updated
+the helper function to return a set. This is how the bug crept in.
+
+Note that if this bug had ever occurred, it would've been caught by an
+assertion in the DSA transformation, and if a variable had multiple
+type, the generated SMT would probably have been invalid. Regardless,
+this is bug with soundness breaking potential.
