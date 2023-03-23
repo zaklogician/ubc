@@ -72,6 +72,36 @@ def lh(x: str) -> source.LoopHeaderName:
     return source.LoopHeaderName(source.NodeName(x))
 
 
+lc = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+    source.HumanVarNameSubject('GhostAssertions'), path=(), use_guard=False))
+
+Ch = source.TypeBitVec(6)
+Set_Ch = source.TypeBitVec(64)
+Ch_set_has = source.FunctionName('Ch_set_has')
+MsgInfo = source.TypeBitVec(80)
+Maybe_Prod_Ch_MsgInfo = source.TypeBitVec(80)
+
+lc_running_pd = source.FunctionName('lc_running_pd')
+lc_unhandled_ppcall = source.FunctionName('lc_unhandled_ppcall')
+lc_unhandled_notified = source.FunctionName('lc_unhandled_notified')
+lc_receive_oracle = source.FunctionName('lc_receive_oracle')
+
+C_channel_to_SMT_channel = source.FunctionName('C_channel_to_SMT_channel')
+Maybe_Prod_Ch_MsgInfo_Just = source.FunctionName('Maybe_Prod_Ch_MsgInfo_Just')
+C_msg_info_to_SMT_msg_info = source.FunctionName('C_msg_info_to_SMT_msg_info')
+C_msg_info_valid = source.FunctionName('C_msg_info_valid')
+
+C_channel_valid = source.FunctionName('C_channel_valid')
+
+
+def arg_value(v: source.ExprVarT[source.VarNameKind]) -> source.ExprVarT[source.VarNameKind]:
+    return v
+
+
+def ret_value(v: source.ExprVarT[source.VarNameKind]) -> source.ExprVarT[source.VarNameKind]:
+    return v
+
+
 universe = {
     "tests/all.txt": {
         # 3 <= i ==> a = 1
@@ -120,4 +150,69 @@ universe = {
             postcondition=eq(i32ret, udiv(i32v('n'), i32(2))),
         )
     },
+
+    "./tests/libsel4cp_trunc.txt": {
+        # protected_wp :: Ch -> MsgInfo -> WP MsgInfo
+        # protected_wp ch mi prop lc = and
+        #   [ lc_unhandled_ppcall lc == Just (ch,mi)
+        #   , wf_MsgInfo mi
+        #   , prop rv lc'
+        #   ] where
+        #   rv = fresh_variable
+        #   lc' = lc
+        #     { lc_unhandled_ppcall = Nothing
+        #     }
+        "libsel4cp.protected": source.Ghost(
+            loop_invariants={},
+            precondition=conjs(
+                eq(source.ExprFunction(Maybe_Prod_Ch_MsgInfo, lc_unhandled_ppcall, (lc, )),
+                   source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Maybe_Prod_Ch_MsgInfo_Just, (
+                       # unsigned int is i64??
+                       source.ExprFunction(
+                           Ch, C_channel_to_SMT_channel, (i64v('ch'), )),
+                       source.ExprFunction(
+                           MsgInfo, C_msg_info_to_SMT_msg_info, ()),
+                   ))),
+                source.ExprFunction(
+                    source.type_bool, C_channel_valid, (i64v('ch'), )),
+            ),
+            postcondition=conjs(
+                eq(source.ExprFunction(source.type_bool, lc_running_pd, (arg_value(lc), )),
+                   source.ExprFunction(source.type_bool, lc_running_pd, (ret_value(lc), ))),
+                eq(source.ExprFunction(source.type_bool, lc_receive_oracle, (arg_value(lc), )),
+                   source.ExprFunction(source.type_bool, lc_receive_oracle, (ret_value(lc), )))
+                # Do this for every other attribute
+                # for lc_unhandled_ppcall, make sure it's equal to nothing
+            ),
+        ),
+
+        # notified_wp :: Ch -> WP ()
+        # notified_wp ch prop lc = and
+        #   [ ch `elem` lc_unhandled_notified lc
+        #   , prop (Just ()) lc'
+        #   ] where
+        #   lc' = lc
+        #     { lc_unhandled_notified = lc_unhandled_notified lc \\ S.singleton ch
+        #     , lc_last_handled_notified = lc_last_handled_notified lc `union` S.singleton ch
+        #     }
+        "libsel4cp.notified": source.Ghost(
+            loop_invariants={},
+            precondition=conjs(
+                source.ExprFunction(source.type_bool, Ch_set_has, (
+                    source.ExprFunction(Set_Ch, lc_unhandled_notified, (lc, )),
+                    # unsigned int is i64??
+                    source.ExprFunction(
+                        Ch, C_channel_to_SMT_channel, (i64v('ch'), )),
+                )),
+                source.ExprFunction(
+                    source.type_bool, C_channel_valid, (i64v('ch'), )),
+            ),
+            postcondition=conjs(
+                eq(source.ExprFunction(source.type_bool, lc_running_pd, (arg_value(lc), )),
+                   source.ExprFunction(source.type_bool, lc_running_pd, (ret_value(lc), )))
+                # Do this for every other attribute
+                # the exceptions are lc_unhandled_notified and lc_last_handled_notified of course
+            ),
+        )
+    }
 }

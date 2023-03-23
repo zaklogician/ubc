@@ -177,6 +177,13 @@ def convert_type(typ: syntax.Type) -> Type:
     elif typ.kind == 'Builtin':
         return TypeBuiltin(Builtin(typ.name))
     elif typ.kind == 'WordArray':
+        # DANGEROUS HACK
+        #
+        # we hack GhostAssertion. We assume (correctly) that only
+        # GhostAssertions is the only thing that has this particular type,
+        # and we hijack it to store the platform context
+        if typ.nums[0] == 50 and typ.nums[1] == 32:
+            return TypeBitVec(471)  # size of a platform context
         return TypeWordArray(typ.nums[0], typ.nums[1])
     raise NotImplementedError(f"Type {typ.kind} not implemented")
 
@@ -867,6 +874,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
 
     def all_variables(self) -> Set[ExprVarT[VarNameKind]]:
         all_vars: set[ExprVarT[VarNameKind]] = set()
+        all_vars.update(self.signature.arguments)
         for n, node in self.nodes.items():
             all_vars.update(used_variables_in_node(node))
             all_vars.update(assigned_variables_in_node(

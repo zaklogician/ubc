@@ -131,7 +131,7 @@ def apply_incarnations(
             apply_incarnations(context, operand) for operand in root.operands
         ))
     elif isinstance(root, source.ExprFunction):
-        assert False, "there shouldn't be any function in the graph lang"
+        return source.ExprFunction(root.typ, root.function_name, tuple(apply_incarnations(context, arg) for arg in root.arguments))
     assert_never(root)
 
 
