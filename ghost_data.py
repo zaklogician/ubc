@@ -441,7 +441,7 @@ universe = {
 }
 
 
-def rv_recv(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
+def recv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
     nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumGet, (arg_value(lc),))
     nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
@@ -460,7 +460,7 @@ def rv_recv(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.Hum
     return conjs(when_notification, when_ppcall)
 
 
-def rv_replyrecv(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
+def replyrecv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
     nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumGet, (arg_value(lc),))
     nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
