@@ -98,7 +98,8 @@ NextRecv = source.TypeBitVec(88)
 NextRecvEnum = source.TypeBitVec(2)
 Set_Ch = source.TypeBitVec(64)
 MsgInfo = source.TypeBitVec(80)
-Maybe_Prod_Ch_MsgInfo = source.TypeBitVec(80)
+Prod_Ch_MsgInfo = source.TypeBitVec(86)
+Maybe_Prod_Ch_MsgInfo = source.TypeBitVec(87)
 Maybe_MsgInfo = source.TypeBitVec(81)
 
 Ch_set_empty = source.FunctionName('Ch_set_empty')
@@ -109,6 +110,10 @@ Ch_set_remove = source.FunctionName("Ch_set_remove")
 NextRecvEnumGet = source.FunctionName('NextRecv.<>')
 NextRecvEnumNotification = source.FunctionName('<Notification>')
 NextRecvEnumPPCall = source.FunctionName('<PPCall>')
+
+NextRecvNotificationGet = source.FunctionName('Notification.1')
+NextRecvPPCallGet = source.FunctionName('PPCall.1')
+
 
 
 lc_running_pd = source.FunctionName('lc_running_pd')
@@ -442,8 +447,9 @@ universe = {
 
 
 def recv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
+    oracle = source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),))
     nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
-        NextRecvEnum, NextRecvEnumGet, (arg_value(lc),))
+        NextRecvEnum, NextRecvEnumGet, (oracle,))
     nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumNotification, [])
     nextppcall: source.ExprT[source.HumanVarName] = source.ExprFunction(
@@ -461,18 +467,33 @@ def recv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT
 
 
 def replyrecv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
+    oracle = source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),))
+
     nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
-        NextRecvEnum, NextRecvEnumGet, (arg_value(lc),))
-    nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        NextRecvEnum, NextRecvEnumGet, (oracle,))
+    nextnotificationenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumNotification, [])
-    nextppcall: source.ExprT[source.HumanVarName] = source.ExprFunction(
+    nextppcallenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumPPCall, [])
+
+    # nextnotification = source.ExprFunction(Set_Ch, NextNotificationGet, 
 
     # when_notification_rv = source.ExprFunction(MsgInfo, MsgInfo)
     # when_ppcall_rv = source.ExprFunction()
 
-    # when_notification_lc
+    when_notification_lc = conjs(
+            eq(
+                source.ExprFunction(NextRecv, lc_receive_oracle, (ret_value(lc),)),
+                source.ExprFunction(NextRecv, NR_Unknown, []),
+            ),
+            eq(
+                source.ExprFunction(NextRecv, lc_unhandled_notified, (ret_value(lc),)),
+                source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Maybe_Prod_Ch_MsgInfo_Just, [
+                    source.ExprFunction(Prod_Ch_MsgInfo, NextRecvNotificationGet, [oracle]),
+                ])
+            )
+    )
     # when_ppcall_lc
-    when_notification = source.expr_implies(eq(nextenum, nextnotification), T)
-    when_ppcall = source.expr_implies(eq(nextenum, nextppcall), T)
+    when_notification = source.expr_implies(eq(nextenum, nextnotificationenum), T)
+    when_ppcall = source.expr_implies(eq(nextenum, nextppcallenum), T)
     return conjs(when_notification, when_ppcall)
