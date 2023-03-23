@@ -329,6 +329,12 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
 
     cmds.append(EmptyLine)
 
+    # emit all arguments
+    for arg in p.arguments:
+        cmds.append(CmdDeclareFun(identifier(arg.name), (), arg.typ))
+        emited_identifiers.add(identifier(arg.name))
+        emited_variables.add(arg.name)
+
     # emit all variable declaration (declare-fun y () <sort>)
     for script in p.nodes_script.values():
         for ins in script:

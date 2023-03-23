@@ -28,6 +28,7 @@ class AssumeProveProg(NamedTuple):
 
     entry: NodeOkName
 
+    arguments: Sequence[APVar]
     # TODO: specify each assert with a specific error message
 
 
@@ -238,7 +239,8 @@ def make_prog(func: dsa.Function) -> AssumeProveProg:
     for script in nodes_script.values():
         assert all(ins.expr.typ == source.type_bool for ins in script)
 
-    return AssumeProveProg(nodes_script=nodes_script, entry=node_ok_name(func.cfg.entry))
+    args = tuple(convert_expr_var(arg) for arg in func.signature.arguments)
+    return AssumeProveProg(nodes_script=nodes_script, entry=node_ok_name(func.cfg.entry), arguments=args)
 
 
 def pretty_instruction_ascii(ins: Instruction) -> str:
