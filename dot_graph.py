@@ -121,6 +121,8 @@ def pretty_safe_expr(expr: source.ExprT[Any], print_type: bool = False) -> str:
                 for v in expr.operands
             ]
         return "{}({})".format(expr.operator.value, ", ".join(vals))
+    elif isinstance(expr, source.ExprFunction):
+        return f"[smt]{expr.function_name}({', '.join(pretty_safe_expr(arg) for arg in expr.arguments)})"
     else:
         return str(expr).replace('<', '&lt;').replace('>', '&gt;')
 
@@ -236,7 +238,13 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
         elif isinstance(node, source.NodeEmpty):
             content = '&lt;empty&gt;'
         elif isinstance(node, source.NodeAssume):
-            content = '<b>assume</b>&nbsp;' + pretty_safe_expr(node.expr)
+            operands = list(source.expr_split_conjuncts(node.expr))
+
+            content = '<b>assume</b>&nbsp;'
+            content += pretty_safe_expr(operands[0])
+            for operand in operands[1:]:
+                content += "<BR/><b>and</b>&nbsp;" + \
+                    pretty_safe_expr(operand)
         elif isinstance(node, source.NodeAssert):
             content = '<b>assert</b>&nbsp;' + pretty_safe_expr(node.expr)
         else:
