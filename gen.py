@@ -1,8 +1,9 @@
+import sys
 from collections.abc import Sequence
 import math
 from typing import Iterable, NamedTuple
 
-EMIT_TESTS = False
+EMIT_TESTS = len(sys.argv) >= 2 and sys.argv[1] == '--test'
 
 
 class ExternType(NamedTuple):
@@ -308,7 +309,13 @@ def not_(t: str) -> str:
     return f'(not {t})'
 
 
-def gen_nonrec_data_type(data_type_name: str, constructors: dict[str, Sequence[ExternType]]) -> ExternType:
+def bv_value(value: int, size: int) -> str:
+    assert 0 <= value
+    assert value <= 2 ** size - 1
+    return f'(_ bv{value} {size})'
+
+
+def gen_nonrec_data_type(data_type_name: str, constructors: dict[str, Sequence[ExternType]], assign_values_to_constructors: bool = False) -> ExternType:
     # size is the size of the largest constructor
     # data X = A T1 T2 | B T3 T4 T5 | C
     # size(X) = max(size(T1) + size(T2), size(T3) + size(T4) + size(T5), size(<no args>))
@@ -326,8 +333,12 @@ def gen_nonrec_data_type(data_type_name: str, constructors: dict[str, Sequence[E
                       f'(_ BitVec {constructor_sort_bitsize})'))
 
     constructor_names = tuple(f'<{cons}>' for cons in ordering)
-    for constructor_name in constructor_names:
-        print(declare_fun(constructor_name, (), constructor_sort_name))
+    for i, constructor_name in enumerate(constructor_names):
+        if assign_values_to_constructors:
+            print(define_fun(constructor_name, (), constructor_sort_name,
+                             bv_value(value=i, size=constructor_sort_bitsize)))
+        else:
+            print(declare_fun(constructor_name, (), constructor_sort_name))
 
     print(assert_(distinct(f"<{constructor}>" for constructor in ordering)))
 
@@ -380,6 +391,7 @@ def gen_nonrec_data_type(data_type_name: str, constructors: dict[str, Sequence[E
         # the constructor function (like Just or Nothing)
         print(define_fun(constructor, args, ret_type, body))
 
+    print()
     if not EMIT_TESTS:
         return data
 
@@ -389,6 +401,10 @@ def gen_nonrec_data_type(data_type_name: str, constructors: dict[str, Sequence[E
 
     print()
     print('; testing')
+    print(f'(push)')
+    print('     (echo "should be sat")')
+    print(f'    (check-sat)')
+    print(f'(pop)')
     for constructor in ordering:
         print(f'(push) ; test constructor {constructor}')
         print(f'    ' + declare_fun('d', (), data.name, ))
@@ -437,6 +453,8 @@ def gen_nonrec_data_type(data_type_name: str, constructors: dict[str, Sequence[E
             print(f'    (pop)')
         print(f'(pop)')
 
+    print()
+
     return data
 
 
@@ -455,8 +473,10 @@ print()
 
 # exit(0)
 
-PD = gen_nonrec_data_type('PD', {f'PD{i:02}': () for i in range(62 + 1)})
-Ch = gen_nonrec_data_type('Ch', {f'Ch{i:02}': () for i in range(62 + 1)})
+PD = gen_nonrec_data_type('PD', {f'PD{i:02}': () for i in range(
+    62 + 1)}, assign_values_to_constructors=True)
+Ch = gen_nonrec_data_type('Ch', {f'Ch{i:02}': () for i in range(
+    62 + 1)}, assign_values_to_constructors=True)
 Word64 = ExternType(name='Word64', bit_size=64)
 Word16 = ExternType(name='Word16', bit_size=16)
 print('(define-sort Word64 () (_ BitVec 64))')
