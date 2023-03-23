@@ -118,7 +118,10 @@ MsgInfo_Nothing = source.FunctionName('MsgInfo_Nothing')
 
 
 C_channel_to_SMT_channel = source.FunctionName('C_channel_to_SMT_channel')
-Maybe_Prod_Ch_MsgInfo_Just = source.FunctionName('Prod_Ch_MsgInfo_Just')
+Maybe_Prod_Ch_MsgInfo_Just = source.FunctionName('Maybe_Prod_Ch_MsgInfo_Just')
+MsgInfo_Just = source.FunctionName('MsgInfo_Just')
+MsgInfo_Just_1 = source.FunctionName('MsgInfo_Just.1')
+
 C_msg_info_to_SMT_msg_info = source.FunctionName('C_msg_info_to_SMT_msg_info')
 C_msg_info_valid = source.FunctionName('C_msg_info_valid')
 
@@ -152,6 +155,25 @@ def word_cast(v: source.ExprT[source.VarNameKind], target_size: int) -> source.E
 
 # def mk_prod_msg_info(fst, snd):
 #     return source.ExprFunction()
+
+
+
+def wf_MsgInfo() -> source.ExprT[source.HumanVarName]:
+    label_fn_name = source.FunctionName('label')
+    count_fn_name = source.FunctionName('count')
+    just_val = source.ExprFunction(Maybe_MsgInfo, MsgInfo_Just, (arg_value(lc),))
+    label = source.ExprFunction(source.type_word64, label_fn_name, [just_val])
+    count = source.ExprFunction(source.type_word16, count_fn_name, [just_val])
+
+    label_maxval = source.ExprNum(source.type_word64, 0xffffffffffff)
+    count_maxval = source.ExprNum(source.type_word16, 127)
+    
+    # TODO: is this correct? 
+    return conjs(
+        sle(label, label_maxval), 
+        sle(count, count_maxval)
+    )
+
 
 
 universe = {
