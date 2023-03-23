@@ -867,6 +867,7 @@ class GhostlessFunction(Generic[VarNameKind, VarNameKind2]):
 
     def all_variables(self) -> Set[ExprVarT[VarNameKind]]:
         all_vars: set[ExprVarT[VarNameKind]] = set()
+        all_vars.update(self.signature.arguments)
         for n, node in self.nodes.items():
             all_vars.update(used_variables_in_node(node))
             all_vars.update(assigned_variables_in_node(

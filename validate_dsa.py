@@ -299,6 +299,9 @@ def ensure_valid_variables(func: dsa.Function) -> None:
         if isinstance(expr, source.ExprVar):
             add_or_ensure_same_typ(expr.name, expr.typ)
 
+    for argument in func.signature.arguments:
+        add_or_ensure_same_typ(argument.name, argument.typ)
+
     for n, node in func.nodes.items():
         if isinstance(node, source.NodeBasic):
             for upd in node.upds:
