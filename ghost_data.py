@@ -95,6 +95,7 @@ ghost_arb_4 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
 Ch = source.TypeBitVec(6)
 PD = source.TypeBitVec(6)
 NextRecv = source.TypeBitVec(88)
+NextRecvEnum = source.TypeBitVec(2)
 Set_Ch = source.TypeBitVec(64)
 MsgInfo = source.TypeBitVec(80)
 Maybe_Prod_Ch_MsgInfo = source.TypeBitVec(80)
@@ -104,6 +105,11 @@ Ch_set_empty = source.FunctionName('Ch_set_empty')
 Ch_set_has = source.FunctionName('Ch_set_has')
 Ch_set_add = source.FunctionName("Ch_set_add")
 Ch_set_remove = source.FunctionName("Ch_set_remove")
+
+NextRecvEnumGet = source.FunctionName('NextRecv.<>')
+NextRecvEnumNotification = source.FunctionName('<Notification>')
+NextRecvEnumPPCall = source.FunctionName('<PPCall>')
+
 
 lc_running_pd = source.FunctionName('lc_running_pd')
 lc_receive_oracle = source.FunctionName('lc_receive_oracle')
@@ -144,9 +150,11 @@ def mkeq(fn_name: source.FunctionName, ty: source.Type) -> source.ExprT[source.H
 NR_Notification = source.FunctionName('Notification')
 NR_Unknown = source.FunctionName('Unknown')
 
-Ch_empty_fn = source.ExprFunction(Set_Ch, Ch_set_empty, ())
+Ch_empty_fn: source.ExprT[source.HumanVarName] = source.ExprFunction(
+    Set_Ch, Ch_set_empty, ())
 
-def hname(name: str, ty:source.Type) -> source.ExprVarT[source.HumanVarName]:
+
+def hname(name: str, ty: source.Type) -> source.ExprVarT[source.HumanVarName]:
     return source.ExprVar(ty, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=False, path=()))
 def word_cast(v: source.ExprT[source.VarNameKind], target_size: int) -> source.ExprT[source.VarNameKind]:
     assert isinstance(v.typ, source.TypeBitVec)
@@ -161,19 +169,19 @@ def word_cast(v: source.ExprT[source.VarNameKind], target_size: int) -> source.E
 def wf_MsgInfo() -> source.ExprT[source.HumanVarName]:
     label_fn_name = source.FunctionName('label')
     count_fn_name = source.FunctionName('count')
-    just_val = source.ExprFunction(Maybe_MsgInfo, MsgInfo_Just, (arg_value(lc),))
+    just_val = source.ExprFunction(
+        Maybe_MsgInfo, MsgInfo_Just, (arg_value(lc),))
     label = source.ExprFunction(source.type_word64, label_fn_name, [just_val])
     count = source.ExprFunction(source.type_word16, count_fn_name, [just_val])
 
     label_maxval = source.ExprNum(source.type_word64, 0xffffffffffff)
     count_maxval = source.ExprNum(source.type_word16, 127)
-    
-    # TODO: is this correct? 
+
+    # TODO: is this correct?
     return conjs(
-        sle(label, label_maxval), 
+        sle(label, label_maxval),
         sle(count, count_maxval)
     )
-
 
 
 universe = {
@@ -370,9 +378,9 @@ universe = {
                 mkeq(lc_running_pd, PD),
                 mkeq(lc_receive_oracle, NextRecv),
                 # lc_unhandled_notified
-                eq(source.ExprFunction( Set_Ch, lc_unhandled_notified, (ret_value(lc),)),
+                eq(source.ExprFunction(Set_Ch, lc_unhandled_notified, (ret_value(lc),)),
                    source.ExprFunction(Set_Ch, Ch_set_remove,
-                                       (source.ExprFunction( Set_Ch,  lc_unhandled_notified, (arg_value(lc),), ),
+                                       (source.ExprFunction(Set_Ch,  lc_unhandled_notified, (arg_value(lc),), ),
                                         source.ExprFunction(
                                             Ch, C_channel_to_SMT_channel, (i64v('ch'),))
                                         )
@@ -387,7 +395,7 @@ universe = {
                             Ch, C_channel_to_SMT_channel, (i64v('ch'),))
                     ])
                    ),
-                mkeq(lc_unhandled_ppcall,Maybe_Prod_Ch_MsgInfo),
+                mkeq(lc_unhandled_ppcall, Maybe_Prod_Ch_MsgInfo),
                 mkeq(lc_unhandled_reply, Maybe_MsgInfo),
                 mkeq(lc_last_handled_reply, Maybe_MsgInfo)
 
@@ -397,37 +405,74 @@ universe = {
         ),
         "libsel4cp.seL4_Recv": source.Ghost(
             precondition=conjs(
-                eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)), 
-                  source.ExprFunction(NextRecv, NR_Unknown, ())),
-                eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)), 
+                eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)),
+                   source.ExprFunction(NextRecv, NR_Unknown, ())),
+                eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)),
                    source.ExprFunction(NextRecv, NR_Notification, (Ch_empty_fn,))),
-                eq(source.ExprFunction( Set_Ch, lc_unhandled_notified, (arg_value(lc),)), 
-                   Ch_empty_fn), 
-                eq(source.ExprFunction(Maybe_Prod_Ch_MsgInfo, lc_unhandled_ppcall, (arg_value(lc),)), 
-                   source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Prod_Ch_MsgInfo_Nothing, [])), 
-                eq(source.ExprFunction(Maybe_MsgInfo, lc_unhandled_reply, (arg_value(lc),)), 
-                   source.ExprFunction(Maybe_MsgInfo, MsgInfo_Nothing, [])), 
-                eq(source.ExprFunction(Maybe_MsgInfo, lc_last_handled_reply, (arg_value(lc),)), 
+                eq(source.ExprFunction(Set_Ch, lc_unhandled_notified, (arg_value(lc),)),
+                   Ch_empty_fn),
+                eq(source.ExprFunction(Maybe_Prod_Ch_MsgInfo, lc_unhandled_ppcall, (arg_value(lc),)),
+                   source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Prod_Ch_MsgInfo_Nothing, [])),
+                eq(source.ExprFunction(Maybe_MsgInfo, lc_unhandled_reply, (arg_value(lc),)),
+                   source.ExprFunction(Maybe_MsgInfo, MsgInfo_Nothing, [])),
+                eq(source.ExprFunction(Maybe_MsgInfo, lc_last_handled_reply, (arg_value(lc),)),
                    source.ExprFunction(Maybe_MsgInfo, MsgInfo_Nothing, [])),
             ),
             postcondition=T,
             loop_invariants={}
         ),
         "libsel4cp.seL4_ReplyRecv": source.Ghost(
-            precondition=conjs( 
-                neg(eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)), 
-                   source.ExprFunction(NextRecv, NR_Unknown, []))),
-                neg(eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)), 
+            precondition=conjs(
+                neg(eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)),
+                       source.ExprFunction(NextRecv, NR_Unknown, []))),
+                neg(eq(source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),)),
                     source.ExprFunction(NextRecv, NR_Notification, (Ch_empty_fn,)))),
-                eq(source.ExprFunction( Set_Ch, lc_unhandled_notified, (arg_value(lc),)), 
+                eq(source.ExprFunction(Set_Ch, lc_unhandled_notified, (arg_value(lc),)),
                    Ch_empty_fn),
-                eq(source.ExprFunction(Maybe_Prod_Ch_MsgInfo, lc_unhandled_ppcall, (arg_value(lc),)), 
-                   source.ExprFunction(Maybe_Prod_Ch_MsgInfo,Prod_Ch_MsgInfo_Nothing, [])), 
-                neg(eq(source.ExprFunction(Maybe_MsgInfo, lc_unhandled_reply, (arg_value(lc),)), 
-                   source.ExprFunction(Maybe_MsgInfo, MsgInfo_Nothing, []))),
+                eq(source.ExprFunction(Maybe_Prod_Ch_MsgInfo, lc_unhandled_ppcall, (arg_value(lc),)),
+                   source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Prod_Ch_MsgInfo_Nothing, [])),
+                neg(eq(source.ExprFunction(Maybe_MsgInfo, lc_unhandled_reply, (arg_value(lc),)),
+                       source.ExprFunction(Maybe_MsgInfo, MsgInfo_Nothing, []))),
             ),
             postcondition=T,
             loop_invariants={}
         )
     }
 }
+
+
+def rv_recv(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
+    nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        NextRecvEnum, NextRecvEnumGet, (arg_value(lc),))
+    nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        NextRecvEnum, NextRecvEnumNotification, [])
+    nextppcall: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        NextRecvEnum, NextRecvEnumPPCall, [])
+
+    # when_notification_rv = source.ExprFunction(MsgInfo, MsgInfo)
+    # when_ppcall_rv = source.ExprFunction()
+
+    # when_notification_lc
+    # when_ppcall_lc
+    when_notification = source.expr_implies(eq(nextenum, nextnotification), T)
+    when_ppcall = source.expr_implies(eq(nextenum, nextppcall), T)
+
+    return conjs(when_notification, when_ppcall)
+
+
+def rv_replyrecv(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
+    nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        NextRecvEnum, NextRecvEnumGet, (arg_value(lc),))
+    nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        NextRecvEnum, NextRecvEnumNotification, [])
+    nextppcall: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        NextRecvEnum, NextRecvEnumPPCall, [])
+
+    # when_notification_rv = source.ExprFunction(MsgInfo, MsgInfo)
+    # when_ppcall_rv = source.ExprFunction()
+
+    # when_notification_lc
+    # when_ppcall_lc
+    when_notification = source.expr_implies(eq(nextenum, nextnotification), T)
+    when_ppcall = source.expr_implies(eq(nextenum, nextppcall), T)
+    return conjs(when_notification, when_ppcall)
