@@ -2,7 +2,7 @@ from collections.abc import Sequence
 import math
 from typing import Iterable, NamedTuple
 
-EMIT_TESTS = True
+EMIT_TESTS = False
 
 
 class ExternType(NamedTuple):
@@ -506,6 +506,13 @@ pc = gen_composite_type('PlatformContext', 'LC', {
     'lc_unhandled_reply': Maybe_MsgInfo,
     'lc_last_handled_reply': Maybe_MsgInfo
 })
+
+print(define_fun('C_channel_to_SMT_channel', ('(cc (_ BitVec 64))', ),
+                 Ch.name, extract('cc', Ch.bit_size - 1, 0)))
+print(define_fun('C_channel_valid', ('(cc (_ BitVec 64))', ),
+                 'Bool', f'(bvule cc (_ bv62 64))'))  # < or <=
+
+print("; end of prelude")
 
 exit(0)
 
