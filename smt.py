@@ -317,7 +317,8 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     emited_identifiers: set[Identifier] = set()
     emited_variables: set[assume_prove.VarName] = set()
 
-    cmds: list[Cmd] = [CmdSetLogic(Logic.QF_ABV)]
+    # don't insert logic because hack below
+    cmds: list[Cmd] = []
     cmds.extend(emit_prelude())
 
     # emit all auxilary variable declaration (declare-fun node_x_ok () Bool)
@@ -357,7 +358,14 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
         source.ExprVar(source.type_bool, p.entry))))
 
     cmds.append(CmdCheckSat())
-    return merge_smtlib(emit_cmd(cmd) for cmd in cmds)
+
+    # HACK: include sel4cp prelude
+    raw_prelude = SMTLIB('(set-logic QF_ABV)')
+    # with open('./sel4cp-prelude.smt2') as f:
+    #     raw_prelude = SMTLIB(f.read() + '\n\n')
+
+    clean_smt = merge_smtlib(emit_cmd(cmd) for cmd in cmds)
+    return SMTLIB(raw_prelude + clean_smt)
 
 
 class CheckSatResult(Enum):
