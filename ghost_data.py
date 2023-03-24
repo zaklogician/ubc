@@ -358,7 +358,6 @@ universe = {
                    source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Prod_Ch_MsgInfo_Nothing, ())),
                 mkeq(lc_unhandled_reply, Maybe_MsgInfo),
                 mkeq(lc_last_handled_reply, Maybe_MsgInfo),
-                # eq(source.ExprFunction(typ
                 # Do this for every other attribute
                 # for lc_unhandled_ppcall, make sure it's equal to nothing
             ),
@@ -569,3 +568,15 @@ def replyrecv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.
     when_ppcall = source.expr_implies(
         eq(nextenum, nextppcallenum), conjs(when_ppcall_rv, when_ppcall_lc))
     return conjs(when_notification, when_ppcall)
+
+
+def handle_loop_iter_post():
+    pass
+
+
+def handle_loop_init():
+    pass
+
+
+def handle_loop_refill():
+    pass
