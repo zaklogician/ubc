@@ -184,7 +184,9 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
         if (n, node.succ) not in func.cfg.back_edges:
             script.append(InstructionProve(node_ok_ap_var(node.succ)))
     elif isinstance(node, source.NodeAssert):
-        script.append(InstructionProve(convert_expr_dsa_vars_to_ap(node.expr)))
+        cond = convert_expr_dsa_vars_to_ap(node.expr)
+        script.append(InstructionProve(source.expr_implies(
+            source.expr_negate(cond), node_ok_ap_var(source.NodeNameErr))))
         if (n, node.succ) not in func.cfg.back_edges:
             script.append(InstructionProve(node_ok_ap_var(node.succ)))
     else:
