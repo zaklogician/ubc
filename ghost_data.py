@@ -458,18 +458,49 @@ def recv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT
         NextRecv, lc_receive_oracle, (ret_value(lc),))
     nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumGet, (oracle,))
-    nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
+    nextnotificationenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumNotification, [])
-    nextppcall: source.ExprT[source.HumanVarName] = source.ExprFunction(
+    nextppcallenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumPPCall, [])
 
-    # when_notification_rv = source.ExprFunction(MsgInfo, MsgInfo)
-    # when_ppcall_rv = source.ExprFunction()
+    nextnotification = source.ExprFunction(
+        Set_Ch, NextRecvNotificationGet, [oracle])
+    nextppcall = source.ExprFunction(
+        Prod_Ch_MsgInfo, NextRecvPPCallGet, [oracle])
 
-    # when_notification_lc
-    # when_ppcall_lc
-    when_notification = source.expr_implies(eq(nextenum, nextnotification), T)
-    when_ppcall = source.expr_implies(eq(nextenum, nextppcall), T)
+    when_notification_rv = eq(rv, mi_zeroed())
+
+    when_ppcall_rv = eq(rv, source.ExprFunction(
+        MsgInfo, Prod_Ch_MsgInfo_snd, [nextppcall]))
+
+    when_notification_lc = conjs(
+        eq(
+            oracle_ret,
+            source.ExprFunction(NextRecv, NR_Unknown, [])),
+        eq(
+            source.ExprFunction(
+                Set_Ch, lc_unhandled_notified, [ret_value(lc)]),
+            nextnotification
+        )
+    )
+
+    when_ppcall_lc = conjs(
+        eq(
+            oracle_ret,
+            source.ExprFunction(NextRecv, NR_Unknown, [])),
+        eq(
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo,
+                                lc_unhandled_ppcall, (ret_value(lc),)),
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Maybe_Prod_Ch_MsgInfo_Just, [
+                nextppcall
+            ])
+        ),
+    )
+
+    when_notification = source.expr_implies(
+        eq(nextenum, nextnotificationenum), conjs(when_notification_rv, when_notification_lc))
+    when_ppcall = source.expr_implies(
+        eq(nextenum, nextppcallenum), conjs(when_ppcall_rv, when_ppcall_lc))
 
     return conjs(when_notification, when_ppcall)
 
