@@ -148,10 +148,21 @@ universe = {
             loop_invariants={lh('5'): T},
             precondition=sle(i32(0), i32v('n')),
             postcondition=eq(i32ret, udiv(i32v('n'), i32(2))),
-        )
+        ),
+
+        "tmp.callee": source.Ghost(
+            loop_invariants={},
+            precondition=sle(i32v('a'), i32(100)),
+            postcondition=eq(i32ret, plus(i32v('a'), i32(1)))
+        ),
+
+        "tmp.caller": source.Ghost(
+            loop_invariants={},
+            precondition=sbounded(i32v('b'), i32(-100), i32(100)),
+            postcondition=eq(i32ret, mul(plus(i32v('b'), i32(1)), i32(2))))
     },
 
-    "./tests/libsel4cp_trunc.txt": {
+    "tests/libsel4cp_trunc.txt": {
         # protected_wp :: Ch -> MsgInfo -> WP MsgInfo
         # protected_wp ch mi prop lc = and
         #   [ lc_unhandled_ppcall lc == Just (ch,mi)

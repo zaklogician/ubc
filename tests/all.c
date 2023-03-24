@@ -426,3 +426,13 @@ int multiple_ret_incarnations___fail_missing_invariants(int n)
     }
     return i;
 }
+
+int callee(int a)
+{
+    return a + 1;
+}
+
+int caller(int b)
+{
+    return callee(b) * 2;
+}

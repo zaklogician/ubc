@@ -18,6 +18,7 @@ import dataclasses
 from enum import Enum, unique
 from typing import Callable, Iterable, Mapping, NamedTuple, Sequence, Tuple, Any, Iterator, Dict
 from typing_extensions import assert_never
+
 import abc_cfg
 import source
 import nip
@@ -267,21 +268,35 @@ def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tu
     for garg, earg in zip(args, expected_args):
         assert garg.typ == earg.typ
         conversion_map[source.ExprVar(earg.typ, source.HumanVarName(
-            source.HumanVarNameSubject(earg.name), path=(), use_guard=False))] = garg
+            source.HumanVarNameSubject(earg.name.split('___')[0]), path=(), use_guard=False))] = garg
 
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
         return conversion_map[v]
     return (conversion_map, source.convert_expr_vars(f, raw_precondition))
 
 
+def is_special_return_variable(name: source.ProgVarName) -> bool:
+    return name.startswith("ret__") and not name.startswith("ret___")
+
+
 def unify_postconds(raw_postcondition: source.ExprT[source.HumanVarName],
                     rets: Tuple[source.ExprT[source.VarNameKind], ...], expected_rets: Tuple[source.ExprVarT[source.ProgVarName], ...],
                     conversion_map: Dict[source.ExprVarT[source.HumanVarName], source.ExprT[source.VarNameKind]]) -> source.ExprT[source.VarNameKind]:
     assert len(rets) == len(expected_rets)
+
+    # this relies on the assumption that there is only one c return variable
+    num_rets = 0
     for gret, eret in zip(rets, expected_rets):
-        name = source.HumanVarName(source.HumanVarNameSubject(
-            eret.name), path=(), use_guard=False)
+        if is_special_return_variable(eret.name):
+            name = source.HumanVarName(
+                source.HumanVarNameSpecial.RET, path=(), use_guard=False)
+            num_rets += 1
+        else:
+            name = source.HumanVarName(source.HumanVarNameSubject(
+                eret.name), path=(), use_guard=False)
         conversion_map[source.ExprVar(eret.typ, name)] = gret
+
+    assert num_rets <= 1, "multiple return variables were found"
 
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
         return conversion_map[v]
@@ -296,6 +311,10 @@ def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, sou
             continue
 
         ghost = ghost_data.get(filename, node.fname)
+
+        if ghost is None:
+            return
+
         # asserting True and assuming True is basically doing nothing
         raw_precondition = source.expr_true if ghost is None else ghost.precondition
         raw_postcondition = source.expr_true if ghost is None else ghost.postcondition
