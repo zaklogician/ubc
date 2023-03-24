@@ -23,7 +23,7 @@ import ghost_code
 
 def pretty_name(name: Any) -> str:
     if isinstance(name, dsa.Incarnation):
-        return _pretty_name(name.base) + f"<sub>{name.inc}</sub>"
+        return _pretty_name(name.base) + f":{name.inc}"
 
     assert isinstance(name, str)
     return _pretty_name(name)

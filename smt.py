@@ -360,7 +360,11 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     cmds.append(CmdCheckSat())
 
     # HACK: include sel4cp prelude
-    raw_prelude = SMTLIB('(set-logic QF_ABV)')
+    raw_prelude = SMTLIB(
+        '(set-logic QF_ABV)\n'
+        '(define-fun node_Err_okd () Bool true)\n'
+        '(declare-fun ghost_arbitrary_1 () (_ BitVec 471))'
+    )
     # with open('./sel4cp-prelude.smt2') as f:
     #     raw_prelude = SMTLIB(f.read() + '\n\n')
 

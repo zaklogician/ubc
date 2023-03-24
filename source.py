@@ -182,7 +182,7 @@ def convert_type(typ: syntax.Type) -> Type:
         # we hack GhostAssertion. We assume (correctly) that only
         # GhostAssertions is the only thing that has this particular type,
         # and we hijack it to store the platform context
-        if typ.nums[0] == 50 and typ.nums[1] == 32:
+        if typ.nums[0] == 50 and (typ.nums[1] == 32 or typ.nums[1] == 64):
             return TypeBitVec(471)  # size of a platform context
         return TypeWordArray(typ.nums[0], typ.nums[1])
     raise NotImplementedError(f"Type {typ.kind} not implemented")

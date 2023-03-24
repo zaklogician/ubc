@@ -436,3 +436,46 @@ int caller(int b)
 {
     return callee(b) * 2;
 }
+
+int caller2(int b)
+{
+    return callee(callee(b)) * 2;
+}
+
+int caller3(int b)
+{
+    int i = 0;
+    while (i < 20)
+    {
+        i = callee(i);
+    }
+    return i + b;
+}
+
+
+// these functions use the prelude
+int increments_ghost_using_prelude___fail()
+{
+    // this fails to verify because nothing justifies modifying the ghost
+    // state
+    return 0;
+}
+
+int does_not_change_ghost_using_prelude()
+{
+    return 0;
+}
+
+int use_modified_ghost_using_prelude()
+{
+    increments_ghost_using_prelude___fail();
+    return 1;
+}
+
+// int use_modified_ghost_using_prelude2()
+// {
+//     increments_ghost_using_prelude___fail();
+//     increments_ghost_using_prelude___fail();
+//     return 1;
+// }
+

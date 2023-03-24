@@ -530,7 +530,19 @@ pc = gen_composite_type('PlatformContext', 'LC', {
 print(define_fun('C_channel_to_SMT_channel', ('(cc (_ BitVec 64))', ),
                  Ch.name, extract('cc', Ch.bit_size - 1, 0)))
 print(define_fun('C_channel_valid', ('(cc (_ BitVec 64))', ),
-                 'Bool', f'(bvule cc (_ bv62 64))'))  # < or <=
+                 'Bool', f'(bvule cc (_ bv62 64))'))
+
+# assumption: msg info is a u64
+# assumption: the count isn't used
+print(define_fun('C_msg_info_to_SMT_msg_info', ('(mi (_ BitVec 64))', ),
+                 'MsgInfo', f'(MI mi (_ bv0 16))'))
+
+
+def bv(size: int) -> str:
+    return f'(_ BitVec {size})'
+
+
+print(declare_fun('lc_arbitrary_1', (), bv(pc.bit_size)))
 
 print("; end of prelude")
 

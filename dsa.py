@@ -331,7 +331,12 @@ def dsa(func: ghost_code.Function) -> Function:
 
             dsa_loop_targets[loop_header] = tuple(targets)
 
-        if isinstance(node, ghost_code.NodePostConditionProofObligation):
+        # HACK: assuming can make the right number of fresh variable
+        #       if you want to refer to the old variable, then you
+        #       use an arbitrary. UBC won't look after you.
+        #
+        # disable special behaviour for post condition node
+        if isinstance(node, ghost_code.NodePostConditionProofObligation) and False:
             # we need to use the entry's context for the argument variables in
             # the post condition, eg
             #

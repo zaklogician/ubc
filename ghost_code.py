@@ -20,6 +20,7 @@ from typing import Callable, Iterable, Mapping, NamedTuple, Sequence, Tuple, Any
 from typing_extensions import assert_never
 
 import abc_cfg
+from global_smt_variables import is_global_smt
 import source
 import nip
 import ghost_data
@@ -271,6 +272,11 @@ def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tu
             source.HumanVarNameSubject(earg.name.split('___')[0]), path=(), use_guard=False))] = garg
 
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
+        if is_global_smt(v.name.subject):
+            e = source.ExprVar(source.TypeBitVec(
+                471), source.ProgVarName(v.name.subject))
+            return e  # type: ignore
+
         return conversion_map[v]
     return (conversion_map, source.convert_expr_vars(f, raw_precondition))
 
@@ -299,6 +305,11 @@ def unify_postconds(raw_postcondition: source.ExprT[source.HumanVarName],
     assert num_rets <= 1, "multiple return variables were found"
 
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
+        # HACK for deliverable
+        if is_global_smt(v.name.subject):
+            e = source.ExprVar(source.TypeBitVec(
+                471), source.ProgVarName(v.name.subject))
+            return e  # type: ignore
         return conversion_map[v]
 
     return source.convert_expr_vars(f, raw_postcondition)

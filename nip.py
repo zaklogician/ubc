@@ -18,6 +18,7 @@ from functools import reduce
 import abc_cfg
 from typing import Any, Callable, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, overload
 from typing_extensions import assert_never
+from global_smt_variables import is_global_smt
 import source
 
 
@@ -133,7 +134,13 @@ def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.
     # conversion_map[]
 
     def converter(human: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName | GuardVarName]:
+        # HACK: hack for hard coded smt variables
+        if is_global_smt(human.name.subject):
+            return source.ExprVar(source.TypeBitVec(471), source.ProgVarName(human.name.subject))
+
         if human not in conversion_map:
+            for key, value in conversion_map.items():
+                print(key, value)
             raise UnificationError(f"no variable matched with {human}")
 
         if len(conversion_map[human]) > 1:
