@@ -114,8 +114,6 @@ NextRecvEnumPPCall = source.FunctionName('<PPCall>')
 NextRecvNotificationGet = source.FunctionName('Notification.1')
 NextRecvPPCallGet = source.FunctionName('PPCall.1')
 
-
-
 lc_running_pd = source.FunctionName('lc_running_pd')
 lc_receive_oracle = source.FunctionName('lc_receive_oracle')
 lc_unhandled_notified = source.FunctionName('lc_unhandled_notified')
@@ -133,10 +131,18 @@ Maybe_Prod_Ch_MsgInfo_Just = source.FunctionName('Maybe_Prod_Ch_MsgInfo_Just')
 MsgInfo_Just = source.FunctionName('MsgInfo_Just')
 MsgInfo_Just_1 = source.FunctionName('MsgInfo_Just.1')
 
+MI = source.FunctionName('MI')
+
+Prod_Ch_MsgInfo_fst = source.FunctionName('Prod_Ch_MsgInfo.fst')
+Prod_Ch_MsgInfo_snd = source.FunctionName('Prod_Ch_MsgInfo.snd')
+
 C_msg_info_to_SMT_msg_info = source.FunctionName('C_msg_info_to_SMT_msg_info')
 C_msg_info_valid = source.FunctionName('C_msg_info_valid')
-
 C_channel_valid = source.FunctionName('C_channel_valid')
+
+
+def mi_zeroed() -> source.ExprT[source.HumanVarName]:
+    return source.ExprFunction(MsgInfo, MI, [source.ExprNum(source.type_word64, 0), source.ExprNum(source.type_word16, 0)])
 
 
 def arg_value(v: source.ExprVarT[source.VarNameKind]) -> source.ExprVarT[source.VarNameKind]:
@@ -448,6 +454,8 @@ universe = {
 
 def recv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
     oracle = source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),))
+    oracle_ret = source.ExprFunction(
+        NextRecv, lc_receive_oracle, (ret_value(lc),))
     nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumGet, (oracle,))
     nextnotification: source.ExprT[source.HumanVarName] = source.ExprFunction(
@@ -468,6 +476,8 @@ def recv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT
 
 def replyrecv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
     oracle = source.ExprFunction(NextRecv, lc_receive_oracle, (arg_value(lc),))
+    oracle_ret = source.ExprFunction(
+        NextRecv, lc_receive_oracle, (ret_value(lc),))
 
     nextenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumGet, (oracle,))
@@ -476,24 +486,55 @@ def replyrecv_postcondition(rv: source.ExprVarT[source.HumanVarName]) -> source.
     nextppcallenum: source.ExprT[source.HumanVarName] = source.ExprFunction(
         NextRecvEnum, NextRecvEnumPPCall, [])
 
-    # nextnotification = source.ExprFunction(Set_Ch, NextNotificationGet, 
+    nextnotification = source.ExprFunction(
+        Set_Ch, NextRecvNotificationGet, [oracle])
+    nextppcall = source.ExprFunction(
+        Prod_Ch_MsgInfo, NextRecvPPCallGet, [oracle])
 
-    # when_notification_rv = source.ExprFunction(MsgInfo, MsgInfo)
-    # when_ppcall_rv = source.ExprFunction()
+    when_notification_rv = eq(rv, mi_zeroed())
+
+    when_ppcall_rv = eq(rv, source.ExprFunction(
+        MsgInfo, Prod_Ch_MsgInfo_snd, [nextppcall]))
 
     when_notification_lc = conjs(
-            eq(
-                source.ExprFunction(NextRecv, lc_receive_oracle, (ret_value(lc),)),
-                source.ExprFunction(NextRecv, NR_Unknown, []),
-            ),
-            eq(
-                source.ExprFunction(NextRecv, lc_unhandled_notified, (ret_value(lc),)),
-                source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Maybe_Prod_Ch_MsgInfo_Just, [
-                    source.ExprFunction(Prod_Ch_MsgInfo, NextRecvNotificationGet, [oracle]),
-                ])
-            )
+        eq(
+            oracle_ret,
+            source.ExprFunction(NextRecv, NR_Unknown, []),
+        ),
+        eq(
+            source.ExprFunction(
+                NextRecv, lc_unhandled_notified, (ret_value(lc),)),
+            source.ExprFunction(
+                Maybe_Prod_Ch_MsgInfo, Maybe_Prod_Ch_MsgInfo_Just, [nextnotification])
+        ),
+        eq(
+            source.ExprFunction(
+                Maybe_MsgInfo, lc_unhandled_reply, (ret_value(lc),)),
+            source.ExprFunction(Maybe_MsgInfo, MsgInfo_Nothing, [])
+        ),
+        mkeq(lc_last_handled_reply, Maybe_MsgInfo)
     )
-    # when_ppcall_lc
-    when_notification = source.expr_implies(eq(nextenum, nextnotificationenum), T)
-    when_ppcall = source.expr_implies(eq(nextenum, nextppcallenum), T)
+    when_ppcall_lc = conjs(
+        eq(
+            oracle_ret,
+            source.ExprFunction(NextRecv, NR_Unknown, []),
+        ),
+        eq(
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo,
+                                lc_unhandled_ppcall, (ret_value(lc),)),
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Maybe_Prod_Ch_MsgInfo_Just, [
+                nextppcall
+            ])
+        ),
+        eq(
+            source.ExprFunction(
+                Maybe_MsgInfo, lc_unhandled_reply, (arg_value(lc),)),
+            source.ExprFunction(Maybe_MsgInfo, MsgInfo_Nothing, [])
+        ),
+        mkeq(lc_last_handled_reply, Maybe_MsgInfo)
+    )
+    when_notification = source.expr_implies(eq(nextenum, nextnotificationenum), conjs(
+        when_notification_rv, when_notification_lc))
+    when_ppcall = source.expr_implies(
+        eq(nextenum, nextppcallenum), conjs(when_ppcall_rv, when_ppcall_lc))
     return conjs(when_notification, when_ppcall)
