@@ -164,6 +164,39 @@ Function tmp.used_undefined_variable2__fail 5 cond___int#v Word 32 Mem Mem HTD H
 6 Cond 5 3 Op Not Bool 1 Op Equals Bool 2 Var cond___int#v Word 32 Num 0 Word 32
 EntryPoint 6
 
+Function tmp.use_modified_ghost_using_prelude 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Num 1 Word 32
+4 Call 3 tmp.increments_ghost_using_prelude___fail 4 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 64 5 rv#space#ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+EntryPoint 4
+
+Function tmp.does_not_change_ghost_using_prelude 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Num 0 Word 32
+EntryPoint 3
+
+Function tmp.use_modified_ghost_using_prelude_x10 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Num 1 Word 32
+8 Basic 4 1 i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32
+9 Cond 8 Err Op Equals Bool 2 Op SignedLessEquals Bool 2 Var i___int#v Word 32 Op Plus Word 32 2 Var i___int#v Word 32 Num 1 Word 32 Op SignedLessEquals Bool 2 Num 0 Word 32 Num 1 Word 32
+10 Call 9 tmp.increments_ghost_using_prelude___fail 4 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 64 5 rv#space#ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+4 Basic 5 1 loop#4#count Word 64 Op Plus Word 64 2 Var loop#4#count Word 64 Num 1 Word 64
+5 Cond 6 Err Op True Bool 0
+6 Cond 10 3 Op SignedLess Bool 2 Var i___int#v Word 32 Num 10 Word 32
+7 Basic 5 1 loop#4#count Word 64 Num 0 Word 64
+11 Basic 7 1 i___int#v Word 32 Num 0 Word 32
+EntryPoint 11
+
+Function tmp.increments_ghost_using_prelude___fail 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__int#v Word 32 Num 0 Word 32
+EntryPoint 3
+
 Function tmp.multiple_loops___fail_missing_invariant 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64 5 ret__int#v Word 32 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 64
 1 Basic Ret 0
 2 Cond 1 Err Op False Bool 0

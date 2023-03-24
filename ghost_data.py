@@ -222,12 +222,16 @@ universe = {
             loop_invariants={},
             precondition=conjs(
                 eq(lc, ghost_arb_3),
-                F
             ),
             postcondition=conjs(
                 eq(lc, plus(ghost_arb_3, num(1, 471))),
             ),
-        )
+        ),
+        # "tmp.use_modified_ghost_using_prelude_x10": source.Ghost(
+        #     loop_invariants={
+        #         lh('5'): eq(lc, plus(ghost_arb_1, num()),
+        #     }
+        # )
 
     },
 

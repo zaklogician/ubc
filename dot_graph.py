@@ -246,7 +246,10 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
                 content += "<BR/><b>and</b>&nbsp;" + \
                     pretty_safe_expr(operand)
         elif isinstance(node, source.NodeAssert):
-            content = '<b>assert</b>&nbsp;' + pretty_safe_expr(node.expr)
+            if isinstance(node, ghost_code.NodePrecondObligationFnCall):
+                content = '<b>[hacked assert]</b>&nbsp;' + pretty_safe_expr(node.expr)
+            else:
+                content = '<b>assert</b>&nbsp;' + pretty_safe_expr(node.expr)
         else:
             assert_never(node)
 

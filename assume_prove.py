@@ -1,8 +1,11 @@
+from functools import reduce
 from typing import Mapping, NamedTuple, NewType, Sequence, TypeAlias, cast, overload
 from typing_extensions import assert_never
 import dsa
+from global_smt_variables import is_global_smt
 import nip
 import source
+import ghost_code
 
 
 VarName = NewType('VarName', str)
@@ -184,6 +187,35 @@ def make_assume_prove_script_for_node(func: dsa.Function, n: source.NodeName) ->
         if (n, node.succ) not in func.cfg.back_edges:
             script.append(InstructionProve(node_ok_ap_var(node.succ)))
     elif isinstance(node, source.NodeAssert):
+        if isinstance(node, ghost_code.NodePrecondObligationFnCall):
+            # Massive hack, but save a whole lot of time
+            cond = convert_expr_dsa_vars_to_ap(node.expr)
+            conjs = list(source.expr_split_conjuncts(cond))
+            assumptions: list[source.ExprT[VarName]] = []
+            proof_obligations: list[source.ExprT[VarName]] = []
+            for conj in conjs:
+
+                is_equal_arbitrary = (isinstance(conj, source.ExprOp)
+                                      and conj.operator == source.Operator.EQUALS
+                                      and isinstance(conj.operands[1], source.ExprVar)
+                                      and is_global_smt(conj.operands[1].name.split('~')[0]))
+                if is_equal_arbitrary:
+                    assumptions.append(conj)
+                else:
+                    proof_obligations.append(conj)
+
+            mk_conjs = lambda xs: reduce(source.expr_and, xs)
+            if assumptions != []:
+                asm: source.ExprT[VarName] = mk_conjs(assumptions) # type: ignore
+                script.append(InstructionAssume(asm))
+            if proof_obligations != []:
+                obl: source.ExprT[VarName] = mk_conjs(proof_obligations) # type: ignore
+                script.append(InstructionProve(obl))
+
+            if (n, node.succ) not in func.cfg.back_edges:
+                script.append(InstructionProve(node_ok_ap_var(node.succ)))
+            return script
+
         cond = convert_expr_dsa_vars_to_ap(node.expr)
         script.append(InstructionProve(source.expr_implies(
             source.expr_negate(cond), node_ok_ap_var(source.NodeNameErr))))

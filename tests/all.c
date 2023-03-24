@@ -472,6 +472,14 @@ int use_modified_ghost_using_prelude()
     return 1;
 }
 
+int use_modified_ghost_using_prelude_x10()
+{
+    for (int i = 0; i < 10; i++)
+        increments_ghost_using_prelude___fail();
+    return 1;
+}
+
+
 // int use_modified_ghost_using_prelude2()
 // {
 //     increments_ghost_using_prelude___fail();
