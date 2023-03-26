@@ -537,11 +537,16 @@ print(define_fun('C_channel_valid', ('(cc (_ BitVec 64))', ),
 print(define_fun('C_msg_info_to_SMT_msg_info', ('(mi (_ BitVec 64))', ),
                  'MsgInfo', f'(MI mi (_ bv0 16))'))
 
+print('; only compares the label field')
+print(define_fun('C_msg_info=SMT_msg_info', ('(c (_ BitVec 64))',
+                                             '(s MsgInfo)'), 'Bool', eq('c', call('label', ['s']))))
+
 
 def bv(size: int) -> str:
     return f'(_ BitVec {size})'
 
 
+print()
 print(declare_fun('lc_arbitrary_1', (), bv(pc.bit_size)))
 
 print("; end of prelude")
