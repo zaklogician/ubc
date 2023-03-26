@@ -135,7 +135,7 @@ def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.
 
     def converter(human: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName | GuardVarName]:
         # HACK: hack for hard coded smt variables
-        if is_global_smt(human.name.subject):
+        if isinstance(human.name.subject, str) and is_global_smt(human.name.subject):
             return source.ExprVar(source.TypeBitVec(471), source.ProgVarName(human.name.subject))
 
         if human not in conversion_map:

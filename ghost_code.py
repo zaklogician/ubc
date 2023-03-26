@@ -272,7 +272,7 @@ def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tu
             source.HumanVarNameSubject(earg.name.split('___')[0]), path=(), use_guard=False))] = garg
 
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
-        if is_global_smt(v.name.subject):
+        if isinstance(v.name.subject, str) and is_global_smt(v.name.subject):
             e = source.ExprVar(source.TypeBitVec(
                 471), source.ProgVarName(v.name.subject))
             return e  # type: ignore
@@ -306,7 +306,7 @@ def unify_postconds(raw_postcondition: source.ExprT[source.HumanVarName],
 
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
         # HACK for deliverable
-        if is_global_smt(v.name.subject):
+        if isinstance(v.name.subject, str) and is_global_smt(v.name.subject):
             e = source.ExprVar(source.TypeBitVec(
                 471), source.ProgVarName(v.name.subject))
             return e  # type: ignore

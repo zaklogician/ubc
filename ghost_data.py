@@ -118,6 +118,12 @@ def arg_value(v: source.ExprVarT[source.VarNameKind]) -> source.ExprVarT[source.
 def ret_value(v: source.ExprVarT[source.VarNameKind]) -> source.ExprVarT[source.VarNameKind]:
     return v
 
+
+def word_cast(v: source.ExprT[source.VarNameKind], target_size: int) -> source.ExprT[source.VarNameKind]:
+    assert isinstance(v.typ, source.TypeBitVec)
+    assert v.typ.size <= target_size, "use extract, with meaningful guard"
+    return source.ExprOp(source.TypeBitVec(target_size), operator=source.Operator.WORD_CAST, operands=(v, ))
+
 # def mk_prod_msg_info(fst, snd):
 #     return source.ExprFunction()
 
@@ -212,10 +218,12 @@ universe = {
         "tmp.increments_ghost_using_prelude___fail": source.Ghost(
             loop_invariants={},
             precondition=conjs(
-                eq(lc, ghost_arb_2)
+                eq(lc, ghost_arb_2),
+                eq(i32v('a'), i32(1)),
             ),
             postcondition=conjs(
                 eq(lc, plus(ghost_arb_2, num(1, 471))),
+                eq(i32ret, i32v('a')),
             ),
         ),
         "tmp.use_modified_ghost_using_prelude": source.Ghost(
@@ -227,11 +235,22 @@ universe = {
                 eq(lc, plus(ghost_arb_3, num(1, 471))),
             ),
         ),
-        # "tmp.use_modified_ghost_using_prelude_x10": source.Ghost(
-        #     loop_invariants={
-        #         lh('5'): eq(lc, plus(ghost_arb_1, num()),
-        #     }
-        # )
+        "tmp.use_modified_ghost_using_prelude_x10": source.Ghost(
+            loop_invariants={
+                # lh('5'): ,
+                lh('5'): conjs(
+                    g('i'),
+                    g('HTD'),
+                    g('GhostAssertions'),
+                    g('PMS'),
+                    g('Mem'),
+                    sbounded(i32v('i'), i32(0), i32(10)),
+                    eq(lc, plus(ghost_arb_1, word_cast(i32v('i'), 471))),
+                ),
+            },
+            precondition=eq(lc, ghost_arb_1),
+            postcondition=eq(lc, plus(ghost_arb_1, word_cast(i32(10), 471))),
+        )
 
     },
 

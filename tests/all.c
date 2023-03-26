@@ -454,11 +454,11 @@ int caller3(int b)
 
 
 // these functions use the prelude
-int increments_ghost_using_prelude___fail()
+int increments_ghost_using_prelude___fail(int a)
 {
     // this fails to verify because nothing justifies modifying the ghost
     // state
-    return 0;
+    return a;
 }
 
 int does_not_change_ghost_using_prelude()
@@ -466,16 +466,16 @@ int does_not_change_ghost_using_prelude()
     return 0;
 }
 
-int use_modified_ghost_using_prelude()
+int use_modified_ghost_using_prelude(int a)
 {
-    increments_ghost_using_prelude___fail();
-    return 1;
+    increments_ghost_using_prelude___fail(1);
+    return a;
 }
 
 int use_modified_ghost_using_prelude_x10()
 {
     for (int i = 0; i < 10; i++)
-        increments_ghost_using_prelude___fail();
+        increments_ghost_using_prelude___fail(1);
     return 1;
 }
 
