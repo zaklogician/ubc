@@ -43,6 +43,7 @@ ops_to_smt: Mapping[source.Operator, SMTLIB] = {
     source.Operator.WORD_ARRAY_ACCESS: SMTLIB("select"),
     source.Operator.WORD_ARRAY_UPDATE: SMTLIB("store"),
     source.Operator.MEM_DOM: SMTLIB("mem-dom"),
+    source.Operator.MEM_ACC: SMTLIB("mem-acc")
 }
 
 # memsort for rv64 native
@@ -237,6 +238,15 @@ def emit_expr(expr: source.ExprT[assume_prove.VarName]) -> SMTLIB:
                 return statically_infered_must_be_true
             raise NotImplementedError(
                 "PAlignValid for non symbols isn't supported")
+        if expr.operator is source.Operator.MEM_ACC:
+            assert len(expr.operands) == 2
+            mem, symb_or_addr = expr.operands
+            if not isinstance(symb_or_addr, source.ExprSymbol):
+                raise NotImplementedError(
+                    "MemAcc for non symbols isn't supported")
+
+            as_fn_call = f"{symb_or_addr.name}"
+            return SMTLIB(f"({ops_to_smt[expr.operator]} {emit_expr(mem)} {as_fn_call})")
 
         return SMTLIB(f'({ops_to_smt[expr.operator]} {" ".join(emit_expr(op) for op in expr.operands)})')
     elif isinstance(expr, source.ExprVar):
@@ -312,7 +322,17 @@ def merge_smtlib(it: Iterator[SMTLIB]) -> SMTLIB:
 def emit_prelude() -> Sequence[Cmd]:
     pms = CmdDeclareSort(Identifier(str(PMS)), 0)
     htd = CmdDeclareSort(Identifier(str(HTD)), 0)
-    prelude = [pms, htd]
+    mem_var = source.ExprVar(
+        typ=source.type_mem, name=assume_prove.VarName("mem"))
+    addr_var = source.ExprVar(typ=source.type_word61,
+                              name=assume_prove.VarName("addr"))
+    mem_acc = CmdDefineFun(Identifier(str("mem-acc")), [mem_var, addr_var], source.type_word64, source.ExprOp(
+        typ=source.type_word64, operands=(mem_var, addr_var), operator=source.Operator.WORD_ARRAY_ACCESS))
+
+    # DEADLINE HACK
+    sel4cp_internal_badge = CmdDeclareFun(Identifier(
+        str("sel4cp_internal_badge")), arg_sorts=[], ret_sort=source.type_word61)
+    prelude: Sequence[Cmd] = [pms, htd, mem_acc, sel4cp_internal_badge]
     return prelude
 
 
