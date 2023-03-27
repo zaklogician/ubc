@@ -243,6 +243,8 @@ def emit_expr(expr: source.ExprT[assume_prove.VarName]) -> SMTLIB:
     elif isinstance(expr, source.ExprSymbol | source.ExprType):
         assert False, "what do i do with this?"
     elif isinstance(expr, source.ExprFunction):
+        if len(expr.arguments) == 0:
+            return SMTLIB(f'{expr.function_name}')
         return SMTLIB(f'({expr.function_name} {" ".join(emit_expr(arg) for arg in expr.arguments)})')
     assert_never(expr)
 
@@ -365,8 +367,8 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
         '(define-fun node_Err_okd () Bool true)\n'
         '(declare-fun ghost_arbitrary_1 () (_ BitVec 471))'
     )
-    # with open('./sel4cp-prelude.smt2') as f:
-    #     raw_prelude = SMTLIB(f.read() + '\n\n')
+    with open('./sel4cp-prelude.smt2') as f:
+        raw_prelude = SMTLIB(f.read() + '\n\n')
 
     clean_smt = merge_smtlib(emit_cmd(cmd) for cmd in cmds)
     return SMTLIB(raw_prelude + clean_smt)

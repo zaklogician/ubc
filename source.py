@@ -518,6 +518,12 @@ def expr_eq(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKi
     return ExprOp(type_bool, Operator.EQUALS, (lhs, rhs))
 
 
+def expr_neq(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
+    """ equate """
+    assert lhs.typ == rhs.typ
+    return expr_negate(expr_eq(lhs, rhs))
+
+
 def mk_binary_bitvec_operation(op: Operator) -> Callable[[ExprT[VarNameKind], ExprT[VarNameKind]], ExprT[VarNameKind]]:
     def f(lhs: ExprT[VarNameKind], rhs: ExprT[VarNameKind]) -> ExprT[VarNameKind]:
         assert lhs.typ == rhs.typ

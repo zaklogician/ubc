@@ -500,9 +500,9 @@ Prod_Ch_MsgInfo = gen_prod_type(Ch, MsgInfo)
 #   | NR_PPCall (Ch, MsgInfo)
 #   | NR_Unknown
 NextRecv = gen_nonrec_data_type('NextRecv', {
-    'Notification': (Set_Ch, ),
-    'PPCall': (Prod_Ch_MsgInfo, ),
-    'Unknown': ()
+    'NR_Notification': (Set_Ch, ),
+    'NR_PPCall': (Prod_Ch_MsgInfo, ),
+    'NR_Unknown': ()
 })
 Maybe_MsgInfo = gen_maybe_type(MsgInfo)
 Maybe_Prod_Ch_MsgInfo = gen_maybe_type(Prod_Ch_MsgInfo)
@@ -548,6 +548,9 @@ def bv(size: int) -> str:
 
 print()
 print(declare_fun('lc_arbitrary_1', (), bv(pc.bit_size)))
+print(declare_fun('lc_arbitrary_2', (), bv(pc.bit_size)))
+print(declare_fun('lc_arbitrary_3', (), bv(pc.bit_size)))
+print(declare_fun('lc_arbitrary_4', (), bv(pc.bit_size)))
 
 print("; end of prelude")
 

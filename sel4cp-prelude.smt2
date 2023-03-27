@@ -67,7 +67,6 @@
 (define-fun <PD61> () PD<> (_ bv61 6))
 (define-fun <PD62> () PD<> (_ bv62 6))
 
-if c == 0 then ch0 else c == 1 then ch1 else ... then ch62
 (assert (distinct <PD00> <PD01> <PD02> <PD03> <PD04> <PD05> <PD06> <PD07> <PD08> <PD09> <PD10> <PD11> <PD12> <PD13> <PD14> <PD15> <PD16> <PD17> <PD18> <PD19> <PD20> <PD21> <PD22> <PD23> <PD24> <PD25> <PD26> <PD27> <PD28> <PD29> <PD30> <PD31> <PD32> <PD33> <PD34> <PD35> <PD36> <PD37> <PD38> <PD39> <PD40> <PD41> <PD42> <PD43> <PD44> <PD45> <PD46> <PD47> <PD48> <PD49> <PD50> <PD51> <PD52> <PD53> <PD54> <PD55> <PD56> <PD57> <PD58> <PD59> <PD60> <PD61> <PD62>))
 (define-fun PD.<> ((v PD)) PD<> ((_ extract 5 0) v))
 (define-fun PD00 () PD <PD00>)
@@ -359,5 +358,9 @@ if c == 0 then ch0 else c == 1 then ch1 else ... then ch62
 (define-fun C_channel_to_SMT_channel ((cc (_ BitVec 64))) Ch ((_ extract 5 0) cc))
 (define-fun C_channel_valid ((cc (_ BitVec 64))) Bool (bvule cc (_ bv62 64)))
 (define-fun C_msg_info_to_SMT_msg_info ((mi (_ BitVec 64))) MsgInfo (MI mi (_ bv0 16)))
+
 (declare-fun lc_arbitrary_1 () (_ BitVec 471))
+(declare-fun lc_arbitrary_2 () (_ BitVec 471))
+(declare-fun lc_arbitrary_3 () (_ BitVec 471))
+(declare-fun lc_arbitrary_4 () (_ BitVec 471))
 ; end of prelude
