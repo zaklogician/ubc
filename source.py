@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Any, Callable, Generic, Iterator, Literal, Mapping, NamedTuple, NewType, Sequence, Set, TypeAlias, TypeVar, Tuple
 from typing_extensions import assert_never
+from global_smt_variables import PLATFORM_CONTEXT_BIT_SIZE
 
 import syntax
 
@@ -184,7 +185,8 @@ def convert_type(typ: syntax.Type) -> Type:
         # GhostAssertions is the only thing that has this particular type,
         # and we hijack it to store the platform context
         if typ.nums[0] == 50 and (typ.nums[1] == 32 or typ.nums[1] == 64):
-            return TypeBitVec(471)  # size of a platform context
+            # size of a platform context
+            return TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE)
         return TypeWordArray(typ.nums[0], typ.nums[1])
     raise NotImplementedError(f"Type {typ.kind} not implemented")
 

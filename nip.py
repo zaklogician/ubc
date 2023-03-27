@@ -18,7 +18,7 @@ from functools import reduce
 import abc_cfg
 from typing import Any, Callable, Iterator, Mapping, NewType, Sequence, Set, TypeAlias, overload
 from typing_extensions import assert_never
-from global_smt_variables import is_global_smt
+from global_smt_variables import PLATFORM_CONTEXT_BIT_SIZE, is_global_smt
 import source
 
 
@@ -136,7 +136,7 @@ def unify_variables_to_make_ghost(func: source.Function) -> source.Ghost[source.
     def converter(human: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName | GuardVarName]:
         # HACK: hack for hard coded smt variables
         if isinstance(human.name.subject, str) and is_global_smt(human.name.subject):
-            return source.ExprVar(source.TypeBitVec(471), source.ProgVarName(human.name.subject))
+            return source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.ProgVarName(human.name.subject))
 
         if human not in conversion_map:
             for key, value in conversion_map.items():

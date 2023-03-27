@@ -6,6 +6,7 @@ from typing_extensions import NamedTuple, NewType, assert_never
 
 import textwrap
 import assume_prove
+from global_smt_variables import PLATFORM_CONTEXT_BIT_SIZE
 import source
 import re
 from utils import open_temp_file
@@ -365,7 +366,7 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     raw_prelude = SMTLIB(
         '(set-logic QF_ABV)\n'
         '(define-fun node_Err_okd () Bool true)\n'
-        '(declare-fun ghost_arbitrary_1 () (_ BitVec 471))'
+        f'(declare-fun ghost_arbitrary_1 () (_ BitVec {PLATFORM_CONTEXT_BIT_SIZE}))'
     )
     with open('./sel4cp-prelude.smt2') as f:
         raw_prelude = SMTLIB(f.read() + '\n\n')

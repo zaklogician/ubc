@@ -20,7 +20,7 @@ from typing import Callable, Iterable, Mapping, NamedTuple, Sequence, Tuple, Any
 from typing_extensions import assert_never
 
 import abc_cfg
-from global_smt_variables import is_global_smt
+from global_smt_variables import is_global_smt, PLATFORM_CONTEXT_BIT_SIZE
 import source
 import nip
 import ghost_data
@@ -274,7 +274,7 @@ def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tu
     def f(v: source.ExprVarT[source.HumanVarName]) -> source.ExprT[source.VarNameKind]:
         if isinstance(v.name.subject, str) and is_global_smt(v.name.subject):
             e = source.ExprVar(source.TypeBitVec(
-                471), source.ProgVarName(v.name.subject))
+                PLATFORM_CONTEXT_BIT_SIZE), source.ProgVarName(v.name.subject))
             return e  # type: ignore
 
         return conversion_map[v]
@@ -308,7 +308,7 @@ def unify_postconds(raw_postcondition: source.ExprT[source.HumanVarName],
         # HACK for deliverable
         if isinstance(v.name.subject, str) and is_global_smt(v.name.subject):
             e = source.ExprVar(source.TypeBitVec(
-                471), source.ProgVarName(v.name.subject))
+                PLATFORM_CONTEXT_BIT_SIZE), source.ProgVarName(v.name.subject))
             return e  # type: ignore
         return conversion_map[v]
 

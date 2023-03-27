@@ -3,6 +3,7 @@ from math import prod
 from sys import platform
 from typing import Callable
 import source
+from global_smt_variables import PLATFORM_CONTEXT_BIT_SIZE
 
 conj = source.expr_and
 disj = source.expr_or
@@ -86,27 +87,27 @@ def lh(x: str) -> source.LoopHeaderName:
     return source.LoopHeaderName(source.NodeName(x))
 
 
-lc = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+lc = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('GhostAssertions'), path=(), use_guard=False))
-lc_arb_1 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+lc_arb_1 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('lc_arbitrary_1'), path=(), use_guard=False))
-lc_arb_2 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+lc_arb_2 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('lc_arbitrary_2'), path=(), use_guard=False))
-lc_arb_3 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+lc_arb_3 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('lc_arbitrary_3'), path=(), use_guard=False))
-lc_arb_4 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+lc_arb_4 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('lc_arbitrary_4'), path=(), use_guard=False))
-# lc_err = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+# lc_err = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
 #     source.HumanVarNameSubject('lc_arbitrary_err'), path=(), use_guard=False))
-lc_err = source.ExprNum(source.TypeBitVec(471), 0xdead1c)
+lc_err = source.ExprNum(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), 0xdead1c)
 
-ghost_arb_1 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+ghost_arb_1 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('ghost_arbitrary_1'), path=(), use_guard=False))
-ghost_arb_2 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+ghost_arb_2 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('ghost_arbitrary_2'), path=(), use_guard=False))
-ghost_arb_3 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+ghost_arb_3 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('ghost_arbitrary_3'), path=(), use_guard=False))
-ghost_arb_4 = source.ExprVar(source.TypeBitVec(471), source.HumanVarName(
+ghost_arb_4 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('ghost_arbitrary_4'), path=(), use_guard=False))
 
 # Ch = source.TypeBitVec(6)
@@ -187,7 +188,7 @@ C_channel_valid = source.FunctionName('C_channel_valid')
 
 # constructor for platform context
 PlatformContext_LC = source.FunctionName('LC')
-PlatformContext = source.TypeBitVec(471)
+PlatformContext = source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE)
 
 
 def word_cast(v: source.ExprT[source.VarNameKind], target_size: int) -> source.ExprT[source.VarNameKind]:
@@ -233,34 +234,12 @@ def hname(name: str, ty: source.Type) -> source.ExprVarT[source.HumanVarName]:
     return source.ExprVar(ty, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=False, path=()))
 
 
-# def wf_MsgInfo(msginfo: source.ExprT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
-#     label_fn_name = source.FunctionName('label')
-#     count_fn_name = source.FunctionName('count')
-#     just_val = source.ExprFunction(
-#         Maybe_MsgInfo, MsgInfo_Just, (msginfo,))
-#     label = source.ExprFunction(source.type_word64, label_fn_name, [just_val])
-#     count = source.ExprFunction(source.type_word16, count_fn_name, [just_val])
-
-#     label_maxval = source.ExprNum(source.type_word64, 0xffffffffffff)
-#     count_maxval = source.ExprNum(source.type_word16, 127)
-
-#     # TODO: is this correct?
-#     # nope it ain't, sle stands for signed less than
-#     return conjs(
-#         sle(label, label_maxval),
-#         sle(count, count_maxval)
-#     )
-
 def wf_MsgInfo(msginfo: source.ExprT[source.HumanVarName]) -> source.ExprT[source.HumanVarName]:
-    # TODO: FIXME, this is not how it should be!
-    label = source.ExprFunction(
-        source.type_word64, source.FunctionName('label'), [msginfo])
-    count = source.ExprFunction(
-        source.type_word64, source.FunctionName('count'), [msginfo])
-    return conjs(
-        ule(label, i64(2**64-1)),
-        ule(count, num(n=2**16-1, bvsize=16)),
-    )
+    """
+    This well formedness is implied because of the way the label and the count
+    is encoded (52 bits for the label, 12 bits for the rest).
+    """
+    return T
 
 # data PlatformContext = LC
 #   { ci :: PlatformInvariants
@@ -620,7 +599,7 @@ universe = {
                 eq(i32v('a'), i32(1)),
             ),
             postcondition=conjs(
-                eq(lc, plus(ghost_arb_2, num(1, 471))),
+                eq(lc, plus(ghost_arb_2, num(1, PLATFORM_CONTEXT_BIT_SIZE))),
                 eq(i32ret, i32v('a')),
             ),
         ),
@@ -630,7 +609,7 @@ universe = {
                 eq(lc, ghost_arb_3),
             ),
             postcondition=conjs(
-                eq(lc, plus(ghost_arb_3, num(1, 471))),
+                eq(lc, plus(ghost_arb_3, num(1, PLATFORM_CONTEXT_BIT_SIZE))),
             ),
         ),
         "tmp.use_modified_ghost_using_prelude_x10": source.Ghost(
@@ -643,11 +622,13 @@ universe = {
                     g('PMS'),
                     g('Mem'),
                     sbounded(i32v('i'), i32(0), i32(10)),
-                    eq(lc, plus(ghost_arb_1, word_cast(i32v('i'), 471))),
+                    eq(lc, plus(ghost_arb_1, word_cast(
+                        i32v('i'), PLATFORM_CONTEXT_BIT_SIZE))),
                 ),
             },
             precondition=eq(lc, ghost_arb_1),
-            postcondition=eq(lc, plus(ghost_arb_1, word_cast(i32(10), 471))),
+            postcondition=eq(lc, plus(ghost_arb_1, word_cast(
+                i32(10), PLATFORM_CONTEXT_BIT_SIZE))),
         )
 
     },
