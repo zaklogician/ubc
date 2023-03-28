@@ -156,8 +156,8 @@ NextRecv_PPCall: source.ExprT[source.HumanVarName] = source.ExprFunction(
 NextRecv_Unknown: source.ExprT[source.HumanVarName] = source.ExprFunction(
     NextRecvEnum, NextRecvEnumUnknown, [])
 
-NextRecvNotificationGet = source.FunctionName('Notification.1')
-NextRecvPPCallGet = source.FunctionName('PPCall.1')
+NextRecvNotificationGet = source.FunctionName('NR_Notification.1')
+NextRecvPPCallGet = source.FunctionName('NR_PPCall.1')
 
 lc_running_pd = source.FunctionName('lc_running_pd')
 lc_receive_oracle = source.FunctionName('lc_receive_oracle')
@@ -201,12 +201,12 @@ def word_cast(v: source.ExprT[source.VarNameKind], target_size: int) -> source.E
 
 
 def mi_zeroed() -> source.ExprT[source.HumanVarName]:
-    return source.ExprFunction(MsgInfo, MI, [source.ExprNum(source.type_word64, 0), source.ExprNum(source.type_word16, 0)])
+    return source.ExprFunction(MsgInfo, MI, [source.ExprNum(source.type_word52, 0), source.ExprNum(source.type_word12, 0)])
 
 
 mi_err: source.ExprT[source.HumanVarName]
 mi_err = source.ExprFunction(MsgInfo, MI, [source.ExprNum(
-    source.type_word64, 0xdead2), source.ExprNum(source.type_word16, 0xdead)])
+    source.type_word52, 0xd), source.ExprNum(source.type_word12, 0xd)])
 
 
 def arg_value(v: source.ExprVarT[source.VarNameKind]) -> source.ExprVarT[source.VarNameKind]:
@@ -223,8 +223,8 @@ def mkeq(fn_name: source.FunctionName, ty: source.Type, arg_lc: source.ExprVarT[
               source.ExprFunction(ty, fn_name, arguments=(ret_value(lc),)))
 
 
-NR_Notification = source.FunctionName('Notification')
-NR_Unknown = source.FunctionName('Unknown')
+NR_Notification = source.FunctionName('NR_Notification')
+NR_Unknown = source.FunctionName('NR_Unknown')
 
 Ch_empty_fn: source.ExprT[source.HumanVarName] = source.ExprFunction(
     Set_Ch, Ch_set_empty, ())
@@ -364,8 +364,8 @@ def recv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: source.Exp
     return conjs(
         eq(
             source.ExprFunction(
-                Maybe_MsgInfo, C_msg_info_to_SMT_msg_info, [i64ret]),
-            source.ExprFunction(Maybe_MsgInfo, MsgInfo_Just, [rv])
+                MsgInfo, C_msg_info_to_SMT_msg_info, [i64ret]),
+            rv
         ),
         eq(lc, arg_lc)
     )
@@ -386,8 +386,10 @@ def NextRecv_case(
     """
 
     set_ch = source.ExprFunction(Set_Ch, NextRecvNotificationGet, [nr])
+
+    # next_recv_ppcall = source.ExprFunction(Prod_Ch_MsgInfo,
     prod_ch_msginfo = source.ExprFunction(
-        Prod_Ch_MsgInfo, Prod_Ch_MsgInfo_fn, [nr])
+        Prod_Ch_MsgInfo, NextRecvPPCallGet, [nr])
 
     constructor = source.ExprFunction(NextRecvEnum, NextRecvEnumGet, [nr])
 
@@ -499,8 +501,8 @@ def replyrecv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: sourc
         eq(ret_value(lc), lc_prime),
         eq(
             source.ExprFunction(
-                Maybe_MsgInfo, C_msg_info_to_SMT_msg_info, [i64ret]),
-            source.ExprFunction(Maybe_MsgInfo, MsgInfo_Just, [rv])
+                MsgInfo, C_msg_info_to_SMT_msg_info, [i64ret]),
+            rv
         )
     )
 

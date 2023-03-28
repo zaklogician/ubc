@@ -122,7 +122,7 @@ def pretty_safe_expr(expr: source.ExprT[Any], print_type: bool = False) -> str:
             ]
         return "{}({})".format(expr.operator.value, ", ".join(vals))
     elif isinstance(expr, source.ExprFunction):
-        return f"[smt]{expr.function_name}({', '.join(pretty_safe_expr(arg) for arg in expr.arguments)})"
+        return f"[smt]{expr.function_name.replace('<', '&lt;').replace('>', '&gt;')}({', '.join(pretty_safe_expr(arg) for arg in expr.arguments)})"
     else:
         return str(expr).replace('<', '&lt;').replace('>', '&gt;')
 
@@ -191,7 +191,7 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
     # puts()
 
     dom = '[penwidth=3.0 color=darkblue]'
-    non_dom = '[color="#888"]'
+    non_dom = '[color="black"]'
     weights: dict[source.NodeName, int] = {}
     for idx in fun.traverse_topologically(skip_err_and_ret=True):
         node = fun.nodes[idx]
@@ -355,7 +355,8 @@ def make_and_open_image(filepath: str) -> None:
     # https://bugzilla.mozilla.org/show_bug.cgi?id=308338
     # gotta use chrome
     p = subprocess.Popen(
-        ["chromium", "--new-window", filepath + ".svg"],
+        # ["chromium", "--new-window", filepath + ".svg"],
+        ["open", filepath + ".svg"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
