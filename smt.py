@@ -390,6 +390,8 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
     )
     with open('./sel4cp-prelude.smt2') as f:
         raw_prelude = SMTLIB(f.read() + '\n\n')
+    with open('./sel4cp-manual-prelude.smt2') as f:
+        raw_prelude = SMTLIB(raw_prelude + f.read() + '\n\n')
 
     clean_smt = merge_smtlib(emit_cmd(cmd) for cmd in cmds)
     return SMTLIB(raw_prelude + clean_smt)

@@ -1,6 +1,6 @@
 with import <nixpkgs> {};
 let
-  pythonEnv = python311.withPackages (ps: [
+  pythonEnv = python310.withPackages (ps: [
     ps.pytest
     ps.typing-extensions
     ps.mypy

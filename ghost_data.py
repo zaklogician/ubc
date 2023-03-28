@@ -64,9 +64,33 @@ def i64(n: int) -> source.ExprNumT:
     return source.ExprNum(source.type_word64, n)
 
 
+def charv(n: str) -> source.ExprVarT[source.HumanVarName]:
+    return source.ExprVar(source.type_word8, source.HumanVarName(source.HumanVarNameSubject(n), use_guard=False, path=()))
+
+
+def char(n: int) -> source.ExprNumT:
+    return source.ExprNum(source.type_word8, n)
+
+
 def g(name: str) -> source.ExprVarT[source.HumanVarName]:
     """ guard """
     return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject(name), use_guard=True, path=()))
+
+
+def htd_assigned() -> source.ExprVarT[source.HumanVarName]:
+    return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject('HTD'), use_guard=True, path=()))
+
+
+def mem_assigned() -> source.ExprVarT[source.HumanVarName]:
+    return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject('Mem'), use_guard=True, path=()))
+
+
+def pms_assigned() -> source.ExprVarT[source.HumanVarName]:
+    return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject('PMS'), use_guard=True, path=()))
+
+
+def ghost_asserts_assigned() -> source.ExprVarT[source.HumanVarName]:
+    return source.ExprVar(source.type_bool, source.HumanVarName(source.HumanVarNameSubject('GhostAssertions'), use_guard=True, path=()))
 
 
 i32ret = source.ExprVar(source.type_word32, source.HumanVarName(
@@ -777,6 +801,33 @@ universe = {
                 lc_arb_4,
             ),
             loop_invariants={}
-        )
+        ),
+        "libsel4cp.handler_loop": source.Ghost(precondition=T,
+                                               postcondition=T,
+                                               loop_invariants={lh('3'):
+                                                                conjs(
+                                                   source.expr_implies(neq(charv('have_reply'), char(0)), eq(
+                                                       g('reply_tag'), source.expr_true)),
+                                                   source.expr_implies(
+                                                       eq(g('is_endpoint'), T),
+                                                       eq(neq(i64v('is_endpoint'), i64(0)),
+                                                          neq(charv('have_reply'), char(0)))
+                                                   ),
+                                                   eq(htd_assigned(), T),
+                                                   eq(mem_assigned(), T),
+                                                   eq(pms_assigned(), T),
+                                                   eq(ghost_asserts_assigned(), T),
+                                                   eq(g('have_reply'), T),
+                                               ),
+                                                   lh('10'): conjs(
+                                                   eq(i64v('is_endpoint'), i64(0)),
+                                                   eq(g('badge'), T),
+                                                   eq(g('idx'), T),
+                                                   eq(htd_assigned(), T),
+                                                   eq(mem_assigned(), T),
+                                                   eq(pms_assigned(), T),
+                                                   eq(ghost_asserts_assigned(), T)
+                                               )
+                                               })
     }
 }
