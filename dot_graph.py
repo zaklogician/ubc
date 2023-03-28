@@ -191,7 +191,7 @@ def viz_function(file: IOBase, fun: source.GenericFunction[Any, Any]) -> None:
     # puts()
 
     dom = '[penwidth=3.0 color=darkblue]'
-    non_dom = '[color="black"]'
+    non_dom = '[color="#888"]'
     weights: dict[source.NodeName, int] = {}
     for idx in fun.traverse_topologically(skip_err_and_ret=True):
         node = fun.nodes[idx]
