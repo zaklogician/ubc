@@ -331,7 +331,7 @@ def emit_prelude() -> Sequence[Cmd]:
 
     # DEADLINE HACK
     sel4cp_internal_badge = CmdDeclareFun(Identifier(
-        str("sel4cp_internal_badge")), arg_sorts=[], ret_sort=source.type_word61)
+        str("badge")), arg_sorts=[], ret_sort=source.type_word61)
     prelude: Sequence[Cmd] = [pms, htd, mem_acc, sel4cp_internal_badge]
     return prelude
 

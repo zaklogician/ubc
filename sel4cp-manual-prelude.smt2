@@ -1,26 +1,11 @@
-; start of pre condition
-; HLIPre :: OldPlatformContext -> NewPlatformContext -> Bool
-(define-fun HLIPre ((c PlatformContext) (newc PlatformContext)) Bool 
-  (and
-    (= (lc_unhandled_reply c) (lc_unhandled_reply newc))
-    (= (lc_unhandled_notified c) (lc_unhandled_notified newc))
-    (= (lc_unhandled_ppcall c) (lc_unhandled_ppcall newc))
-    (not (= (lc_receive_oracle newc) NR_Unknown))
-    (not (= (lc_receive_oracle newc) (NR_Notification Ch_set_empty)))
-    (= (lc_receive_oracle newc) (lc_receive_oracle c))
-  )
-)
-; HLIPost :: OldPlatformContext -> NewPlatformContext -> Bool
-(define-fun HLIPost ((c PlatformContext) (newc PlatformContext)) Bool 
-  (and 
-    (= (lc_last_handled_reply newc) (lc_last_handled_reply c)) 
-    (= (lc_unhandled_notified newc) Ch_set_empty) ; 
-    (= (lc_unhandled_ppcall newc) Prod_Ch_MsgInfo_Nothing)
-    (= (lc_receive_oracle newc) NR_Unknown)
-    (ite
-      (= (NextRecv.<> (lc_receive_oracle c)) <NR_Notification>)
-      (= (lc_last_handled_notified newc) (NR_Notification.1 (lc_receive_oracle c)))
-      true 
-    )
+(declare-fun handler_loop_pre_unhandled_reply () Maybe_MsgInfo)
+(declare-fun handler_loop_pre_receive_oracle () NextRecv)
+
+(declare-fun oracle_rel_arb_ch () Ch)
+(declare-fun recv_oracle_kernel () Prod_MsgInfo_SeL4_Ntfn)
+(define-fun badge_has_channel ((badge SeL4_Ntfn) (ch Ch)) Bool 
+  (= 
+    ((_ extract ch ch) badge)
+    (_bv1 1)
   )
 )

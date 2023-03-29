@@ -499,6 +499,12 @@ MsgInfo = gen_composite_type('MsgInfo', 'MI', {
 })
 Prod_Ch_MsgInfo = gen_prod_type(Ch, MsgInfo)
 
+SeL4_Ntfn = ExternType(name='SeL4_Ntfn', bit_size=64)
+print('(define-sort SeL4_Ntfn () (_ BitVec 64))')
+
+Prod_MsgInfo_SeL4_Ntf = gen_prod_type(MsgInfo, SeL4_Ntfn)
+KernelOracle = gen_maybe_type(Prod_MsgInfo_SeL4_Ntf)
+
 # data NextRecv
 #   = NR_Notification (Set Ch)
 #   | NR_PPCall (Ch, MsgInfo)
@@ -530,10 +536,10 @@ pc = gen_composite_type('PlatformContext', 'LC', {
     'lc_unhandled_reply': Maybe_MsgInfo,
     'lc_last_handled_reply': Maybe_MsgInfo
 })
-print(define_fun('C_channel_to_SMT_channel', ('(cc (_ BitVec 64))', ),
+print(define_fun('C_channel_to_SMT_channel', ('(cc (_ BitVec 32))', ),
                  Ch.name, extract('cc', Ch.bit_size - 1, 0)))
-print(define_fun('C_channel_valid', ('(cc (_ BitVec 64))', ),
-                 'Bool', f'(bvule cc (_ bv62 64))'))
+print(define_fun('C_channel_valid', ('(cc (_ BitVec 32))', ),
+                 'Bool', f'(bvule cc (_ bv62 32))'))
 
 # the bit field is packed
 print(define_fun('C_msg_info_to_SMT_msg_info', ('(mi (_ BitVec 64))', ),

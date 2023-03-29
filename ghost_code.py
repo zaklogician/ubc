@@ -18,7 +18,6 @@ import dataclasses
 from enum import Enum, unique
 from typing import Callable, Iterable, Mapping, NamedTuple, Sequence, Tuple, Any, Iterator, Dict
 from typing_extensions import assert_never
-
 import abc_cfg
 from global_smt_variables import is_global_smt, PLATFORM_CONTEXT_BIT_SIZE
 import source
@@ -276,7 +275,9 @@ def unify_preconds(raw_precondition: source.ExprT[source.HumanVarName], args: Tu
             e = source.ExprVar(source.TypeBitVec(
                 PLATFORM_CONTEXT_BIT_SIZE), source.ProgVarName(v.name.subject))
             return e  # type: ignore
-
+        if v not in conversion_map:
+            for key, value in conversion_map.items():
+                print(key)
         return conversion_map[v]
     return (conversion_map, source.convert_expr_vars(f, raw_precondition))
 
@@ -315,6 +316,52 @@ def unify_postconds(raw_postcondition: source.ExprT[source.HumanVarName],
     return source.convert_expr_vars(f, raw_postcondition)
 
 
+def sprinkle_handlerloop(fn: Function) -> Function:
+    handler_loop_node = ghost_data.handler_loop_node_name()
+    pre_after_name = source.NodeName(handler_loop_node)
+    post_before_name = source.NodeName(handler_loop_node)
+
+    def get_pre_insertion(node_name: source.NodeName, before: source.NodeName) -> Insertion:
+        pre_expr = ghost_data.handler_loop_iter_pre()
+        return Insertion(after=pre_after_name, before=before, kind=K.NODE_LOOP_INVARIANT_ASSUMPTION, expr=pre_expr, node_name=node_name)
+
+    def get_post_insertion(node_name: source.NodeName, after: source.NodeName) -> Insertion:
+        post_expr = ghost_data.handler_loop_iter_post()
+        return Insertion(after=after, before=post_before_name, kind=K.NODE_LOOP_INVARIANT_PROOF_OBLIGATION, expr=post_expr, node_name=node_name)
+
+    insertions = []
+    for node_name in fn.traverse_topologically():
+        if node_name.startswith(f'loop_{handler_loop_node}_inv_asm_'):
+            before_name = node_name
+            split = node_name.split(f'loop_{handler_loop_node}_inv_asm_')
+            # one integer, one number
+            assert len(split) == 2
+            # python raises ValueError for invalid parse attempts
+            num = int(split[1])
+            new_node_name = source.NodeName(f'handler_loop_pre_assume_{num}')
+            insertions.append(get_pre_insertion(new_node_name, before_name))
+
+        if node_name.startswith(f'loop_{handler_loop_node}_latch_'):
+            after_name = node_name
+            split = node_name.split(f'loop_{handler_loop_node}_latch_')
+            assert len(split) == 2
+            num = int(split[1])
+            if (node_name, post_before_name) not in fn.cfg.back_edges:
+                continue
+            new_node_name = source.NodeName(f'handler_loop_post_assert_{num}')
+            insertions.append(get_post_insertion(new_node_name, after_name))
+
+    new_nodes = apply_insertions(fn, insertions)
+    all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
+    cfg = abc_cfg.compute_cfg_from_all_succs(all_succs, fn.cfg.entry)
+    loops = abc_cfg.compute_loops(
+        new_nodes, cfg)
+    assert loops.keys() == fn.loops.keys(
+    ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
+
+    return Function(name=fn.name, nodes=new_nodes, cfg=cfg, loops=loops, ghost=fn.ghost, signature=fn.signature)
+
+
 def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, source.FunctionSignature[source.ProgVarName]]) -> Iterator[Insertion]:
     for name in fn.traverse_topologically(skip_err_and_ret=True):
         node = fn.nodes[name]
@@ -342,14 +389,15 @@ def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, sou
 # descriptive one I could think of
 
 
-def sprinkle_ghost_code(filename: str, func: nip.Function, ctx: Dict[str, syntax.Function]) -> Function:
+def sprinkle_ghost_code_prime(filename: str, func: nip.Function, ctx: Dict[str, syntax.Function]) -> Function:
     new_ctx: dict[str, source.FunctionSignature[source.ProgVarName]] = {}
     for fname, syn_func in ctx.items():
         new_ctx[fname] = source.convert_function_metadata(syn_func)
     insertions: list[Insertion] = []
     insertions.extend(sprinkle_precondition(func))
     insertions.extend(sprinkle_postcondition(func))
-    insertions.extend(sprinkle_loop_invariants(func))
+    loop_insertions = sprinkle_loop_invariants(func)
+    insertions.extend(loop_insertions)
     insertions.extend(sprinkle_call_conditions(filename, func, new_ctx))
     new_nodes = apply_insertions(func, insertions)
     all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
@@ -362,3 +410,10 @@ def sprinkle_ghost_code(filename: str, func: nip.Function, ctx: Dict[str, syntax
     # new_nodes = search_common_succs(func, cfg)
 
     return Function(name=func.name, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost, signature=func.signature)
+
+
+def sprinkle_ghost_code(filename: str, func: nip.Function, ctx: Dict[str, syntax.Function]) -> Function:
+    fn = sprinkle_ghost_code_prime(filename, func, ctx)
+    if filename != "tests/libsel4cp_trunc.txt" and func.name != "libsel4cp.handler_loop":
+        return fn
+    return sprinkle_handlerloop(fn)

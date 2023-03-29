@@ -41,6 +41,13 @@ def conjs(*xs: source.ExprT[source.VarNameKind]) -> source.ExprT[source.VarNameK
     return reduce(source.expr_and, xs)  # pyright: ignore
 
 
+def ors(*xs: source.ExprT[source.VarNameKind]) -> source.ExprT[source.VarNameKind]:
+    # pyright is stupid, but mypy works it out (we only care about mypy)
+    if len(xs) == 0:
+        return T
+    return reduce(source.expr_or, xs)  # pyright: ignore
+
+
 def num(n: int, bvsize: int) -> source.ExprT[source.VarNameKind]:
     assert n <= 2 ** bvsize
     return source.ExprNum(source.TypeBitVec(bvsize), n)
@@ -155,13 +162,16 @@ Prod_Ch_MsgInfo = source.TypeBitVec(86)
 
 Ch = source.TypeBitVec(6)
 PD = source.TypeBitVec(6)
-NextRecv = source.TypeBitVec(88)
+NextRecv = source.TypeBitVec(72)
 NextRecvEnum = source.TypeBitVec(2)
 Set_Ch = source.TypeBitVec(64)
-MsgInfo = source.TypeBitVec(80)
-Prod_Ch_MsgInfo = source.TypeBitVec(86)
-Maybe_Prod_Ch_MsgInfo = source.TypeBitVec(87)
-Maybe_MsgInfo = source.TypeBitVec(81)
+MsgInfo = source.TypeBitVec(64)
+Prod_Ch_MsgInfo = source.TypeBitVec(70)
+Maybe_Prod_Ch_MsgInfo = source.TypeBitVec(71)
+Maybe_MsgInfo = source.TypeBitVec(65)
+Maybe_MsgInfoEnum = source.TypeBitVec(1)
+SeL4_Ntfn = source.TypeBitVec(64)
+Prod_MsgInfo_SeL4_Ntfn = source.TypeBitVec(128)
 
 Ch_set_empty = source.FunctionName('Ch_set_empty')
 Ch_set_has = source.FunctionName('Ch_set_has')
@@ -172,6 +182,10 @@ NextRecvEnumGet = source.FunctionName('NextRecv.<>')
 NextRecvEnumNotification = source.FunctionName('<NR_Notification>')
 NextRecvEnumPPCall = source.FunctionName('<NR_PPCall>')
 NextRecvEnumUnknown = source.FunctionName('<NR_Unknown>')
+
+Maybe_MsgInfoEnumGet = source.FunctionName('Maybe_MsgInfo.<>')
+Maybe_MsgInfoEnumJust = source.FunctionName('<MsgInfo_Just>')
+Maybe_MsgInfoEnumNothing = source.FunctionName('<MsgInfo_Nothing>')
 
 NextRecv_Notification: source.ExprT[source.HumanVarName] = source.ExprFunction(
     NextRecvEnum, NextRecvEnumNotification, [])
@@ -517,6 +531,8 @@ def replyrecv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: sourc
     def rv_when_unknown() -> source.ExprT[source.HumanVarName]:
         return mi_err
 
+    # def mem_when_notification()
+
     rv = NextRecv_case(oracle, rv_when_notification,
                        rv_when_ppcall, rv_when_unknown)
     # rv case DONE
@@ -529,6 +545,10 @@ def replyrecv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: sourc
             rv
         )
     )
+
+
+def handler_loop_node_name() -> str:
+    return '3'
 
 
 universe = {
@@ -682,13 +702,13 @@ universe = {
                        source.ExprFunction(Prod_Ch_MsgInfo, Prod_Ch_MsgInfo_fn, (
                            # unsigned int is i64??
                            source.ExprFunction(
-                               Ch, C_channel_to_SMT_channel, (i64v('ch'), )),
+                               Ch, C_channel_to_SMT_channel, (i32v('ch'), )),
                            source.ExprFunction(
                                MsgInfo, C_msg_info_to_SMT_msg_info, (i64v('msginfo'), )),
                        ))
                    ])),
                 source.ExprFunction(
-                    source.type_bool, C_channel_valid, (i64v('ch'), )),
+                    source.type_bool, C_channel_valid, (i32v('ch'), )),
             ),
             postcondition=conjs(
                 mkeq(lc_running_pd, PD, lc_arb_1),
@@ -719,10 +739,10 @@ universe = {
                     source.ExprFunction(Set_Ch, lc_unhandled_notified, (lc, )),
                     # unsigned int is i64??
                     source.ExprFunction(
-                        Ch, C_channel_to_SMT_channel, (i64v('ch'), )),
+                        Ch, C_channel_to_SMT_channel, (i32v('ch'), )),
                 )),
                 source.ExprFunction(
-                    source.type_bool, C_channel_valid, (i64v('ch'), )),
+                    source.type_bool, C_channel_valid, (i32v('ch'), )),
             ),
             postcondition=conjs(
                 mkeq(lc_running_pd, PD, lc_arb_2),
@@ -732,7 +752,7 @@ universe = {
                    source.ExprFunction(Set_Ch, Ch_set_remove,
                                        (source.ExprFunction(Set_Ch,  lc_unhandled_notified, (lc_arb_2,), ),
                                         source.ExprFunction(
-                                            Ch, C_channel_to_SMT_channel, (i64v('ch'),))
+                                            Ch, C_channel_to_SMT_channel, (i32v('ch'),))
                                         )
                                        )
                    ),
@@ -742,7 +762,7 @@ universe = {
                         source.ExprFunction(
                             Set_Ch, lc_last_handled_notified, (lc_arb_2,)),
                         source.ExprFunction(
-                            Ch, C_channel_to_SMT_channel, (i64v('ch'),))
+                            Ch, C_channel_to_SMT_channel, (i32v('ch'),))
                     ])
                    ),
                 mkeq(lc_unhandled_ppcall, Maybe_Prod_Ch_MsgInfo, lc_arb_2),
@@ -804,30 +824,210 @@ universe = {
         ),
         "libsel4cp.handler_loop": source.Ghost(precondition=T,
                                                postcondition=T,
-                                               loop_invariants={lh('3'):
-                                                                conjs(
-                                                   source.expr_implies(neq(charv('have_reply'), char(0)), eq(
-                                                       g('reply_tag'), source.expr_true)),
-                                                   source.expr_implies(
-                                                       eq(g('is_endpoint'), T),
-                                                       eq(neq(i64v('is_endpoint'), i64(0)),
-                                                          neq(charv('have_reply'), char(0)))
-                                                   ),
-                                                   eq(htd_assigned(), T),
-                                                   eq(mem_assigned(), T),
-                                                   eq(pms_assigned(), T),
-                                                   eq(ghost_asserts_assigned(), T),
-                                                   eq(g('have_reply'), T),
-                                               ),
-                                                   lh('10'): conjs(
-                                                   eq(i64v('is_endpoint'), i64(0)),
-                                                   eq(g('badge'), T),
-                                                   eq(g('idx'), T),
-                                                   eq(htd_assigned(), T),
-                                                   eq(mem_assigned(), T),
-                                                   eq(pms_assigned(), T),
-                                                   eq(ghost_asserts_assigned(), T)
-                                               )
-                                               })
+                                               loop_invariants={lh(handler_loop_node_name()): T,
+                                                                lh('10'): T
+                                                                #                  conjs(
+                                                                #     source.expr_implies(neq(charv('have_reply'), char(0)), eq(
+                                                                #         g('reply_tag'), source.expr_true)),
+                                                                #     source.expr_implies(
+                                                                #         eq(g('is_endpoint'), T),
+                                                                #         eq(neq(i64v('is_endpoint'), i64(0)),
+                                                                #            neq(charbadgev('have_reply'), char(0)))
+                                                                #     ),
+                                                                #     eq(htd_assigned(), T),
+                                                                #     eq(mem_assigned(), T),
+                                                                #     eq(pms_assigned(), T),
+                                                                #     eq(ghost_asserts_assigned(), T),
+                                                                #     eq(g('have_reply'), T),
+                                                                # ),
+                                                                #     lh('10'): conjs(
+                                                                #     eq(i64v('is_endpoint'), i64(0)),
+                                                                #     eq(g('lbadge'), T),
+                                                                #     eq(g('idx'), T),
+                                                                #     eq(htd_assigned(), T),
+                                                                #     eq(mem_assigned(), T),
+                                                                #     eq(pms_assigned(), T),
+                                                                #     eq(ghost_asserts_assigned(), T)
+                                                                # )
+                                                                })
     }
 }
+
+# handle loop related verification conditions
+lc_progvar = source.ExprVar(source.TypeBitVec(
+    PLATFORM_CONTEXT_BIT_SIZE), source.ProgVarName('GhostAssertions'))
+handle_loop_pre_oracle = source.ExprFunction(
+    NextRecv, source.FunctionName('handler_loop_pre_receive_oracle'), [])
+handle_loop_pre_oracle_ty = source.ExprFunction(
+    NextRecvEnum, NextRecvEnumGet, [handle_loop_pre_oracle])
+handle_loop_pre_unhandled_reply = source.ExprFunction(
+    Maybe_MsgInfo, source.FunctionName('handler_loop_pre_unhandled_reply'), [])
+
+recv_oracle_kernel = source.ExprFunction(Prod_MsgInfo_SeL4_Ntfn, source.FunctionName('recv_oracle_kernel'), [])
+oracle_rel_arb_ch = source.ExprFunction(Ch, source.FunctionName('oracle_rel_arb_ch'), [])
+
+
+def wf_handler_pre_unhandled_reply_with_set_ghost() -> source.ExprT[source.ProgVarName]:
+    wf_condition = conjs(
+        # if Nothing then all other bits are zero
+        source.expr_implies(
+            eq(
+                source.ExprFunction(Maybe_MsgInfoEnum, Maybe_MsgInfoEnumGet, [
+                                    handle_loop_pre_unhandled_reply]),
+                source.ExprFunction(Maybe_MsgInfoEnum,
+                                    Maybe_MsgInfoEnumNothing, [])
+            ),
+            eq(
+                handle_loop_pre_unhandled_reply,
+                source.ExprNum(Maybe_MsgInfo, 0)
+            ),
+        )
+
+    )
+
+    return conjs(
+        wf_condition,
+        eq(
+            source.ExprFunction(
+                Maybe_MsgInfo, lc_unhandled_reply, [lc_progvar]),
+            handle_loop_pre_unhandled_reply
+        )
+    )
+
+
+# if Nothing then all other bits are zero
+
+def wf_handler_pre_receive_oracle_with_set_ghost() -> source.ExprT[source.ProgVarName]:
+    # the top two bits are valid.
+    # check if the receive oracle is a valid enum
+
+    is_notification = eq(
+        handle_loop_pre_oracle_ty,
+        source.ExprFunction(NextRecvEnum, NextRecvEnumNotification, [])
+    )
+
+    valid_enum = ors(
+        is_notification,
+        eq(
+            handle_loop_pre_oracle_ty,
+            source.ExprFunction(NextRecvEnum, NextRecvEnumNotification, [])
+        ),
+    )
+
+    valid_pre_handler_notification = source.expr_implies(
+        is_notification,
+        neq(
+            source.ExprFunction(Set_Ch, NextRecvNotificationGet, [
+                                handle_loop_pre_oracle]),
+            source.ExprFunction(Set_Ch, Ch_set_empty, [])
+        )
+
+    )
+
+    # we sort of don't care about sections of the bitvector we don't access
+    # as a result we can just assume its correct, even though it might not be.
+    valid_ppcall = T
+    valid_unknown = T
+    wf_receive = conjs(
+        valid_enum, valid_pre_handler_notification, valid_ppcall, valid_unknown)
+
+    return conjs(
+        wf_receive,
+        eq(
+            source.ExprFunction(NextRecv, lc_receive_oracle, [lc_progvar]),
+            handle_loop_pre_oracle
+        )
+    )
+
+
+def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
+    is_notification = eq(
+        handle_loop_pre_oracle_ty,
+        source.ExprFunction(NextRecvEnum, NextRecvEnumNotification, [])
+    )
+
+    notification = source.ExprFunction(Set_Ch, NextRecvNotificationGet, [handle_loop_pre_oracle])
+    
+    badge = source.ExprFunction(SeL4_Ntfn, source.FunctionName('Prod_MsgInfo_SeL4_Ntfn.snd'), [recv_oracle_kernel])
+
+
+    def badge_has_channel(e: source.ExprT[source.ProgVarName]) -> source.ExprT[source.ProgVarName]:
+        return source.ExprFunction(source.type_bool, source.FunctionName('badge_has_channel'), [badge, e])
+
+    relation = conjs(
+        source.expr_implies(
+            is_notification, 
+            neq(
+                source.ExprFunction(source.type_bool, Ch_set_has, [notification, oracle_rel_arb_ch]), 
+                source.expr_negate(
+                    badge_has_channel(oracle_rel_arb_ch))
+            )
+        )
+    )
+
+    return relation
+
+# ALERT! CONTRADICTIONS HERE WILL LEAD TO UNSOUNDNESS SINCE THIS TURNS INTO AN ASSUME NODE
+# TRY TO INSERT True = False here and you will endup with ubc telling you verified the function.
+def handler_loop_iter_pre() -> source.ExprT[source.ProgVarName]:
+
+    return conjs(
+        # lc_unhandled_reply lc = lc_unhandled_reply_pre
+        wf_handler_pre_unhandled_reply_with_set_ghost(),
+
+        eq(
+            source.ExprFunction(Set_Ch, lc_unhandled_notified, [lc_progvar]),
+            source.ExprFunction(Set_Ch, Ch_set_empty, [])
+        ),
+
+        eq(
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo,
+                                lc_unhandled_ppcall, [lc_progvar]),
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo,
+                                Prod_Ch_MsgInfo_Nothing, [])
+        ),
+
+        # lc_receive_oracle lc = lc_receive_oracle_pre
+        wf_handler_pre_receive_oracle_with_set_ghost(),
+        receive_oracle_relation(),
+
+    )
+
+
+def handler_loop_iter_post() -> source.ExprT[source.ProgVarName]:
+
+    is_notification = eq(
+        handle_loop_pre_oracle_ty,
+        source.ExprFunction(NextRecvEnum, NextRecvEnumNotification, [])
+    )
+
+    return conjs(
+        eq(
+            source.ExprFunction(
+                Maybe_MsgInfo, lc_last_handled_reply, [lc_progvar]),
+            handle_loop_pre_unhandled_reply
+        ),
+        eq(
+            source.ExprFunction(Set_Ch, lc_unhandled_notified, [lc_progvar]),
+            source.ExprFunction(Set_Ch, Ch_set_empty, [])
+        ),
+        eq(
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo,
+                                lc_unhandled_ppcall, [lc_progvar]),
+            source.ExprFunction(Maybe_Prod_Ch_MsgInfo,
+                                Prod_Ch_MsgInfo_Nothing, [])
+        ),
+        eq(
+            source.ExprFunction(NextRecv, lc_receive_oracle, [lc_progvar]),
+            source.ExprFunction(NextRecv, NR_Unknown, [])
+        ),
+        source.expr_implies(
+            is_notification,
+            eq(
+                source.ExprFunction(
+                    Set_Ch, lc_last_handled_notified, [lc_progvar]),
+                source.ExprFunction(Set_Ch, NextRecvNotificationGet, [
+                                    handle_loop_pre_oracle])
+            )
+        )
+    )

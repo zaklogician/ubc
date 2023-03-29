@@ -295,6 +295,25 @@
 (define-fun Prod_Ch_MsgInfo.fst= ((p Prod_Ch_MsgInfo) (x Ch)) Prod_Ch_MsgInfo (concat x (Prod_Ch_MsgInfo.snd p)))
 (define-fun Prod_Ch_MsgInfo.snd= ((p Prod_Ch_MsgInfo) (x MsgInfo)) Prod_Ch_MsgInfo (concat (Prod_Ch_MsgInfo.fst p) x))
 
+(define-sort SeL4_Ntfn () (_ BitVec 64))
+; type Prod_MsgInfo_SeL4_Ntfn = (MsgInfo, SeL4_Ntfn)
+(define-sort Prod_MsgInfo_SeL4_Ntfn () (_ BitVec 128))
+(define-fun Prod_MsgInfo_SeL4_Ntfn ((fst MsgInfo) (snd SeL4_Ntfn)) Prod_MsgInfo_SeL4_Ntfn (concat fst snd))
+(define-fun Prod_MsgInfo_SeL4_Ntfn.fst ((p Prod_MsgInfo_SeL4_Ntfn)) MsgInfo ((_ extract 127 64) p))
+(define-fun Prod_MsgInfo_SeL4_Ntfn.snd ((p Prod_MsgInfo_SeL4_Ntfn)) SeL4_Ntfn ((_ extract 63 0) p))
+(define-fun Prod_MsgInfo_SeL4_Ntfn.fst= ((p Prod_MsgInfo_SeL4_Ntfn) (x MsgInfo)) Prod_MsgInfo_SeL4_Ntfn (concat x (Prod_MsgInfo_SeL4_Ntfn.snd p)))
+(define-fun Prod_MsgInfo_SeL4_Ntfn.snd= ((p Prod_MsgInfo_SeL4_Ntfn) (x SeL4_Ntfn)) Prod_MsgInfo_SeL4_Ntfn (concat (Prod_MsgInfo_SeL4_Ntfn.fst p) x))
+
+(define-sort Maybe_Prod_MsgInfo_SeL4_Ntfn () (_ BitVec 129))
+(define-sort Maybe_Prod_MsgInfo_SeL4_Ntfn<> () (_ BitVec 1))
+(declare-fun <Prod_MsgInfo_SeL4_Ntfn_Nothing> () Maybe_Prod_MsgInfo_SeL4_Ntfn<>)
+(declare-fun <Prod_MsgInfo_SeL4_Ntfn_Just> () Maybe_Prod_MsgInfo_SeL4_Ntfn<>)
+(assert (distinct <Prod_MsgInfo_SeL4_Ntfn_Nothing> <Prod_MsgInfo_SeL4_Ntfn_Just>))
+(define-fun Maybe_Prod_MsgInfo_SeL4_Ntfn.<> ((v Maybe_Prod_MsgInfo_SeL4_Ntfn)) Maybe_Prod_MsgInfo_SeL4_Ntfn<> ((_ extract 128 128) v))
+(define-fun Prod_MsgInfo_SeL4_Ntfn_Nothing () Maybe_Prod_MsgInfo_SeL4_Ntfn (concat <Prod_MsgInfo_SeL4_Ntfn_Nothing> (_ bv0 128)))
+(define-fun Prod_MsgInfo_SeL4_Ntfn_Just.1 ((v Maybe_Prod_MsgInfo_SeL4_Ntfn)) Prod_MsgInfo_SeL4_Ntfn ((_ extract 127 0) v))
+(define-fun Prod_MsgInfo_SeL4_Ntfn_Just ((a Prod_MsgInfo_SeL4_Ntfn)) Maybe_Prod_MsgInfo_SeL4_Ntfn (concat <Prod_MsgInfo_SeL4_Ntfn_Just> a))
+
 (define-sort NextRecv () (_ BitVec 72))
 (define-sort NextRecv<> () (_ BitVec 2))
 (declare-fun <NR_Notification> () NextRecv<>)
@@ -354,8 +373,8 @@
 (define-fun lc_last_handled_reply ((c PlatformContext)) Maybe_MsgInfo ((_ extract 64 0) c))
 (define-fun lc_last_handled_reply= ((c PlatformContext) (v Maybe_MsgInfo)) PlatformContext (concat ((_ extract 406 65) c) v))
 
-(define-fun C_channel_to_SMT_channel ((cc (_ BitVec 64))) Ch ((_ extract 5 0) cc))
-(define-fun C_channel_valid ((cc (_ BitVec 64))) Bool (bvule cc (_ bv62 64)))
+(define-fun C_channel_to_SMT_channel ((cc (_ BitVec 32))) Ch ((_ extract 5 0) cc))
+(define-fun C_channel_valid ((cc (_ BitVec 32))) Bool (bvule cc (_ bv62 32)))
 (define-fun C_msg_info_to_SMT_msg_info ((mi (_ BitVec 64))) MsgInfo mi)
 ; to compare msg info, just use equality, all the bits are significant
 ; only compares the label field
