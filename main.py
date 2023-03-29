@@ -83,6 +83,9 @@ class CmdlineOption(Enum):
     SHOW_LINE_NUMBERS = '--ln'
     """ Shows line numbers for the smt """
 
+    DEBUG_SMT = '--debug-smt'
+    """ A seperate error node for every error node set to True (disabled) """
+
 
 def find_functions_by_name(function_names: Collection[str], target: str) -> str:
     if target in function_names:
@@ -138,6 +141,10 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
 
     _, functions, _ = stuff
 
+    debug_mode = CmdlineOption.DEBUG_SMT in options
+    if debug_mode:
+        print("[WARN] Running in debug mode, ignore verification result output")
+
     for name in function_names:
         unsafe_func = functions[find_functions_by_name(functions.keys(), name)]
         if CmdlineOption.SHOW_RAW in options:
@@ -167,7 +174,7 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
         if CmdlineOption.SHOW_AP in options:
             assume_prove.pretty_print_prog(prog)
 
-        smtlib = smt.make_smtlib(prog)
+        smtlib = smt.make_smtlib(prog, debug_mode)
         if CmdlineOption.SHOW_SMT in options:
             if CmdlineOption.SHOW_LINE_NUMBERS in options:
                 lines = smtlib.splitlines()
@@ -183,6 +190,9 @@ def run(filename: str, function_names: Collection[str], options: Collection[Cmdl
 
         assert len(sats) == 2
         result = smt.parse_sats(sats)
+        if debug_mode:
+            print(f"[WARN] IN DEBUG MODE: output was {result}")
+            exit(0)
         if result is smt.VerificationResult.OK:
             print("verification succeeded", file=sys.stderr)
             exit(0)
@@ -204,6 +214,7 @@ def usage() -> None:
     print('  --show-ap: Show the assume prove prog')
     print('  --show-smt: Show the SMT given to the solvers')
     print('  --show-sats: Show the raw results from the smt solvers (sat/unsat)')
+    print('  --debug-smt: Emits seperate error nodes with them set to True (disabled)')
     exit(0)
 
 

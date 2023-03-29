@@ -336,7 +336,7 @@ def emit_prelude() -> Sequence[Cmd]:
     return prelude
 
 
-def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
+def make_smtlib(p: assume_prove.AssumeProveProg, debug: bool = False) -> SMTLIB:
     emited_identifiers: set[Identifier] = set()
     emited_variables: set[assume_prove.VarName] = set()
 
@@ -371,10 +371,33 @@ def make_smtlib(p: assume_prove.AssumeProveProg) -> SMTLIB:
 
     cmds.append(EmptyLine)
 
+    err_num: int = 0
+
+    def replace_fn(var: source.ExprVarT[assume_prove.VarName]) -> source.ExprT[assume_prove.VarName]:
+        nonlocal err_num
+        if var.name == 'node_Err_ok':
+            ret = source.ExprVar(
+                var.typ, assume_prove.VarName(f'node_Err_ok_{err_num}'))
+            err_num += 1
+            return ret
+        return var
+
+    node_ok_cmds = []
     # emit all assertions from nodes (node_x_ok = wp(x))
     for node_ok_name, script in p.nodes_script.items():
-        expr = assume_prove.apply_weakest_precondition(script)
-        cmds.append(cmd_assert_eq(node_ok_name, expr))
+        when_not_debug = assume_prove.apply_weakest_precondition(script)
+        when_debug = source.convert_expr_vars(replace_fn, when_not_debug)
+        expr = when_debug if debug else when_not_debug
+        node_ok_cmds.append(cmd_assert_eq(node_ok_name, expr))
+
+    if debug:
+        for i in range(0, err_num):
+            iden = identifier(assume_prove.VarName(f'node_Err_ok_{i}'))
+            cmds.append(CmdDefineFun(
+                iden, (), source.type_bool, source.expr_true))
+
+    cmds.append(EmptyLine)
+    cmds = cmds + node_ok_cmds
 
     cmds.append(CmdCheckSat())
     cmds.append(CmdAssert(source.expr_negate(
