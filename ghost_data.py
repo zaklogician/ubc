@@ -1,7 +1,7 @@
 from functools import reduce
 from math import prod
 from sys import platform
-from typing import Callable
+from typing import Callable, Any
 import source
 from global_smt_variables import PLATFORM_CONTEXT_BIT_SIZE
 
@@ -398,14 +398,18 @@ def recv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: source.Exp
                        rv_when_ppcall, rv_when_unknown)
     lc_prime = NextRecv_case(oracle, lc_when_notification,
                              lc_when_ppcall, lc_when_unknown)
-    
-    mem = source.ExprVar(source.type_mem, source.HumanVarName(source.HumanVarNameSubject('Mem'), path=(),use_guard=False))
-    gbadge = source.ExprFunction(source.type_word61, source.FunctionName('badge'), [])
-    mem_condition = source.ExprFunction(source.type_word64, source.FunctionName("mem-acc"), [mem, gbadge])
 
-    recv_oracle_kernel = source.ExprFunction(
+    mem = source.ExprVar(source.type_mem, source.HumanVarName(
+        source.HumanVarNameSubject('Mem'), path=(), use_guard=False))
+    gbadge: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        source.type_word61, source.FunctionName('badge'), [])
+    mem_condition: source.ExprT[source.HumanVarName] = source.ExprFunction(
+        source.type_word64, source.FunctionName("mem-acc"), [mem, gbadge])
+
+    recv_oracle_kernel: source.ExprT[source.HumanVarName] = source.ExprFunction(
         Prod_MsgInfo_SeL4_Ntfn, source.FunctionName('recv_oracle_kernel'), [])
-    recv_badge = source.ExprFunction(SeL4_Ntfn, source.FunctionName('Prod_MsgInfo_SeL4_Ntfn.snd'), [recv_oracle_kernel])
+    recv_badge = source.ExprFunction(SeL4_Ntfn, source.FunctionName(
+        'Prod_MsgInfo_SeL4_Ntfn.snd'), [recv_oracle_kernel])
 
     return conjs(
         eq(
@@ -413,7 +417,7 @@ def recv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: source.Exp
                 MsgInfo, C_msg_info_to_SMT_msg_info, [i64ret]),
             rv
         ),
-        eq(ret_value(lc), lc_prime), 
+        eq(ret_value(lc), lc_prime),
         eq(mem_condition, recv_badge)
     )
 
@@ -865,16 +869,15 @@ universe = {
 # handle loop related verification conditions
 lc_progvar = source.ExprVar(source.TypeBitVec(
     PLATFORM_CONTEXT_BIT_SIZE), source.ProgVarName('GhostAssertions'))
-handle_loop_pre_oracle = source.ExprFunction(
+handle_loop_pre_oracle: source.ExprT[Any] = source.ExprFunction(
     NextRecv, source.FunctionName('handler_loop_pre_receive_oracle'), [])
-handle_loop_pre_oracle_ty = source.ExprFunction(
+handle_loop_pre_oracle_ty: source.ExprT[Any] = source.ExprFunction(
     NextRecvEnum, NextRecvEnumGet, [handle_loop_pre_oracle])
-handle_loop_pre_unhandled_reply = source.ExprFunction(
+handle_loop_pre_unhandled_reply: source.ExprT[Any] = source.ExprFunction(
     Maybe_MsgInfo, source.FunctionName('handler_loop_pre_unhandled_reply'), [])
 
-recv_oracle_kernel = source.ExprFunction(
+recv_oracle_kernel: source.ExprT[Any] = source.ExprFunction(
     Prod_MsgInfo_SeL4_Ntfn, source.FunctionName('recv_oracle_kernel'), [])
-
 
 
 def wf_handler_pre_unhandled_reply_with_set_ghost() -> source.ExprT[source.ProgVarName]:
@@ -975,7 +978,7 @@ def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
 
     for ch_index in range(0, 63):
         Ch_val = source.ExprNum(source.TypeBitVec(6), ch_index)
-        has_ch = source.ExprFunction(
+        has_ch: source.ExprT[source.ProgVarName] = source.ExprFunction(
             source.type_bool, Ch_set_has, [notification, Ch_val])
         badge_has_ch = badge_has_channel(ch_index)
         ch_checks.append(eq(has_ch, badge_has_ch))
