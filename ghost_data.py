@@ -141,6 +141,11 @@ ghost_arb_3 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), sourc
 ghost_arb_4 = source.ExprVar(source.TypeBitVec(PLATFORM_CONTEXT_BIT_SIZE), source.HumanVarName(
     source.HumanVarNameSubject('ghost_arbitrary_4'), path=(), use_guard=False))
 
+
+def coerce_varkind(e: source.ExprVarT[source.HumanVarName]) -> source.ExprVarT[source.ProgVarName]:
+    return source.ExprVar(e.typ, source.ProgVarName(e.name.subject))
+
+
 # Ch = source.TypeBitVec(6)
 # Set_Ch = source.TypeBitVec(64)
 # Ch_set_has = source.FunctionName('Ch_set_has')
@@ -707,6 +712,10 @@ universe = {
         #     { lc_unhandled_ppcall = Nothing
         #     }
         "libsel4cp.protected": source.Ghost(
+            precondition_assumption=eq(
+                coerce_varkind(lc),
+                coerce_varkind(lc_arb_1)
+            ),
             loop_invariants={},
             precondition=conjs(
                 eq(lc, lc_arb_1),

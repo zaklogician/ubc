@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, unique
 from typing import Any, Callable, Generic, Iterator, Literal, Mapping, NamedTuple, NewType, Sequence, Set, TypeAlias, TypeVar, Tuple
 from typing_extensions import assert_never
@@ -911,6 +911,8 @@ class Ghost(Generic[VarNameKind]):
     precondition: ExprT[VarNameKind]
     postcondition: ExprT[VarNameKind]
     loop_invariants: Mapping[LoopHeaderName, ExprT[VarNameKind]]
+    precondition_assumption: ExprT[Any] | None = field(
+        default_factory=lambda: None)
 
 
 @dataclass(frozen=True)

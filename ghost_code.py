@@ -24,6 +24,7 @@ import source
 import nip
 import ghost_data
 import syntax
+from itertools import chain
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,11 @@ class NodeAssumePostCondFnCall(source.NodeAssume[source.VarNameKind]):
     pass
 
 
+@dataclass(frozen=True)
+class NodeAssumePrecondForArb(source.NodeAssume[source.VarNameKind]):
+    pass
+
+
 NodeGhostCode = (NodePostConditionProofObligation[source.VarNameKind]
                  | NodePreconditionAssumption[source.VarNameKind]
                  | NodeLoopInvariantAssumption[source.VarNameKind]
@@ -85,6 +91,7 @@ class K(Enum):
     NODE_LOOP_INVARIANT_PROOF_OBLIGATION = NodeLoopInvariantProofObligation
     NODE_PRE_CONDITION_OBLIGATION_FNCALL = NodePrecondObligationFnCall
     NODE_ASSUME_POST_CONDITION_FNCALL = NodeAssumePostCondFnCall
+    NODE_ASSUME_PRECOND_FOR_ARB = NodeAssumePrecondForArb
 
 
 class Insertion(NamedTuple):
@@ -177,6 +184,9 @@ def apply_insertions(func: nip.Function, insertions: Sequence[Insertion]) -> Map
             if ins.kind is K.NODE_ASSUME_POST_CONDITION_FNCALL:
                 return ins.node_name, NodeAssumePostCondFnCall(ins.expr, succ)
 
+            if ins.kind is K.NODE_ASSUME_PRECOND_FOR_ARB:
+                return ins.node_name, NodeAssumePrecondForArb(ins.expr, succ)
+
             assert_never(ins.kind)
 
         return constructor
@@ -250,9 +260,24 @@ def sprinkle_loop_invariants(func: nip.Function) -> Iterable[Insertion]:
         yield from sprinkle_loop_invariant(func, loop_header)
 
 
-def sprinkle_call_assert_preconditions(fn: nip.Function, name: source.NodeName, precond: source.ExprT[source.ProgVarName | nip.GuardVarName]) -> Iterable[Insertion]:
+def sprinkle_call_assert_preconditions(fn: nip.Function, name: source.NodeName, precond: source.ExprT[source.ProgVarName | nip.GuardVarName], assume_cond: source.ExprT[source.ProgVarName | nip.GuardVarName] | None) -> Tuple[Iterable[Insertion], Iterable[Insertion]]:
+    run_one: list[Insertion] = []
+    run_two: list[Insertion] = []
     for pred in fn.cfg.all_preds[name]:
-        yield Insertion(node_name=source.NodeName(f"prove_{pred}_{name}"), after=pred, before=name, kind=K.NODE_PRE_CONDITION_OBLIGATION_FNCALL, expr=precond)
+        assum_node_name = source.NodeName(f"assume_pre_{pred}_{name}")
+        assert_node_name = source.NodeName(f"prove_{pred}_{name}")
+        run_one.append(
+            Insertion(node_name=assert_node_name, after=pred, before=name,
+                      kind=K.NODE_PRE_CONDITION_OBLIGATION_FNCALL, expr=precond)
+        )
+        if assume_cond is not None:
+
+            run_two.append(
+                Insertion(node_name=assum_node_name, after=pred, before=assert_node_name,
+                          kind=K.NODE_ASSUME_PRECOND_FOR_ARB, expr=assume_cond)
+            )
+
+    return iter(run_one), iter(run_two)
 
 
 def sprinkle_call_assume_postcondition(name: source.NodeName, node: source.NodeCall[Any], postcond: source.ExprT[source.ProgVarName | nip.GuardVarName]) -> Insertion:
@@ -362,7 +387,9 @@ def sprinkle_handlerloop(fn: Function) -> Function:
     return Function(name=fn.name, nodes=new_nodes, cfg=cfg, loops=loops, ghost=fn.ghost, signature=fn.signature)
 
 
-def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, source.FunctionSignature[source.ProgVarName]]) -> Iterator[Insertion]:
+def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, source.FunctionSignature[source.ProgVarName]]) -> Tuple[Iterator[Insertion], Iterator[Insertion]]:
+    insertions: Iterator[Insertion] = iter([])
+    second_run_insertions: Iterator[Insertion] = iter([])
     for name in fn.traverse_topologically(skip_err_and_ret=True):
         node = fn.nodes[name]
         if not isinstance(node,  source.NodeCall):
@@ -371,7 +398,7 @@ def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, sou
         ghost = ghost_data.get(filename, node.fname)
 
         if ghost is None:
-            return
+            continue
 
         # asserting True and assuming True is basically doing nothing
         raw_precondition = source.expr_true if ghost is None else ghost.precondition
@@ -382,8 +409,14 @@ def sprinkle_call_conditions(filename: str, fn: nip.Function, ctx: Dict[str, sou
             raw_precondition, node.args, call_target.arguments)
         postcondition = unify_postconds(
             raw_postcondition, node.rets, call_target.returns, conversion_map)
-        yield from sprinkle_call_assert_preconditions(fn, name, precondition)
-        yield sprinkle_call_assume_postcondition(name, node, postcondition)
+        first_run, second_run = sprinkle_call_assert_preconditions(
+            fn, name, precondition, ghost.precondition_assumption)
+        insertions = chain(insertions, first_run)
+        second_run_insertions = chain(second_run_insertions, second_run)
+        assume_postcond = iter(
+            [sprinkle_call_assume_postcondition(name, node, postcondition)])
+        insertions = chain(insertions, assume_postcond)
+    return (insertions, second_run_insertions)
 
 # sprinkle isn't the most trustworthy sounding word, but it's the most
 # descriptive one I could think of
@@ -398,7 +431,8 @@ def sprinkle_ghost_code_prime(filename: str, func: nip.Function, ctx: Dict[str, 
     insertions.extend(sprinkle_postcondition(func))
     loop_insertions = sprinkle_loop_invariants(func)
     insertions.extend(loop_insertions)
-    insertions.extend(sprinkle_call_conditions(filename, func, new_ctx))
+    first_run, second_run = sprinkle_call_conditions(filename, func, new_ctx)
+    insertions.extend(first_run)
     new_nodes = apply_insertions(func, insertions)
     all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
     cfg = abc_cfg.compute_cfg_from_all_succs(all_succs, func.cfg.entry)
@@ -409,6 +443,16 @@ def sprinkle_ghost_code_prime(filename: str, func: nip.Function, ctx: Dict[str, 
 
     # new_nodes = search_common_succs(func, cfg)
 
+    first_run_fn = Function(name=func.name, nodes=new_nodes, cfg=cfg,
+                            loops=loops, ghost=func.ghost, signature=func.signature)
+
+    new_nodes = apply_insertions(first_run_fn, list(second_run))
+    all_succs = abc_cfg.compute_all_successors_from_nodes(new_nodes)
+    cfg = abc_cfg.compute_cfg_from_all_succs(all_succs, func.cfg.entry)
+    loops = abc_cfg.compute_loops(
+        new_nodes, cfg)
+    assert loops.keys() == func.loops.keys(
+    ), "more work required: loop headers changed during conversion, need to keep ghost's loop invariant in sync"
     return Function(name=func.name, nodes=new_nodes, cfg=cfg, loops=loops, ghost=func.ghost, signature=func.signature)
 
 
