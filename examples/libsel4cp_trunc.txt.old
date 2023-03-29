@@ -1,0 +1,143 @@
+Struct libsel4cp.seL4_MessageInfo_C 8 8
+StructField words_C Array Word 64 1 0
+
+Function libsel4cp.init 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+EntryPoint 1
+
+Function libsel4cp.main 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Call 1 libsel4cp.handler_loop 4 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+3 Call 2 libsel4cp.init 4 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+4 Call 3 libsel4cp.run_init_funcs 4 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+EntryPoint 4
+
+Function libsel4cp.notified 5 ch___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+EntryPoint 1
+
+Function libsel4cp.protected 6 ch___unsigned_longlong#v Word 64 msginfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 5 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var msginfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64
+EntryPoint 3
+
+Function libsel4cp.seL4_Call 6 dest___unsigned_longlong#v Word 64 msgInfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 5 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var msgInfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64
+EntryPoint 3
+
+Function libsel4cp.seL4_Recv 7 src___unsigned_longlong#v Word 64 sender___ptr_to_unsigned_longlong#v Word 64 reply___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 5 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Num 0 Word 64
+EntryPoint 3
+
+Function libsel4cp.seL4_GetMR 5 i___int#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 5 ret__unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__unsigned_longlong#v Word 64 Op WordCastSigned Word 64 1 Num 0 Word 64
+EntryPoint 3
+
+Function libsel4cp.seL4_SetMR 6 i___int#v Word 64 mr___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+EntryPoint 1
+
+Function libsel4cp.seL4_Signal 5 dest___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+EntryPoint 1
+
+Function libsel4cp.handler_loop 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+6 Basic 2 1 reply_tag___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64
+7 Call 6 libsel4cp.protected 6 Op BWAnd Word 64 2 Var badge___unsigned_longlong#v Word 64 Op WordCastSigned Word 64 1 Num 63 Word 64 Var tag___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 5 rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+8 Basic 7 1 have_reply___char#v Word 8 Op WordCastSigned Word 8 1 Num 1 Word 64
+13 Basic 9 1 idx___unsigned#v Word 64 Op Plus Word 64 2 Var idx___unsigned#v Word 64 Op WordCastSigned Word 64 1 Num 1 Word 64
+14 Basic 13 1 badge___unsigned_longlong#v Word 64 Op ShiftRight Word 64 2 Var badge___unsigned_longlong#v Word 64 Op WordCast Word 64 1 Num 1 Word 64
+15 Cond 14 Err Op And Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 64 Num 1 Word 64 Op SignedLess Bool 2 Num 1 Word 64 Num 64 Word 64
+16 Call 15 libsel4cp.notified 5 Op WordCast Word 64 1 Var idx___unsigned#v Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+17 Cond 16 15 Op Not Bool 1 Op Equals Bool 2 Op BWAnd Word 64 2 Var badge___unsigned_longlong#v Word 64 Op WordCastSigned Word 64 1 Num 1 Word 64 Num 0 Word 64
+9 Basic 10 1 loop#9#count Word 64 Op Plus Word 64 2 Var loop#9#count Word 64 Num 1 Word 64
+10 Cond 11 Err Op True Bool 0
+11 Cond 17 2 Op Not Bool 1 Op Equals Bool 2 Var badge___unsigned_longlong#v Word 64 Op WordCastSigned Word 64 1 Num 0 Word 64
+12 Basic 10 1 loop#9#count Word 64 Num 0 Word 64
+18 Basic 12 1 idx___unsigned#v Word 64 Op Plus Word 64 2 Var idx___unsigned#v Word 64 Op WordCastSigned Word 64 1 Num 1 Word 64
+19 Basic 18 1 badge___unsigned_longlong#v Word 64 Op ShiftRight Word 64 2 Var badge___unsigned_longlong#v Word 64 Op WordCast Word 64 1 Num 1 Word 64
+20 Cond 19 Err Op And Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 64 Num 1 Word 64 Op SignedLess Bool 2 Num 1 Word 64 Num 64 Word 64
+21 Call 20 libsel4cp.notified 5 Op WordCast Word 64 1 Var idx___unsigned#v Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+22 Cond 21 20 Op Not Bool 1 Op Equals Bool 2 Op BWAnd Word 64 2 Var badge___unsigned_longlong#v Word 64 Op WordCastSigned Word 64 1 Num 1 Word 64 Num 0 Word 64
+23 Basic 22 1 have_reply___char#v Word 8 Op WordCastSigned Word 8 1 Num 0 Word 64
+24 Basic 23 1 idx___unsigned#v Word 64 Op WordCastSigned Word 64 1 Num 0 Word 64
+25 Cond 8 24 Op Not Bool 1 Op Equals Bool 2 Var is_endpoint___unsigned_longlong#v Word 64 Num 0 Word 64
+26 Basic 25 1 is_endpoint___unsigned_longlong#v Word 64 Op ShiftRight Word 64 2 Var badge___unsigned_longlong#v Word 64 Op WordCast Word 64 1 Num 63 Word 64
+27 Cond 26 Err Op And Bool 2 Op SignedLessEquals Bool 2 Num 0 Word 64 Num 63 Word 64 Op SignedLess Bool 2 Num 63 Word 64 Num 64 Word 64
+28 Basic 27 1 badge___unsigned_longlong#v Word 64 Op MemAcc Word 64 2 Var Mem Mem Symbol sel4cp_internal_badge Word 64
+29 Cond 28 Err Op PAlignValid Bool 2 Type Word 64 Symbol sel4cp_internal_badge Word 64
+30 Basic 29 1 tag___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64
+31 Call 30 libsel4cp.seL4_ReplyRecv 8 Op WordCastSigned Word 64 1 Num 1 Word 64 Var reply_tag___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Symbol sel4cp_internal_badge Word 64 Op WordCastSigned Word 64 1 Num 4 Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 5 rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+32 Cond 31 Err Op PAlignValid Bool 2 Type Word 64 Symbol sel4cp_internal_badge Word 64
+33 Basic 27 1 badge___unsigned_longlong#v Word 64 Op MemAcc Word 64 2 Var Mem Mem Symbol sel4cp_internal_badge Word 64
+34 Cond 33 Err Op PAlignValid Bool 2 Type Word 64 Symbol sel4cp_internal_badge Word 64
+35 Basic 34 1 tag___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64
+36 Call 35 libsel4cp.seL4_Recv 7 Op WordCastSigned Word 64 1 Num 1 Word 64 Symbol sel4cp_internal_badge Word 64 Op WordCastSigned Word 64 1 Num 4 Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 5 rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+37 Cond 36 Err Op PAlignValid Bool 2 Type Word 64 Symbol sel4cp_internal_badge Word 64
+38 Cond 32 37 Op Not Bool 1 Op Equals Bool 2 Var have_reply___char#v Word 8 Num 0 Word 8
+2 Basic 3 1 loop#2#count Word 64 Op Plus Word 64 2 Var loop#2#count Word 64 Num 1 Word 64
+3 Cond 4 Err Op True Bool 0
+4 Cond 38 1 Op Not Bool 1 Op Equals Bool 2 Num 1 Word 64 Num 0 Word 64
+5 Basic 3 1 loop#2#count Word 64 Num 0 Word 64
+39 Basic 5 1 have_reply___char#v Word 8 Op WordCastSigned Word 8 1 Num 0 Word 64
+EntryPoint 39
+
+Function libsel4cp.sel4cp_mr_get 5 mr___char#v Word 8 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 5 ret__unsigned#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__unsigned#v Word 64 Op WordCast Word 64 1 Var ret__unsigned_longlong#v Word 64
+4 Basic 3 1 ret__unsigned_longlong#v Word 64 Var rv#space#ret__unsigned_longlong#v Word 64
+5 Call 4 libsel4cp.seL4_GetMR 5 Op WordCast Word 64 1 Var mr___char#v Word 8 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 5 rv#space#ret__unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+EntryPoint 5
+
+Function libsel4cp.sel4cp_mr_set 6 mr___char#v Word 8 value___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Call 1 libsel4cp.seL4_SetMR 6 Op WordCast Word 64 1 Var mr___char#v Word 8 Var value___unsigned_longlong#v Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+EntryPoint 2
+
+Function libsel4cp.sel4cp_notify 5 ch___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Call 1 libsel4cp.seL4_Signal 5 Op Plus Word 64 2 Op WordCastSigned Word 64 1 Num 10 Word 64 Var ch___unsigned_longlong#v Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+EntryPoint 2
+
+Function libsel4cp.sel4cp_ppcall 6 ch___unsigned_longlong#v Word 64 msginfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 5 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 0
+4 Basic 3 1 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64
+5 Call 4 libsel4cp.seL4_Call 6 Op Plus Word 64 2 Op WordCastSigned Word 64 1 Num 74 Word 64 Var ch___unsigned_longlong#v Word 64 Var msginfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 5 rv#space#ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+EntryPoint 5
+
+Function libsel4cp.run_init_funcs 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+6 Basic 2 1 i___unsigned#v Word 64 Op Plus Word 64 2 Var i___unsigned#v Word 64 Op WordCastSigned Word 64 1 Num 1 Word 64
+2 Basic 3 1 loop#2#count Word 64 Op Plus Word 64 2 Var loop#2#count Word 64 Num 1 Word 64
+3 Cond 4 Err Op True Bool 0
+4 Cond 6 1 Op Less Bool 2 Var i___unsigned#v Word 64 Var count___unsigned#v Word 64
+5 Basic 3 1 loop#2#count Word 64 Num 0 Word 64
+7 Basic 5 1 i___unsigned#v Word 64 Op WordCastSigned Word 64 1 Num 0 Word 64
+8 Basic 7 1 count___unsigned#v Word 64 Op WordCastSigned Word 64 1 Num 0 Word 64
+EntryPoint 8
+
+Function libsel4cp.seL4_ReplyRecv 8 src___unsigned_longlong#v Word 64 msgInfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64 sender___ptr_to_unsigned_longlong#v Word 64 reply___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 5 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Cond 1 Err Op False Bool 0
+3 Basic 1 1 ret__struct_seL4_MessageInfo_C#v.words_C.0 Word 64 Var msgInfo___struct_seL4_MessageInfo_C#v.words_C.0 Word 64
+EntryPoint 3
+
+Function libsel4cp.sel4cp_irq_ack 5 ch___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+2 Call 1 libsel4cp.seL4_IRQHandler_Ack 5 Op Plus Word 64 2 Op WordCastSigned Word 64 1 Num 138 Word 64 Var ch___unsigned_longlong#v Word 64 Var Mem Mem Var HTD HTD Var PMS PMS Var GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+EntryPoint 2
+
+Function libsel4cp.seL4_IRQHandler_Ack 5 dest___unsigned_longlong#v Word 64 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32 4 Mem Mem HTD HTD PMS PMS GhostAssertions WordArray 50 32
+1 Basic Ret 0
+EntryPoint 1

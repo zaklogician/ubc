@@ -396,8 +396,16 @@ def recv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: source.Exp
 
     rv = NextRecv_case(oracle, rv_when_notification,
                        rv_when_ppcall, rv_when_unknown)
-    lc = NextRecv_case(oracle, lc_when_notification,
-                       lc_when_ppcall, lc_when_unknown)
+    lc_prime = NextRecv_case(oracle, lc_when_notification,
+                             lc_when_ppcall, lc_when_unknown)
+    
+    mem = source.ExprVar(source.type_mem, source.HumanVarName(source.HumanVarNameSubject('Mem'), path=(),use_guard=False))
+    gbadge = source.ExprFunction(source.type_word61, source.FunctionName('badge'), [])
+    mem_condition = source.ExprFunction(source.type_word64, source.FunctionName("mem-acc"), [mem, gbadge])
+
+    recv_oracle_kernel = source.ExprFunction(
+        Prod_MsgInfo_SeL4_Ntfn, source.FunctionName('recv_oracle_kernel'), [])
+    recv_badge = source.ExprFunction(SeL4_Ntfn, source.FunctionName('Prod_MsgInfo_SeL4_Ntfn.snd'), [recv_oracle_kernel])
 
     return conjs(
         eq(
@@ -405,7 +413,8 @@ def recv_postcondition(rv: source.ExprT[source.HumanVarName], arg_lc: source.Exp
                 MsgInfo, C_msg_info_to_SMT_msg_info, [i64ret]),
             rv
         ),
-        eq(lc, arg_lc)
+        eq(ret_value(lc), lc_prime), 
+        eq(mem_condition, recv_badge)
     )
 
 
@@ -717,7 +726,7 @@ universe = {
                 mkeq(lc_last_handled_notified, Set_Ch, lc_arb_1),
                 mkeq(lc_unhandled_reply, Maybe_MsgInfo, lc_arb_1),
                 mkeq(lc_last_handled_reply, Maybe_MsgInfo, lc_arb_1),
-                eq(source.ExprFunction(Maybe_Prod_Ch_MsgInfo, lc_unhandled_ppcall, (lc_arb_1,)),
+                eq(source.ExprFunction(Maybe_Prod_Ch_MsgInfo, lc_unhandled_ppcall, (ret_value(lc),)),
                    source.ExprFunction(Maybe_Prod_Ch_MsgInfo, Prod_Ch_MsgInfo_Nothing, ())),
             ),
         ),
@@ -863,8 +872,9 @@ handle_loop_pre_oracle_ty = source.ExprFunction(
 handle_loop_pre_unhandled_reply = source.ExprFunction(
     Maybe_MsgInfo, source.FunctionName('handler_loop_pre_unhandled_reply'), [])
 
-recv_oracle_kernel = source.ExprFunction(Prod_MsgInfo_SeL4_Ntfn, source.FunctionName('recv_oracle_kernel'), [])
-oracle_rel_arb_ch = source.ExprFunction(Ch, source.FunctionName('oracle_rel_arb_ch'), [])
+recv_oracle_kernel = source.ExprFunction(
+    Prod_MsgInfo_SeL4_Ntfn, source.FunctionName('recv_oracle_kernel'), [])
+
 
 
 def wf_handler_pre_unhandled_reply_with_set_ghost() -> source.ExprT[source.ProgVarName]:
@@ -946,22 +956,34 @@ def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
         source.ExprFunction(NextRecvEnum, NextRecvEnumNotification, [])
     )
 
-    notification = source.ExprFunction(Set_Ch, NextRecvNotificationGet, [handle_loop_pre_oracle])
-    
-    badge = source.ExprFunction(SeL4_Ntfn, source.FunctionName('Prod_MsgInfo_SeL4_Ntfn.snd'), [recv_oracle_kernel])
+    notification = source.ExprFunction(
+        Set_Ch, NextRecvNotificationGet, [handle_loop_pre_oracle])
 
+    badge = source.ExprFunction(SeL4_Ntfn, source.FunctionName(
+        'Prod_MsgInfo_SeL4_Ntfn.snd'), [recv_oracle_kernel])
 
-    def badge_has_channel(e: source.ExprT[source.ProgVarName]) -> source.ExprT[source.ProgVarName]:
-        return source.ExprFunction(source.type_bool, source.FunctionName('badge_has_channel'), [badge, e])
+    def badge_has_channel(ch_num: int) -> source.ExprT[source.ProgVarName]:
+        # bvlshl
+        # bvlshr
+        return eq(
+            source.expr_shift_left(
+                badge, source.ExprNum(source.type_word64, ch_num)),
+            i64(1)
+        )
+
+    ch_checks: list[source.ExprT[source.ProgVarName]] = []
+
+    for ch_index in range(0, 63):
+        Ch_val = source.ExprNum(source.TypeBitVec(6), ch_index)
+        has_ch = source.ExprFunction(
+            source.type_bool, Ch_set_has, [notification, Ch_val])
+        badge_has_ch = badge_has_channel(ch_index)
+        ch_checks.append(eq(has_ch, badge_has_ch))
 
     relation = conjs(
         source.expr_implies(
-            is_notification, 
-            neq(
-                source.ExprFunction(source.type_bool, Ch_set_has, [notification, oracle_rel_arb_ch]), 
-                source.expr_negate(
-                    badge_has_channel(oracle_rel_arb_ch))
-            )
+            is_notification,
+            ors(*ch_checks)
         )
     )
 
@@ -969,6 +991,8 @@ def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
 
 # ALERT! CONTRADICTIONS HERE WILL LEAD TO UNSOUNDNESS SINCE THIS TURNS INTO AN ASSUME NODE
 # TRY TO INSERT True = False here and you will endup with ubc telling you verified the function.
+
+
 def handler_loop_iter_pre() -> source.ExprT[source.ProgVarName]:
 
     return conjs(
