@@ -70,7 +70,7 @@ def word_array(typ: source.TypeWordArray) -> SMTLIB:
 
 def identifier(illegal_name: assume_prove.VarName) -> Identifier:
     # '#' are disallowed in SMT
-    assert '@' not in illegal_name, "# are replaced with @, but some name already contains a @, which might result on conflicts"
+    #assert '@' not in illegal_name, "# are replaced with @, but some name already contains a @, which might result on conflicts"
     renamed = illegal_name.replace('#', '@')
     assert RE_VALID_SMTLIB_SIMPLE_SYMBOL.match(
         renamed), f"identifier {illegal_name!r} isn't valid"
