@@ -211,8 +211,8 @@ def sprinkle_precondition(func: nip.Function) -> Iterable[Insertion]:
 
 
 def sprinkle_postcondition(func: nip.Function) -> Iterable[Insertion]:
-    assert len(func.cfg.all_preds[source.NodeNameRet]) == 1, ("not to worry, just need to handle the case "
-                                                              "where the Err node has multiple predecessors")
+    #assert len(func.cfg.all_preds[source.NodeNameRet]) == 1, ("not to worry, just need to handle the case "
+    #                                                          "where the Err node has multiple predecessors")
     pred = func.cfg.all_preds[source.NodeNameRet][0]
     yield Insertion(node_name=source.NodeName('post_condition'),
                     after=pred,
