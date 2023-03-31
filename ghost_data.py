@@ -745,6 +745,78 @@ universe = {
                                                                      eq(pms_assigned(), T),
                                                                      eq(ghost_asserts_assigned(), T),
                                                                      eq(g('have_reply'), T),
+                                                                     # required for verification:
+                                                                     source.expr_implies(
+                                                                         conjs( eq(g('lbadge'), T), eq(i64v('lbadge'), i64(0)) ),
+                                                                         conjs(
+                                                                             eq(i64v('is_endpoint'), i64(0)),
+                                                                             eq(g('lbadge'), T),
+                                                                             eq(g('idx'), T),
+                                                                             eq(htd_assigned(), T),
+                                                                             eq(mem_assigned(), T),
+                                                                             eq(pms_assigned(), T),
+                                                                             eq(ghost_asserts_assigned(), T),
+                                                                             # required for verification (loop 10 exit conds):
+                                                                             eq(
+                                                                                 i64v('lbadge'),
+                                                                                 source.expr_shift_right(
+                                                                                     source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                                     source.ExprFunction(source.type_word64, source.FunctionName("(_ zero_extend 32)"), [i32v('idx')])
+                                                                                 )
+                                                                             ),
+                                                                             eq(
+                                                                                 source.expr_shift_left(
+                                                                                     i64v('lbadge'),
+                                                                                     source.ExprFunction(source.type_word64, source.FunctionName("(_ zero_extend 32)"), [i32v('idx')])
+                                                                                 ),
+                                                                                 source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                             ),
+                                                                             ule(
+                                                                                 i32v('idx'),
+                                                                                 i32(63)
+                                                                             ),
+                                                                             eq(
+                                                                                 i64(0),
+                                                                                 source.expr_shift_right(
+                                                                                     source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                                     i64(63)
+                                                                                 )
+                                                                             ),
+                                                                             eq(
+                                                                                 i64(0),
+                                                                                 source.expr_shift_right(
+                                                                                     i64v('lbadge'),
+                                                                                     i64(63)
+                                                                                 )
+                                                                             ),
+                                                                             eq(
+                                                                                 source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_intersection"),[
+                                                                                   source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                                   source.ExprFunction(source.type_word64, lc_last_handled_notified, [lc])
+                                                                                 ]),
+                                                                                 source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_empty"), [])
+                                                                             ),
+                                                                             eq(
+                                                                                 source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_union"),[
+                                                                                   source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                                   source.ExprFunction(source.type_word64, lc_last_handled_notified, [lc])
+                                                                                 ]),
+                                                                                 source.ExprFunction(Set_Ch, NextRecvNotificationGet, [source.ExprFunction(NextRecv, source.FunctionName('handler_loop_pre_receive_oracle'), [])])
+                                                                             ),
+                                                                             eq(
+                                                                                 source.ExprFunction(Maybe_Prod_Ch_MsgInfo,Prod_Ch_MsgInfo_Nothing, []),
+                                                                                 source.ExprFunction(Maybe_Prod_Ch_MsgInfo,lc_unhandled_ppcall, [lc]),
+                                                                             ),
+                                                                             eq(
+                                                                                 source.ExprFunction(Maybe_MsgInfo, source.FunctionName("handler_loop_pre_unhandled_reply"), []),
+                                                                                 source.ExprFunction(Maybe_MsgInfo,lc_last_handled_reply, [lc]),
+                                                                             ),
+                                                                             eq(
+                                                                                 source.ExprFunction(NextRecv, NR_Unknown, []),
+                                                                                 source.ExprFunction(NextRecv, lc_receive_oracle, [lc]),
+                                                                             ),
+                                                                         )
+                                                                     ),
                                                                  ),
                                                                  lh('10'): conjs(
                                                                      eq(i64v('is_endpoint'), i64(0)),
@@ -763,11 +835,55 @@ universe = {
                                                                          )
                                                                      ),
                                                                      eq(
+                                                                         source.expr_shift_left(
+                                                                             i64v('lbadge'),
+                                                                             source.ExprFunction(source.type_word64, source.FunctionName("(_ zero_extend 32)"), [i32v('idx')])
+                                                                         ),
+                                                                         source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                     ),
+                                                                     ule(
+                                                                         i32v('idx'),
+                                                                         i32(63)
+                                                                     ),
+                                                                     eq(
+                                                                         i64(0),
+                                                                         source.expr_shift_right(
+                                                                             source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                             i64(63)
+                                                                         )
+                                                                     ),
+                                                                     eq(
+                                                                         i64(0),
+                                                                         source.expr_shift_right(
+                                                                             i64v('lbadge'),
+                                                                             i64(63)
+                                                                         )
+                                                                     ),
+                                                                     eq(
                                                                          source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_intersection"),[
                                                                            source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
                                                                            source.ExprFunction(source.type_word64, lc_last_handled_notified, [lc])
                                                                          ]),
                                                                          source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_empty"), [])
+                                                                     ),
+                                                                     eq(
+                                                                         source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_union"),[
+                                                                           source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc]),
+                                                                           source.ExprFunction(source.type_word64, lc_last_handled_notified, [lc])
+                                                                         ]),
+                                                                         source.ExprFunction(Set_Ch, NextRecvNotificationGet, [source.ExprFunction(NextRecv, source.FunctionName('handler_loop_pre_receive_oracle'), [])])
+                                                                     ),
+                                                                     eq(
+                                                                         source.ExprFunction(Maybe_Prod_Ch_MsgInfo,Prod_Ch_MsgInfo_Nothing, []),
+                                                                         source.ExprFunction(Maybe_Prod_Ch_MsgInfo,lc_unhandled_ppcall, [lc]),
+                                                                     ),
+                                                                     eq(
+                                                                         source.ExprFunction(Maybe_MsgInfo, source.FunctionName("handler_loop_pre_unhandled_reply"), []),
+                                                                         source.ExprFunction(Maybe_MsgInfo,lc_last_handled_reply, [lc]),
+                                                                     ),
+                                                                     eq(
+                                                                         source.ExprFunction(NextRecv, NR_Unknown, []),
+                                                                         source.ExprFunction(NextRecv, lc_receive_oracle, [lc]),
                                                                      ),
                                                                  )
                                                                 })
@@ -855,12 +971,13 @@ def wf_handler_pre_receive_oracle_with_set_ghost() -> source.ExprT[source.ProgVa
 
     valid_pre_handler_notification = source.expr_implies(
         is_notification,
-        neq(
-            source.ExprFunction(Set_Ch, NextRecvNotificationGet, [
-                                handle_loop_pre_oracle]),
-            source.ExprFunction(Set_Ch, Ch_set_empty, [])
+        conjs(
+            neq(
+                source.ExprFunction(Set_Ch, NextRecvNotificationGet, [
+                                    handle_loop_pre_oracle]),
+                source.ExprFunction(Set_Ch, Ch_set_empty, [])
+            ),
         )
-
     )
 
     # we sort of don't care about sections of the bitvector we don't access
@@ -880,6 +997,7 @@ def wf_handler_pre_receive_oracle_with_set_ghost() -> source.ExprT[source.ProgVa
 
 
 def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
+    # case 1: notis
     is_notification = eq(
         handle_loop_pre_oracle_ty,
         source.ExprFunction(NextRecvEnum, NextRecvEnumNotification, [])
@@ -898,25 +1016,75 @@ def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
     ch_checks = [
       eq(notification, badge),
       eq(
+          i64(0),
+          source.expr_shift_right(
+              badge,
+              i64(63)
+          )
+      ),
+      eq(
           source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_intersection"),[
             source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc_progvar]),
             source.ExprFunction(source.type_word64, lc_last_handled_notified, [lc_progvar])
           ]),
           source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_empty"), [])
       ),
+    ]
+
+    # case 2: ppcalls
+    is_ppcall = eq(
+        handle_loop_pre_oracle_ty,
+        source.ExprFunction(NextRecvEnum, NextRecvEnumPPCall, [])
+    )
+
+    the_ppcall = source.ExprFunction(
+        Prod_Ch_MsgInfo, NextRecvPPCallGet, [handle_loop_pre_oracle])
+
+    the_ch = source.ExprFunction(
+        Ch, Prod_Ch_MsgInfo_fst, [the_ppcall])
+
+    the_msginfo = source.ExprFunction(
+        MsgInfo, Prod_Ch_MsgInfo_snd, [the_ppcall])
+
+    pp_checks = [
       eq(
-          source.ExprFunction(source.type_word64, source.FunctionName("Ch_set_union"),[
-            source.ExprFunction(source.type_word64, lc_unhandled_notified, [lc_progvar]),
-            source.ExprFunction(source.type_word64, lc_last_handled_notified, [lc_progvar])
-          ]),
-          notification
+          i64(0),#TODO: this is very much unsound, fix it
+          i64(1)
       ),
     ]
+
+    # reply pending
+    no_reply_pending = eq(
+        source.ExprFunction(Maybe_MsgInfoEnum, Maybe_MsgInfoEnumGet, [
+                            handle_loop_pre_unhandled_reply]),
+        source.ExprFunction(Maybe_MsgInfoEnum,
+                            Maybe_MsgInfoEnumNothing, [])
+    )
+
+    have_reply_lvar = source.ExprFunction(source.TypeBitVec(8), source.FunctionName("have_reply____Bool@v~2"), [])
+    rt_assigned_lvar = source.ExprFunction(source.type_bool, source.FunctionName("reply_tag___struct_seL4_MessageInfo_C@v.words_C.0@assigned~2"), [])
+
+    no_reply_pending_kernel = conjs(
+        eq(have_reply_lvar, char(0)),
+        eq(rt_assigned_lvar, T)
+    )
 
     relation = conjs(
         source.expr_implies(
             is_notification,
             conjs(*ch_checks)
+        ),
+        source.expr_implies(
+            is_ppcall,
+            conjs(*pp_checks)
+        ),
+        source.expr_implies(
+          no_reply_pending,
+          no_reply_pending_kernel
+        ),
+        source.expr_implies(
+          no_reply_pending_kernel,
+          no_reply_pending
         )
     )
 
@@ -941,7 +1109,18 @@ def handler_loop_iter_pre() -> source.ExprT[source.ProgVarName]:
             source.ExprFunction(Set_Ch, lc_last_handled_notified, [lc_progvar]),
             source.ExprFunction(Set_Ch, Ch_set_empty, [])
         ),
-
+        
+        # so is this cond: no unhandled replies at start!
+        eq(
+            source.ExprFunction(Maybe_MsgInfoEnum, Maybe_MsgInfoEnumGet, [
+               source.ExprFunction(Maybe_MsgInfo, lc_last_handled_reply, [lc_progvar])]),
+            source.ExprFunction(Maybe_MsgInfoEnum, Maybe_MsgInfoEnumNothing, [])
+        ),
+        eq(
+            source.ExprFunction(MsgInfo, MsgInfo_Just_1, [
+               source.ExprFunction(Maybe_MsgInfo, lc_last_handled_reply, [lc_progvar])]),
+            i64(0)
+        ),
         eq(
             source.ExprFunction(Maybe_Prod_Ch_MsgInfo,
                                 lc_unhandled_ppcall, [lc_progvar]),
