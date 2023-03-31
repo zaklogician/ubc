@@ -1046,13 +1046,6 @@ def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
     the_msginfo = source.ExprFunction(
         MsgInfo, Prod_Ch_MsgInfo_snd, [the_ppcall])
 
-    pp_checks = [
-      eq(
-          i64(0),#TODO: this is very much unsound, fix it
-          i64(1)
-      ),
-    ]
-
     # reply pending
     no_reply_pending = eq(
         source.ExprFunction(Maybe_MsgInfoEnum, Maybe_MsgInfoEnumGet, [
@@ -1073,10 +1066,6 @@ def receive_oracle_relation() -> source.ExprT[source.ProgVarName]:
         source.expr_implies(
             is_notification,
             conjs(*ch_checks)
-        ),
-        source.expr_implies(
-            is_ppcall,
-            conjs(*pp_checks)
         ),
         source.expr_implies(
           no_reply_pending,
